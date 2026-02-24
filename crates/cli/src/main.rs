@@ -2,6 +2,7 @@ mod commands;
 mod tui;
 
 use anyhow::Result;
+use atlas_common::error::AtlasError;
 use atlas_utils::output::OutputFormat;
 use clap::{Parser, Subcommand, ValueEnum};
 use tracing_subscriber::EnvFilter;
@@ -88,12 +89,6 @@ enum Commands {
     Hyperliquid {
         #[command(subcommand)]
         action: HyperliquidAction,
-    },
-
-    /// Morpho Blue: DeFi lending & borrowing.
-    Morpho {
-        #[command(subcommand)]
-        action: MorphoAction,
     },
 
     /// 0x Protocol: multi-chain DEX aggregator (swaps).
@@ -184,9 +179,9 @@ enum SystemConfigAction {
         /// Enable or disable (true/false).
         enabled: String,
     },
-    /// Set Atlas backend API URL.
-    #[command(name = "api-url")]
-    ApiUrl { url: String },
+    /// Set Atlas backend API key.
+    #[command(name = "api-key")]
+    ApiKey { key: String },
 }
 
 #[derive(Subcommand)]
@@ -199,7 +194,7 @@ enum ModuleConfigAction {
     Disable { name: String },
     /// Set a module config key.
     Set {
-        /// Module name (e.g. hyperliquid, morpho).
+        /// Module name (e.g. hyperliquid).
         module: String,
         /// Config key (e.g. network, chain).
         key: String,
@@ -652,21 +647,6 @@ enum HlAgentAction {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  MORPHO — Protocol namespace
-// ═══════════════════════════════════════════════════════════════════════
-
-#[derive(Subcommand)]
-enum MorphoAction {
-    /// List lending markets.
-    Markets {
-        #[arg(long, default_value = "ethereum")]
-        chain: String,
-    },
-    /// Show lending positions.
-    Positions,
-}
-
-// ═══════════════════════════════════════════════════════════════════════
 //  0x — Protocol namespace (multi-chain DEX aggregator)
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -763,7 +743,7 @@ enum RiskAction {
 #[derive(Subcommand)]
 enum HistoryAction {
     Trades {
-        /// Filter by protocol (hyperliquid, 0x, morpho). Default: all.
+        /// Filter by protocol (hyperliquid, 0x). Default: all.
         #[arg(long, alias = "proto")]
         protocol: Option<String>,
         #[arg(long)]
@@ -776,7 +756,7 @@ enum HistoryAction {
         limit: usize,
     },
     Orders {
-        /// Filter by protocol (hyperliquid, 0x, morpho). Default: all.
+        /// Filter by protocol (hyperliquid, 0x). Default: all.
         #[arg(long, alias = "proto")]
         protocol: Option<String>,
         #[arg(long)]
@@ -787,7 +767,7 @@ enum HistoryAction {
         limit: usize,
     },
     Pnl {
-        /// Filter by protocol (hyperliquid, 0x, morpho). Default: all.
+        /// Filter by protocol (hyperliquid, 0x). Default: all.
         #[arg(long, alias = "proto")]
         protocol: Option<String>,
         #[arg(long)]
@@ -852,16 +832,112 @@ async fn main() {
 
     if let Err(e) = result {
         if fmt != OutputFormat::Table {
-            // Structured JSON error to stdout for machine consumers
-            let json = serde_json::json!({
-                "ok": false,
-                "error": format!("{e}"),
-            });
+            // PRD-compliant structured error JSON to stdout for machine consumers
+            // Try to extract AtlasError for structured output, else wrap as UNKNOWN_ERROR
+            let json = classify_error(&e);
             println!("{}", serde_json::to_string(&json).unwrap_or_default());
+            let exit_code = json["error"]["category"]
+                .as_str()
+                .map(|c| match c {
+                    "network" => 2,
+                    "system" => 3,
+                    _ => 1,
+                })
+                .unwrap_or(1);
+            std::process::exit(exit_code);
         } else {
             eprintln!("Error: {e:#}");
+            // Determine exit code from error chain
+            let exit_code = exit_code_from_error(&e);
+            std::process::exit(exit_code);
         }
-        std::process::exit(1);
+    }
+}
+
+/// Classify an anyhow error into PRD-compliant structured JSON.
+///
+/// If the error chain contains an `AtlasError`, use its structured detail.
+/// Otherwise, heuristically classify from the error message.
+fn classify_error(e: &anyhow::Error) -> serde_json::Value {
+    // Try to downcast to AtlasError first
+    if let Some(atlas_err) = e.downcast_ref::<AtlasError>() {
+        return atlas_err.to_json();
+    }
+
+    // Heuristic classification from error message
+    let msg = format!("{e:#}");
+    let lower = msg.to_lowercase();
+
+    let (code, category, recoverable, hints) = if lower.contains("timeout")
+        || lower.contains("connection refused")
+        || lower.contains("network")
+        || lower.contains("unreachable")
+    {
+        (
+            "NETWORK_ERROR",
+            "network",
+            true,
+            vec!["Check network connectivity", "Retry in a few seconds"],
+        )
+    } else if lower.contains("keyring") || lower.contains("keystore") {
+        (
+            "KEYRING_ERROR",
+            "auth",
+            false,
+            vec!["Check OS keyring service is running"],
+        )
+    } else if lower.contains("no profile") || lower.contains("no wallet") {
+        (
+            "NO_PROFILE",
+            "auth",
+            true,
+            vec!["Run: atlas profile generate main"],
+        )
+    } else if lower.contains("config") || lower.contains("atlas.json") {
+        (
+            "CONFIG_ERROR",
+            "config",
+            true,
+            vec!["Run: atlas doctor --fix"],
+        )
+    } else if lower.contains("invalid") || lower.contains("parse") {
+        (
+            "VALIDATION_ERROR",
+            "validation",
+            true,
+            vec!["Check command parameters"],
+        )
+    } else {
+        ("UNKNOWN_ERROR", "system", false, vec![] as Vec<&str>)
+    };
+
+    serde_json::json!({
+        "ok": false,
+        "error": {
+            "code": code,
+            "message": msg,
+            "category": category,
+            "recoverable": recoverable,
+            "hints": hints,
+        }
+    })
+}
+
+/// Determine exit code from an anyhow error chain.
+fn exit_code_from_error(e: &anyhow::Error) -> i32 {
+    if let Some(atlas_err) = e.downcast_ref::<AtlasError>() {
+        return atlas_err.exit_code();
+    }
+
+    let msg = format!("{e:#}").to_lowercase();
+    if msg.contains("timeout")
+        || msg.contains("network")
+        || msg.contains("unreachable")
+        || msg.contains("connection refused")
+    {
+        2 // network
+    } else {
+        1 // user error (default)
     }
 }
 
@@ -890,21 +966,21 @@ async fn run(command: Commands, fmt: OutputFormat) -> Result<()> {
                     } else {
                         println!(
                             "{}",
-                            serde_json::json!({"ok": true, "key": "verbose", "value": val})
+                            serde_json::json!({"ok": true, "data": {"key": "verbose", "value": val}})
                         );
                     }
                     Ok(())
                 }
-                SystemConfigAction::ApiUrl { url } => {
+                SystemConfigAction::ApiKey { key } => {
                     let mut config = atlas_core::workspace::load_config()?;
-                    config.system.api_url = url.clone();
+                    config.system.api_key = Some(key.clone());
                     atlas_core::workspace::save_config(&config)?;
                     if fmt == OutputFormat::Table {
-                        println!("✓ api_url = {url}");
+                        println!("✓ api_key = {key}");
                     } else {
                         println!(
                             "{}",
-                            serde_json::json!({"ok": true, "key": "api_url", "value": url})
+                            serde_json::json!({"ok": true, "data": {"key": "api_key", "value": key}})
                         );
                     }
                     Ok(())
@@ -1184,20 +1260,6 @@ async fn run(command: Commands, fmt: OutputFormat) -> Result<()> {
                         &coin, &side, entry, account, stop, leverage, fmt,
                     ),
                 },
-            }
-        }
-
-        // ── MORPHO ──────────────────────────────────────────────
-        Commands::Morpho { action } => {
-            let config = atlas_core::workspace::load_config()?;
-            if !config.modules.morpho.enabled {
-                anyhow::bail!(
-                    "Morpho module is disabled. Run: atlas configure module enable morpho"
-                );
-            }
-            match action {
-                MorphoAction::Markets { chain } => commands::morpho::markets(&chain, fmt).await,
-                MorphoAction::Positions => commands::morpho::positions(fmt).await,
             }
         }
 

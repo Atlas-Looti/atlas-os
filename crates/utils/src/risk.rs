@@ -1,4 +1,4 @@
-use atlas_types::config::{AppConfig, TradingMode};
+use atlas_types::config::AppConfig;
 use atlas_types::risk::RiskConfig;
 
 /// Input for calculating a risk-managed position.
@@ -65,7 +65,7 @@ pub struct RiskWarnings {
 /// This works identically for both Futures and CFD modes — the only
 /// difference is how `size` is displayed (units vs lots).
 pub fn calculate_position(config: &AppConfig, risk_config: &RiskConfig, input: &RiskInput) -> RiskOutput {
-    let leverage = input.leverage.unwrap_or(config.trading.default_leverage);
+    let leverage = input.leverage.unwrap_or(config.modules.hyperliquid.config.default_leverage);
 
     // Dollar risk
     let risk_pct = risk_config.effective_risk_pct(&input.coin);
@@ -124,9 +124,10 @@ pub fn calculate_position(config: &AppConfig, risk_config: &RiskConfig, input: &
     };
 
     // Convert to lots for CFD mode
-    let lots = match config.trading.mode {
-        TradingMode::Cfd => config.trading.lots.size_to_lots(&input.coin, size),
-        TradingMode::Futures => size,
+    let lots = if config.modules.hyperliquid.config.is_cfd() {
+        config.modules.hyperliquid.config.lots.size_to_lots(&input.coin, size)
+    } else {
+        size
     };
 
     let actual_risk_pct = if input.account_value > 0.0 {
@@ -221,20 +222,22 @@ pub fn validate_risk(
 
 /// Format risk output for display in the terminal.
 pub fn format_risk_summary(config: &AppConfig, input: &RiskInput, output: &RiskOutput) -> String {
-    let mode_label = match config.trading.mode {
-        TradingMode::Futures => "FUTURES",
-        TradingMode::Cfd => "CFD",
+    let mode_label = if config.modules.hyperliquid.config.is_cfd() {
+        "CFD"
+    } else {
+        "FUTURES"
     };
 
     let side = if input.is_buy { "LONG" } else { "SHORT" };
 
-    let size_display = match config.trading.mode {
-        TradingMode::Futures => format!("{:.6} {}", output.size, input.coin),
-        TradingMode::Cfd => format!("{:.4} lots ({:.6} {})", output.lots, output.size, input.coin),
+    let size_display = if config.modules.hyperliquid.config.is_cfd() {
+        format!("{:.4} lots ({:.6} {})", output.lots, output.size, input.coin)
+    } else {
+        format!("{:.6} {}", output.size, input.coin)
     };
 
     format!(
-        r#"╔══════════════════════════════════════════════════════════╗
+ r#"╔══════════════════════════════════════════════════════════╗
 ║  RISK CALCULATOR — {:<7} mode                      ║
 ╠══════════════════════════════════════════════════════════╣
 ║  Asset        : {:<6} {}                              ║
@@ -343,8 +346,9 @@ mod tests {
 
     #[test]
     fn test_cfd_mode_converts_to_lots() {
+        use atlas_types::config::TradingMode;
         let mut config = AppConfig::default();
-        config.trading.mode = TradingMode::Cfd;
+        config.modules.hyperliquid.config.mode = TradingMode::Cfd;
 
         let input = default_input();
         let output = calculate_position(&config, &RiskConfig::default(), &input);

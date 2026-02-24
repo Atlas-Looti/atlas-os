@@ -5,10 +5,11 @@ use atlas_utils::output::OutputFormat;
 
 fn json_ok(fmt: OutputFormat, action: &str, module: &str, extra: Option<(&str, &str)>) {
     if fmt != OutputFormat::Table {
-        let mut map = serde_json::json!({"ok": true, "action": action, "module": module});
+        let mut data = serde_json::json!({"action": action, "module": module});
         if let Some((k, v)) = extra {
-            map[k] = serde_json::Value::String(v.to_string());
+            data[k] = serde_json::Value::String(v.to_string());
         }
+        let map = serde_json::json!({"ok": true, "data": data});
         println!("{}", serde_json::to_string(&map).unwrap_or_default());
     }
 }
@@ -23,16 +24,9 @@ pub fn run(fmt: OutputFormat) -> Result<()> {
             "Perpetual Trading",
             config.modules.hyperliquid.enabled,
             format!(
-                "network={}, rpc={}",
+                "network={}",
                 config.modules.hyperliquid.config.network,
-                config.modules.hyperliquid.config.rpc_url
             ),
-        ),
-        (
-            "morpho",
-            "DeFi Lending",
-            config.modules.morpho.enabled,
-            format!("chain={}", config.modules.morpho.config.chain),
         ),
         (
             "zero_x",
@@ -85,7 +79,6 @@ pub fn enable(name: &str, fmt: OutputFormat) -> Result<()> {
 
     match resolved {
         "hyperliquid" => config.modules.hyperliquid.enabled = true,
-        "morpho" => config.modules.morpho.enabled = true,
         "zero_x" => config.modules.zero_x.enabled = true,
         _ => unreachable!(),
     }
@@ -106,7 +99,6 @@ pub fn disable(name: &str, fmt: OutputFormat) -> Result<()> {
 
     match resolved {
         "hyperliquid" => config.modules.hyperliquid.enabled = false,
-        "morpho" => config.modules.morpho.enabled = false,
         "zero_x" => config.modules.zero_x.enabled = false,
         _ => unreachable!(),
     }
@@ -133,17 +125,7 @@ pub fn config_set(module: &str, key: &str, value: &str, fmt: OutputFormat) -> Re
                 }
                 config.modules.hyperliquid.config.network = value.to_string();
             }
-            "rpc_url" | "rpc" => config.modules.hyperliquid.config.rpc_url = value.to_string(),
-            _ => anyhow::bail!("Unknown key '{key}' for hyperliquid. Available: network, rpc_url"),
-        },
-        "morpho" => match key {
-            "chain" => {
-                if value != "ethereum" && value != "base" {
-                    anyhow::bail!("Invalid chain: {value}. Must be 'ethereum' or 'base'.");
-                }
-                config.modules.morpho.config.chain = value.to_string();
-            }
-            _ => anyhow::bail!("Unknown key '{key}' for morpho. Available: chain"),
+            _ => anyhow::bail!("Unknown key '{key}' for hyperliquid. Available: network"),
         },
         "zero_x" => anyhow::bail!("No configurable keys for zero_x yet."),
         _ => unreachable!(),
@@ -167,8 +149,7 @@ pub fn config_set(module: &str, key: &str, value: &str, fmt: OutputFormat) -> Re
 fn resolve_module(name: &str) -> Result<&'static str> {
     match name.to_lowercase().as_str() {
         "hyperliquid" | "hl" | "perp" => Ok("hyperliquid"),
-        "morpho" | "lending" => Ok("morpho"),
         "zero_x" | "0x" | "swap" => Ok("zero_x"),
-        _ => anyhow::bail!("Unknown module: {name}. Available: hyperliquid, morpho, zero_x"),
+        _ => anyhow::bail!("Unknown module: {name}. Available: hyperliquid, zero_x"),
     }
 }

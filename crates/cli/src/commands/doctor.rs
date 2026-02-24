@@ -1,119 +1,140 @@
 //! `atlas doctor` — system health checks.
 
 use anyhow::Result;
-use atlas_types::output::DoctorOutput;
+use atlas_types::output::{DoctorCheck, DoctorOutput};
 use atlas_utils::output::{render, OutputFormat};
 
 /// `atlas doctor [--fix]` — system health checks.
 pub async fn run(fix: bool, fmt: OutputFormat) -> Result<()> {
-    // ── Check 1: Config integrity ───────────────────────────────
-    let config_ok = atlas_core::workspace::load_config().is_ok();
-
-    // ── Check 2: Keystore exists ────────────────────────────────
-    let wallets_path = atlas_core::workspace::resolve("keystore/wallets.json")?;
-    let keystore_ok = wallets_path.exists();
-
-    // ── Check 3: API connectivity ───────────────────────────────
-    let api_latency_ms = check_api_latency().await.ok();
-
-    // ── Check 4: Profile check ──────────────────────────────────
-    let profile_ok = atlas_core::auth::AuthManager::load_store_pub()
-        .map(|s| !s.wallets.is_empty())
-        .unwrap_or(false);
-
-    let output = DoctorOutput {
-        config_ok,
-        keystore_ok,
-        ntp_ok: None,
-        api_latency_ms,
+    // ── Check 1: Profile ────────────────────────────────────────────
+    let config_result = atlas_core::workspace::load_config();
+    let profile_check = match (&config_result, atlas_core::auth::AuthManager::load_store_pub()) {
+        (Ok(cfg), Ok(store)) if !store.wallets.is_empty() => {
+            let active = &cfg.system.active_profile;
+            if store.exists(active) {
+                DoctorCheck::ok("profile", active)
+            } else {
+                DoctorCheck::fail(
+                    "profile",
+                    &format!("Active profile '{active}' not found. Run: atlas profile generate {active}"),
+                )
+            }
+        }
+        _ => DoctorCheck::fail(
+            "profile",
+            "Run: atlas profile generate main — creates a new wallet profile",
+        ),
     };
+
+    // ── Check 2: Keyring ────────────────────────────────────────────
+    let wallets_path = atlas_core::workspace::resolve("keystore/wallets.json")?;
+    let keyring_check = if wallets_path.exists() {
+        DoctorCheck::ok_bare("keyring")
+    } else {
+        DoctorCheck::fail(
+            "keyring",
+            "Run: atlas profile generate main — initializes keystore",
+        )
+    };
+
+    // ── Check 3: API Key ────────────────────────────────────────────
+    let api_key_check = match atlas_core::workspace::load_config() {
+        Ok(config) if config.system.api_key.is_some() => DoctorCheck::ok_bare("api_key"),
+        _ => DoctorCheck::fail(
+            "api_key",
+            "Run: atlas configure system api-key <key> — get key from apps/frontend → Settings",
+        ),
+    };
+
+    // ── Check 4: Backend/Network latency ────────────────────────────
+    let (backend_check, hl_check) = match check_api_latency().await {
+        Ok(ms) => {
+            let backend = DoctorCheck::ok("backend", format!("latency_ms:{ms}"));
+
+            // ── Check 5: Hyperliquid module ──────────────────────────
+            let hl = match atlas_core::workspace::load_config() {
+                Ok(cfg) if cfg.modules.hyperliquid.enabled => {
+                    DoctorCheck::ok("hyperliquid", &cfg.modules.hyperliquid.config.network)
+                }
+                _ => DoctorCheck::fail(
+                    "hyperliquid",
+                    "Run: atlas configure module enable hyperliquid && atlas configure module set hl network mainnet",
+                ),
+            };
+            (backend, hl)
+        }
+        Err(_) => {
+            let backend = DoctorCheck::fail(
+                "backend",
+                "Hyperliquid API unreachable — check network connectivity",
+            );
+            let hl = DoctorCheck::fail(
+                "hyperliquid",
+                "Cannot connect to Hyperliquid — check network connectivity",
+            );
+            (backend, hl)
+        }
+    };
+
+    let checks = vec![
+        profile_check,
+        keyring_check,
+        api_key_check,
+        backend_check,
+        hl_check,
+    ];
+
+    let all_ok = checks.iter().all(|c| c.status == "ok");
+    let output = DoctorOutput { checks };
 
     if fmt != OutputFormat::Table {
         render(fmt, &output)?;
         return Ok(());
     }
 
-    // Table mode
+    // ── Table mode — human-friendly ──────────────────────────────────
     println!("┌─────────────────────────────────────────────┐");
     println!("│  ATLAS DOCTOR                               │");
     println!("├─────────────────────────────────────────────┤");
 
-    print_check("Config", config_ok, "atlas configure show");
-    print_check("Keystore", keystore_ok, "atlas profile generate <name>");
-    print_check("Wallet Profile", profile_ok, "atlas profile generate main");
-
-    match api_latency_ms {
-        Some(ms) => {
-            let quality = if ms < 200 {
-                "✓ excellent"
-            } else if ms < 500 {
-                "✓ good"
-            } else if ms < 1000 {
-                "⚠ slow"
+    for check in &output.checks {
+        let icon = if check.status == "ok" { "✓" } else { "✗" };
+        let label = format!("{:<14}", check.name);
+        if check.status == "ok" {
+            let val = check.value.as_deref().unwrap_or("");
+            let display = if val.is_empty() {
+                format!("{icon}")
             } else {
-                "✗ very slow"
+                format!("{icon} ({val})")
             };
-            println!(
-                "│  API Latency    : {} ({ms}ms){:>width$}│",
-                quality,
-                "",
-                width = 20_usize.saturating_sub(quality.len())
-            );
-        }
-        None => {
-            println!("│  API Latency    : ✗ unreachable              │");
+            println!("│  {label}: {:<27}│", display);
+        } else {
+            let fix = check
+                .fix
+                .as_deref()
+                .unwrap_or("")
+                .chars()
+                .take(26)
+                .collect::<String>();
+            println!("│  {label}: {icon} → {:<26}│", fix);
         }
     }
-
-    // Module status
-    if let Ok(config) = atlas_core::workspace::load_config() {
-        println!("├─────────────────────────────────────────────┤");
-        println!("│  Modules:                                   │");
-        let hl = if config.modules.hyperliquid.enabled {
-            "✓ enabled"
-        } else {
-            "✗ disabled"
-        };
-        let morpho = if config.modules.morpho.enabled {
-            "✓ enabled"
-        } else {
-            "✗ disabled"
-        };
-        let zx = if config.modules.zero_x.enabled {
-            "✓ enabled"
-        } else {
-            "✗ disabled"
-        };
-        println!("│    Hyperliquid  : {:<25}│", hl);
-        println!("│    Morpho       : {:<25}│", morpho);
-        println!("│    0x Swap      : {:<25}│", zx);
-    }
-
-    println!("├─────────────────────────────────────────────┤");
 
     if fix {
+        println!("├─────────────────────────────────────────────┤");
         println!("│  --fix: Re-initializing workspace...        │");
         atlas_core::init_workspace()?;
         println!("│  ✓ Workspace re-initialized.                │");
-    } else if !config_ok || !keystore_ok || !profile_ok {
+    } else if !all_ok {
+        println!("├─────────────────────────────────────────────┤");
         println!("│  Issues found. Run with --fix to repair.    │");
     } else {
+        println!("├─────────────────────────────────────────────┤");
         println!("│  ✓ All systems operational.                 │");
     }
 
     println!("└─────────────────────────────────────────────┘");
     Ok(())
-}
-
-fn print_check(name: &str, ok: bool, hint: &str) {
-    let icon = if ok { "✓" } else { "✗" };
-    let pad = 14 - name.len();
-    if ok {
-        println!("│  {name}{:>pad$}: {icon}{:>30}│", "", "");
-    } else {
-        let hint_short = if hint.len() > 28 { &hint[..28] } else { hint };
-        println!("│  {name}{:>pad$}: {icon} → {:<26}│", "", hint_short);
-    }
 }
 
 async fn check_api_latency() -> Result<u64> {

@@ -4,17 +4,21 @@ use serde::{Deserialize, Serialize};
 
 use crate::risk::RiskConfig;
 
+// ═══════════════════════════════════════════════════════════════════════
+//  SIZE INPUT — how the user expresses position size
+// ═══════════════════════════════════════════════════════════════════════
+
 /// How the user specifies position size.
 ///
 /// Atlas supports multiple ways to express size:
-///   - **USDC**:   `atlas buy ETH $200` or `200` (if default_size_mode = usdc)
-///   - **Units**:  `atlas buy ETH 0.5eth` or `0.5` (if default_size_mode = units)
-///   - **Lots**:   `atlas buy ETH 50lots` or `50` (if default_size_mode = lots)
+///   - **USDC**:   `atlas hl perp buy ETH 200` or `$200`
+///   - **Units**:  `atlas hl perp buy ETH 0.5eth`
+///   - **Lots**:   `atlas hl perp buy ETH 10lots`
 ///
-/// Explicit suffixes always override default_size_mode.
+/// Explicit suffixes always override the module's `default_size_mode`.
 #[derive(Debug, Clone, PartialEq)]
 pub enum SizeInput {
-    /// Raw value — interpreted based on `default_size_mode` config.
+    /// Raw value — interpreted based on module's `default_size_mode`.
     Raw(f64),
     /// Explicit USDC margin: `$200`, `200$`, `200u`, `200usdc`.
     Usdc(f64),
@@ -24,59 +28,89 @@ pub enum SizeInput {
     Lots(f64),
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+//  APP CONFIG — top-level, stored at ~/.atlas-os/atlas.json
+// ═══════════════════════════════════════════════════════════════════════
+
 /// Top-level configuration stored in `$HOME/.atlas-os/atlas.json`.
 ///
-/// Structure:
 /// ```json
 /// {
-///   "system": { "active_profile": "main", "verbose": false },
-///   "trading": { ... },
-///   "risk": { ... },
+///   "system": {
+///     "active_profile": "main",
+///     "api_key": "ak_...",
+///     "verbose": false
+///   },
 ///   "modules": {
-///     "hyperliquid": { "enabled": true, "network": "mainnet", "rpc_url": "..." },
-///     "morpho": { "enabled": true, "chain": "ethereum" },
-///     "zero_x": { "enabled": true, "api_key": "" }
+///     "hyperliquid": {
+///       "enabled": true,
+///       "network": "mainnet",
+///       "mode": "futures",
+///       "default_size_mode": "usdc",
+///       "default_leverage": 5,
+///       "default_slippage": 0.05,
+///       "lots": { ... },
+///       "risk": { ... }
+///     },
+///     "zero_x": {
+///       "enabled": false,
+///       "default_slippage_bps": 100
+///     }
 ///   }
 /// }
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
-    /// System-wide settings.
+    /// System-wide settings (profile, API key, verbosity).
     pub system: SystemConfig,
-    /// Trading defaults (applies to all perp modules).
-    pub trading: TradingConfig,
-    /// Per-module configuration (each module has its own risk settings).
+    /// Per-module configurations — each protocol owns its own settings.
     #[serde(default)]
     pub modules: ModulesConfig,
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+//  SYSTEM CONFIG
+// ═══════════════════════════════════════════════════════════════════════
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemConfig {
     /// The currently active wallet profile name.
     pub active_profile: String,
+
+    /// API key obtained from apps/frontend — required to authenticate
+    /// with the Atlas OS backend gateway (apps/backend).
+    ///
+    /// Users obtain this key by logging in at the frontend dashboard.
+    /// Without this key, commands that depend on the backend proxy
+    /// (0x swaps, EVM RPC, market data) will fail with auth errors.
+    #[serde(default)]
+    pub api_key: Option<String>,
+
     /// Enable verbose tracing output.
+    #[serde(default)]
     pub verbose: bool,
-    /// Atlas backend API URL (for CoinGecko, Alchemy, etc.).
-    #[serde(default = "default_api_url")]
-    pub api_url: String,
 }
 
-fn default_api_url() -> String {
-    "http://localhost:3001".to_string()
-}
+// ═══════════════════════════════════════════════════════════════════════
+//  MODULES CONFIG — each protocol owns its own trading settings
+// ═══════════════════════════════════════════════════════════════════════
 
-/// Per-module configuration — each protocol has its own config block.
+/// Per-module configuration. Adding a new protocol = add a new field here.
+///
+/// Each module is fully self-contained: its enabled flag, protocol-specific
+/// settings, trading defaults, lot table, and risk config all live here.
+/// There is no global trading config — different protocols have different
+/// concepts of size, leverage, and risk.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModulesConfig {
     #[serde(default = "default_hl_config")]
     pub hyperliquid: ModuleEntry<HyperliquidConfig>,
-    #[serde(default = "default_morpho_config")]
-    pub morpho: ModuleEntry<MorphoConfig>,
+
     #[serde(default = "default_zero_x_config")]
     pub zero_x: ModuleEntry<ZeroXConfig>,
 }
 
-/// A module entry: enabled flag + module-specific settings.
+/// A module entry: enabled flag + module-specific config (flattened into JSON).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModuleEntry<T> {
     pub enabled: bool,
@@ -84,130 +118,164 @@ pub struct ModuleEntry<T> {
     pub config: T,
 }
 
-/// Hyperliquid-specific configuration.
+// ═══════════════════════════════════════════════════════════════════════
+//  HYPERLIQUID MODULE CONFIG
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Full configuration for the Hyperliquid module.
+///
+/// Trading defaults and risk settings live here — NOT in a global
+/// trading block — because each protocol has its own concepts of leverage,
+/// lot sizes, and risk parameters.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HyperliquidConfig {
+    // ── Network ───────────────────────────────────────────────────────
     /// Network: "mainnet" or "testnet".
     #[serde(default = "default_hl_network")]
     pub network: String,
-    /// Custom RPC URL (overrides network default).
-    #[serde(default = "default_hl_rpc")]
-    pub rpc_url: String,
-    /// Risk management settings for this module.
-    #[serde(default)]
-    pub risk: RiskConfig,
-}
 
-/// Morpho-specific configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MorphoConfig {
-    /// Chain: "ethereum" or "base".
-    #[serde(default = "default_morpho_chain")]
-    pub chain: String,
-    /// Risk management settings for this module.
-    #[serde(default)]
-    pub risk: RiskConfig,
-}
-
-/// 0x API configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ZeroXConfig {}
-
-fn default_hl_config() -> ModuleEntry<HyperliquidConfig> {
-    ModuleEntry {
-        enabled: true,
-        config: HyperliquidConfig {
-            network: "mainnet".into(),
-            rpc_url: "https://api.hyperliquid.xyz".into(),
-            risk: RiskConfig::default(),
-        },
-    }
-}
-
-fn default_morpho_config() -> ModuleEntry<MorphoConfig> {
-    ModuleEntry {
-        enabled: true,
-        config: MorphoConfig {
-            chain: "ethereum".into(),
-            risk: RiskConfig::default(),
-        },
-    }
-}
-
-fn default_zero_x_config() -> ModuleEntry<ZeroXConfig> {
-    ModuleEntry {
-        enabled: false,
-        config: ZeroXConfig {},
-    }
-}
-
-fn default_hl_network() -> String {
-    "mainnet".into()
-}
-fn default_hl_rpc() -> String {
-    "https://api.hyperliquid.xyz".into()
-}
-fn default_morpho_chain() -> String {
-    "ethereum".into()
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TradingConfig {
+    // ── Trading defaults ──────────────────────────────────────────────
     /// Trading mode: "futures" (raw size) or "cfd" (lot-based).
+    #[serde(default)]
     pub mode: TradingMode,
+
     /// How bare numbers are interpreted: "usdc", "units", or "lots".
-    /// Default: "usdc" — most intuitive for all traders.
-    #[serde(default = "default_size_mode")]
+    /// Default: "usdc" — most intuitive for new users.
+    #[serde(default)]
     pub default_size_mode: SizeMode,
-    /// Default leverage multiplier for new positions.
+
+    /// Default leverage multiplier for new perp positions.
+    #[serde(default = "default_leverage")]
     pub default_leverage: u32,
+
     /// Default slippage tolerance (0.05 = 5%).
+    #[serde(default = "default_slippage")]
     pub default_slippage: f64,
-    /// CFD lot configuration (only used in CFD mode).
+
+    // ── CFD lot table ─────────────────────────────────────────────────
+    /// Lot size configuration (only used in CFD mode).
+    #[serde(default)]
     pub lots: LotConfig,
+
+    // ── Risk ──────────────────────────────────────────────────────────
+    /// Risk management settings for this module.
+    #[serde(default)]
+    pub risk: RiskConfig,
 }
 
-/// How bare numbers (without suffix) are interpreted in trade commands.
+impl HyperliquidConfig {
+    /// Resolve a `SizeInput` to (asset_units, margin_usdc_if_applicable).
+    pub fn resolve_size_input(
+        &self,
+        coin: &str,
+        input: &SizeInput,
+        mark_price: f64,
+        leverage_override: Option<u32>,
+    ) -> (f64, Option<f64>) {
+        let lev = leverage_override.unwrap_or(self.default_leverage).max(1) as f64;
+
+        match input {
+            SizeInput::Usdc(margin) => {
+                if mark_price <= 0.0 {
+                    (0.0, Some(*margin))
+                } else {
+                    let size = (margin * lev) / mark_price;
+                    (size, Some(*margin))
+                }
+            }
+            SizeInput::Units(units) => (*units, None),
+            SizeInput::Lots(lots) => {
+                let size = self.lots.lots_to_size(coin, *lots);
+                (size, None)
+            }
+            SizeInput::Raw(raw) => match self.default_size_mode {
+                SizeMode::Usdc => {
+                    if mark_price <= 0.0 {
+                        (0.0, Some(*raw))
+                    } else {
+                        let size = (raw * lev) / mark_price;
+                        (size, Some(*raw))
+                    }
+                }
+                SizeMode::Units => {
+                    let size = match self.mode {
+                        TradingMode::Futures => *raw,
+                        TradingMode::Cfd => self.lots.lots_to_size(coin, *raw),
+                    };
+                    (size, None)
+                }
+                SizeMode::Lots => {
+                    let size = self.lots.lots_to_size(coin, *raw);
+                    (size, None)
+                }
+            },
+        }
+    }
+
+    /// Format size for display.
+    pub fn format_size(&self, coin: &str, raw_size: f64) -> String {
+        match self.mode {
+            TradingMode::Futures => format!("{raw_size} {coin}"),
+            TradingMode::Cfd => {
+                let lots = self.lots.size_to_lots(coin, raw_size);
+                format!("{lots:.4} lots ({raw_size} {coin})")
+            }
+        }
+    }
+
+    /// Is CFD mode active?
+    pub fn is_cfd(&self) -> bool {
+        self.mode == TradingMode::Cfd
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  0x MODULE CONFIG
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Configuration for the 0x swap module.
 ///
-/// Examples with `atlas buy ETH 200`:
-///   - `Usdc`  → $200 margin (needs mark price + leverage to compute size)
-///   - `Units` → 200 ETH (raw asset units)
-///   - `Lots`  → 200 lots (CFD lot-based, converted via lot table)
-///
-/// Explicit suffixes always override: `$200`, `200u`, `0.5eth`, `50lots`
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "lowercase")]
-pub enum SizeMode {
-    /// Bare numbers = USDC margin. Most intuitive for casual traders.
-    Usdc,
-    /// Bare numbers = asset units. For pro traders who think in units.
-    Units,
-    /// Bare numbers = lots. For CFD-style trading.
-    Lots,
+/// 0x is a DEX aggregator — its concept of "trading" differs from perps.
+/// Slippage is expressed in basis points, there's no leverage or lots.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ZeroXConfig {
+    /// Default slippage in basis points (100 = 1%). Default: 100.
+    #[serde(default = "default_zero_x_slippage")]
+    pub default_slippage_bps: u32,
+
+    /// Default chain to swap on. Default: "ethereum".
+    #[serde(default = "default_zero_x_chain")]
+    pub default_chain: String,
 }
 
-fn default_size_mode() -> SizeMode {
-    SizeMode::Usdc
-}
-
-impl std::fmt::Display for SizeMode {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            SizeMode::Usdc => write!(f, "usdc"),
-            SizeMode::Units => write!(f, "units"),
-            SizeMode::Lots => write!(f, "lots"),
+impl Default for ZeroXConfig {
+    fn default() -> Self {
+        Self {
+            default_slippage_bps: 100,
+            default_chain: "ethereum".into(),
         }
     }
 }
 
-/// Trading mode determines how size is interpreted.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+fn default_zero_x_slippage() -> u32 {
+    100 // 1%
+}
+fn default_zero_x_chain() -> String {
+    "ethereum".into()
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  TRADING ENUMS + LOT CONFIG
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Trading mode for perp protocols.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum TradingMode {
-    /// Standard futures: size is in asset units (0.1 ETH, 1 BTC).
+    /// Standard futures: size is in asset units.
+    #[default]
     Futures,
-    /// CFD-style: size is in lots. Atlas converts lots → asset units
-    /// using the lot size table before sending to Hyperliquid.
+    /// CFD-style: size is in lots, converted via lot table.
     Cfd,
 }
 
@@ -220,43 +288,49 @@ impl std::fmt::Display for TradingMode {
     }
 }
 
+/// How bare numbers (without suffix) are interpreted in trade commands.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum SizeMode {
+    /// Bare number = USDC margin. Default — most intuitive.
+    #[default]
+    Usdc,
+    /// Bare number = asset units.
+    Units,
+    /// Bare number = lots.
+    Lots,
+}
+
+impl std::fmt::Display for SizeMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SizeMode::Usdc => write!(f, "usdc"),
+            SizeMode::Units => write!(f, "units"),
+            SizeMode::Lots => write!(f, "lots"),
+        }
+    }
+}
+
 /// Lot size configuration for CFD mode.
-///
-/// Standard lot sizes (customizable per asset):
-/// - 1 standard lot  = `standard_lot_size` units of the asset
-/// - 1 mini lot      = 0.1 standard lot
-/// - 1 micro lot     = 0.01 standard lot
-///
-/// Example: if BTC standard lot = 1.0, then:
-///   atlas buy BTC 0.1   → 0.1 lots = 0.1 BTC
-///   atlas buy BTC 1     → 1 lot    = 1.0 BTC
-///   atlas buy BTC 0.01  → 0.01 lot = 0.01 BTC (micro lot)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LotConfig {
-    /// Default lot size for assets not in the custom table.
-    /// In asset units per 1 standard lot.
+    /// Default lot size for assets not in the custom table (in asset units per lot).
     pub default_lot_size: f64,
-    /// Per-asset lot size overrides. Key = coin symbol (e.g. "BTC").
-    /// Value = units of asset per 1 standard lot.
+    /// Per-asset overrides. Key = coin symbol (e.g. "BTC"). Value = units per lot.
     #[serde(default)]
     pub assets: HashMap<String, f64>,
 }
 
 impl LotConfig {
-    /// Get the lot size for a given asset.
     pub fn lot_size(&self, coin: &str) -> f64 {
         self.assets
             .get(coin)
             .copied()
             .unwrap_or(self.default_lot_size)
     }
-
-    /// Convert lots → asset units.
     pub fn lots_to_size(&self, coin: &str, lots: f64) -> f64 {
         lots * self.lot_size(coin)
     }
-
-    /// Convert asset units → lots.
     pub fn size_to_lots(&self, coin: &str, size: f64) -> f64 {
         let lot = self.lot_size(coin);
         if lot == 0.0 {
@@ -267,35 +341,75 @@ impl LotConfig {
     }
 }
 
+impl Default for LotConfig {
+    fn default() -> Self {
+        let mut assets = HashMap::new();
+        assets.insert("BTC".to_string(), 0.001);
+        assets.insert("ETH".to_string(), 0.01);
+        assets.insert("SOL".to_string(), 1.0);
+        assets.insert("DOGE".to_string(), 100.0);
+        assets.insert("ARB".to_string(), 10.0);
+        assets.insert("AVAX".to_string(), 1.0);
+        assets.insert("MATIC".to_string(), 100.0);
+        assets.insert("LINK".to_string(), 1.0);
+        assets.insert("OP".to_string(), 10.0);
+        assets.insert("SUI".to_string(), 10.0);
+        Self {
+            default_lot_size: 1.0,
+            assets,
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  DEFAULTS
+// ═══════════════════════════════════════════════════════════════════════
+
+fn default_hl_config() -> ModuleEntry<HyperliquidConfig> {
+    ModuleEntry {
+        enabled: true,
+        config: HyperliquidConfig::default(),
+    }
+}
+
+fn default_zero_x_config() -> ModuleEntry<ZeroXConfig> {
+    ModuleEntry {
+        enabled: false,
+        config: ZeroXConfig::default(),
+    }
+}
+
+fn default_hl_network() -> String {
+    "mainnet".into()
+}
+fn default_leverage() -> u32 {
+    1
+}
+fn default_slippage() -> f64 {
+    0.05
+}
+
+impl Default for HyperliquidConfig {
+    fn default() -> Self {
+        Self {
+            network: "mainnet".into(),
+            mode: TradingMode::Futures,
+            default_size_mode: SizeMode::Usdc,
+            default_leverage: 1,
+            default_slippage: 0.05,
+            lots: LotConfig::default(),
+            risk: RiskConfig::default(),
+        }
+    }
+}
+
 impl Default for AppConfig {
     fn default() -> Self {
-        let mut default_assets = HashMap::new();
-        default_assets.insert("BTC".to_string(), 0.001);
-        default_assets.insert("ETH".to_string(), 0.01);
-        default_assets.insert("SOL".to_string(), 1.0);
-        default_assets.insert("DOGE".to_string(), 100.0);
-        default_assets.insert("ARB".to_string(), 10.0);
-        default_assets.insert("AVAX".to_string(), 1.0);
-        default_assets.insert("MATIC".to_string(), 100.0);
-        default_assets.insert("LINK".to_string(), 1.0);
-        default_assets.insert("OP".to_string(), 10.0);
-        default_assets.insert("SUI".to_string(), 10.0);
-
         Self {
             system: SystemConfig {
-                active_profile: String::from("default"),
+                active_profile: "default".into(),
+                api_key: None,
                 verbose: false,
-                api_url: default_api_url(),
-            },
-            trading: TradingConfig {
-                mode: TradingMode::Futures,
-                default_size_mode: SizeMode::Usdc,
-                default_leverage: 1,
-                default_slippage: 0.05,
-                lots: LotConfig {
-                    default_lot_size: 1.0,
-                    assets: default_assets,
-                },
             },
             modules: ModulesConfig::default(),
         }
@@ -306,129 +420,23 @@ impl Default for ModulesConfig {
     fn default() -> Self {
         Self {
             hyperliquid: default_hl_config(),
-            morpho: default_morpho_config(),
             zero_x: default_zero_x_config(),
         }
     }
 }
 
 impl AppConfig {
-    /// Serialize to JSON string for writing to disk.
     pub fn to_json_string(&self) -> Result<String, serde_json::Error> {
         serde_json::to_string_pretty(self)
     }
-
-    /// Deserialize from a JSON string.
     pub fn from_json_str(s: &str) -> Result<Self, serde_json::Error> {
         serde_json::from_str(s)
     }
-
-    /// Check if we're in CFD lot mode.
-    pub fn is_cfd(&self) -> bool {
-        self.trading.mode == TradingMode::Cfd
-    }
-
-    /// Convert user input size to actual asset size, respecting trading mode.
-    /// In futures mode: returns size as-is.
-    /// In CFD mode: converts lots → asset units.
-    pub fn resolve_size(&self, coin: &str, input_size: f64) -> f64 {
-        match self.trading.mode {
-            TradingMode::Futures => input_size,
-            TradingMode::Cfd => self.trading.lots.lots_to_size(coin, input_size),
-        }
-    }
-
-    /// Resolve a `SizeInput` to asset units.
-    ///
-    /// - `Raw(x)` → depends on `default_size_mode`:
-    ///   - `Usdc`  → treat as USDC margin
-    ///   - `Units` → treat as asset units (with CFD lot conversion if needed)
-    ///   - `Lots`  → treat as lots → convert to units
-    /// - `Usdc(x)` → x is margin in USDC (explicit)
-    /// - `Units(x)` → x is asset units (explicit, bypasses lot conversion)
-    /// - `Lots(x)` → x is lots → convert to units via lot table
-    ///
-    /// Returns `(asset_size, margin_usdc_if_applicable)`.
-    pub fn resolve_size_input(
-        &self,
-        coin: &str,
-        input: &SizeInput,
-        mark_price: f64,
-        leverage: Option<u32>,
-    ) -> (f64, Option<f64>) {
-        let lev = leverage.unwrap_or(self.trading.default_leverage).max(1) as f64;
-
-        match input {
-            // Explicit types — always do the same thing regardless of config
-            SizeInput::Usdc(margin_usdc) => {
-                if mark_price <= 0.0 {
-                    (0.0, Some(*margin_usdc))
-                } else {
-                    let notional = margin_usdc * lev;
-                    let size = notional / mark_price;
-                    (size, Some(*margin_usdc))
-                }
-            }
-            SizeInput::Units(units) => (*units, None),
-            SizeInput::Lots(lots) => {
-                let size = self.trading.lots.lots_to_size(coin, *lots);
-                (size, None)
-            }
-
-            // Raw — interpret based on default_size_mode
-            SizeInput::Raw(raw) => match self.trading.default_size_mode {
-                SizeMode::Usdc => {
-                    if mark_price <= 0.0 {
-                        (0.0, Some(*raw))
-                    } else {
-                        let notional = raw * lev;
-                        let size = notional / mark_price;
-                        (size, Some(*raw))
-                    }
-                }
-                SizeMode::Units => {
-                    let size = self.resolve_size(coin, *raw);
-                    (size, None)
-                }
-                SizeMode::Lots => {
-                    let size = self.trading.lots.lots_to_size(coin, *raw);
-                    (size, None)
-                }
-            },
-        }
-    }
-
-    /// Format a SizeInput for display before price is known.
-    pub fn format_size_input(&self, coin: &str, input: &SizeInput) -> String {
-        match input {
-            SizeInput::Usdc(usd) => format!("${:.2} USDC", usd),
-            SizeInput::Units(u) => format!("{} {}", u, coin),
-            SizeInput::Lots(l) => {
-                let size = self.trading.lots.lots_to_size(coin, *l);
-                format!("{:.4} lots ({} {})", l, size, coin)
-            }
-            SizeInput::Raw(raw) => match self.trading.default_size_mode {
-                SizeMode::Usdc => format!("${:.2} USDC", raw),
-                SizeMode::Units => self.format_size(coin, self.resolve_size(coin, *raw)),
-                SizeMode::Lots => {
-                    let size = self.trading.lots.lots_to_size(coin, *raw);
-                    format!("{:.4} lots ({} {})", raw, size, coin)
-                }
-            },
-        }
-    }
-
-    /// Format size for display, respecting trading mode.
-    pub fn format_size(&self, coin: &str, raw_size: f64) -> String {
-        match self.trading.mode {
-            TradingMode::Futures => format!("{raw_size} {coin}"),
-            TradingMode::Cfd => {
-                let lots = self.trading.lots.size_to_lots(coin, raw_size);
-                format!("{lots:.4} lots ({raw_size} {coin})")
-            }
-        }
-    }
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+//  TESTS
+// ═══════════════════════════════════════════════════════════════════════
 
 #[cfg(test)]
 mod tests {
@@ -439,236 +447,76 @@ mod tests {
         let config = AppConfig::default();
         assert_eq!(config.system.active_profile, "default");
         assert!(!config.system.verbose);
-        assert_eq!(config.trading.mode, TradingMode::Futures);
-        assert_eq!(config.trading.default_leverage, 1);
+        assert!(config.system.api_key.is_none());
         assert!(config.modules.hyperliquid.enabled);
         assert_eq!(config.modules.hyperliquid.config.network, "mainnet");
+        assert_eq!(config.modules.hyperliquid.config.mode, TradingMode::Futures);
+        assert_eq!(
+            config.modules.hyperliquid.config.default_size_mode,
+            SizeMode::Usdc
+        );
+        assert_eq!(config.modules.hyperliquid.config.default_leverage, 1);
+        assert!(!config.modules.zero_x.enabled);
     }
 
     #[test]
     fn test_config_roundtrip_json() {
         let config = AppConfig::default();
-        let json_str = config.to_json_string().unwrap();
-        let parsed = AppConfig::from_json_str(&json_str).unwrap();
+        let json = config.to_json_string().unwrap();
+        let parsed = AppConfig::from_json_str(&json).unwrap();
         assert_eq!(parsed.system.active_profile, config.system.active_profile);
-        assert_eq!(parsed.trading.mode, config.trading.mode);
         assert_eq!(
             parsed.modules.hyperliquid.config.network,
             config.modules.hyperliquid.config.network
         );
-        assert_eq!(parsed.modules.morpho.enabled, config.modules.morpho.enabled);
         assert_eq!(parsed.modules.zero_x.enabled, config.modules.zero_x.enabled);
     }
 
     #[test]
-    fn test_config_cfd_mode_roundtrip() {
-        let mut config = AppConfig::default();
-        config.trading.mode = TradingMode::Cfd;
-        let json_str = config.to_json_string().unwrap();
-        let parsed = AppConfig::from_json_str(&json_str).unwrap();
-        assert_eq!(parsed.trading.mode, TradingMode::Cfd);
-        assert!(parsed.is_cfd());
-    }
-
-    #[test]
-    fn test_lot_size_default() {
-        let config = AppConfig::default();
-        // Unknown asset falls back to default_lot_size
-        assert_eq!(config.trading.lots.lot_size("UNKNOWN"), 1.0);
-    }
-
-    #[test]
-    fn test_lot_size_custom_asset() {
-        let config = AppConfig::default();
-        // BTC has custom lot size
-        assert_eq!(config.trading.lots.lot_size("BTC"), 0.001);
-        assert_eq!(config.trading.lots.lot_size("ETH"), 0.01);
-    }
-
-    #[test]
-    fn test_lots_to_size_conversion() {
-        let config = AppConfig::default();
-        let lots = &config.trading.lots;
-        // 1 lot of BTC = 0.001 BTC
-        assert!((lots.lots_to_size("BTC", 1.0) - 0.001).abs() < 1e-10);
-        // 10 lots of BTC = 0.01 BTC
-        assert!((lots.lots_to_size("BTC", 10.0) - 0.01).abs() < 1e-10);
-        // 1 lot of ETH = 0.01 ETH
-        assert!((lots.lots_to_size("ETH", 1.0) - 0.01).abs() < 1e-10);
-    }
-
-    #[test]
-    fn test_size_to_lots_conversion() {
-        let config = AppConfig::default();
-        let lots = &config.trading.lots;
-        // 0.001 BTC = 1 lot
-        assert!((lots.size_to_lots("BTC", 0.001) - 1.0).abs() < 1e-10);
-        // 0.05 ETH = 5 lots
-        assert!((lots.size_to_lots("ETH", 0.05) - 5.0).abs() < 1e-10);
-    }
-
-    #[test]
-    fn test_resolve_size_futures_mode() {
-        let config = AppConfig::default(); // default = futures
-        assert!(!config.is_cfd());
-        // In futures mode, size passes through unchanged
-        assert_eq!(config.resolve_size("ETH", 0.5), 0.5);
-        assert_eq!(config.resolve_size("BTC", 1.0), 1.0);
-    }
-
-    #[test]
-    fn test_resolve_size_cfd_mode() {
-        let mut config = AppConfig::default();
-        config.trading.mode = TradingMode::Cfd;
-        assert!(config.is_cfd());
-        // In CFD mode, 1 lot ETH = 0.01 ETH
-        assert!((config.resolve_size("ETH", 1.0) - 0.01).abs() < 1e-10);
-        // 5 lots ETH = 0.05 ETH
-        assert!((config.resolve_size("ETH", 5.0) - 0.05).abs() < 1e-10);
-    }
-
-    #[test]
-    fn test_format_size_futures() {
-        let config = AppConfig::default();
-        assert_eq!(config.format_size("ETH", 0.5), "0.5 ETH");
-    }
-
-    #[test]
-    fn test_format_size_cfd() {
-        let mut config = AppConfig::default();
-        config.trading.mode = TradingMode::Cfd;
-        // 0.01 ETH = 1 lot (ETH lot size = 0.01)
-        let display = config.format_size("ETH", 0.01);
-        assert!(display.contains("1.0000 lots"));
-        assert!(display.contains("0.01 ETH"));
-    }
-
-    #[test]
-    fn test_trading_mode_display() {
-        assert_eq!(format!("{}", TradingMode::Futures), "futures");
-        assert_eq!(format!("{}", TradingMode::Cfd), "cfd");
-    }
-
-    // ── SizeInput / USDC sizing tests ───────────────────────────
-
-    #[test]
-    fn test_resolve_size_input_raw_default_usdc() {
-        let config = AppConfig::default(); // default_size_mode = Usdc
-        assert_eq!(config.trading.default_size_mode, SizeMode::Usdc);
-        // Raw(200) with USDC default → $200 margin, 1x lev, ETH@3500
-        // notional = $200, size = 200/3500 ≈ 0.05714
-        let (size, margin) = config.resolve_size_input("ETH", &SizeInput::Raw(200.0), 3500.0, None);
+    fn test_hl_resolve_size_usdc() {
+        let cfg = HyperliquidConfig::default(); // USDC mode, 1x lev
+        let (size, margin) = cfg.resolve_size_input("ETH", &SizeInput::Usdc(200.0), 3500.0, None);
         assert!((size - 200.0 / 3500.0).abs() < 1e-6);
         assert_eq!(margin, Some(200.0));
     }
 
     #[test]
-    fn test_resolve_size_input_raw_units_mode() {
-        let mut config = AppConfig::default();
-        config.trading.default_size_mode = SizeMode::Units;
-        // Raw(0.5) with Units default → 0.5 ETH
-        let (size, margin) = config.resolve_size_input("ETH", &SizeInput::Raw(0.5), 3500.0, None);
+    fn test_hl_resolve_size_units() {
+        let cfg = HyperliquidConfig::default();
+        let (size, margin) = cfg.resolve_size_input("ETH", &SizeInput::Units(0.5), 3500.0, None);
         assert_eq!(size, 0.5);
         assert!(margin.is_none());
     }
 
     #[test]
-    fn test_resolve_size_input_raw_lots_mode() {
+    fn test_hl_lot_defaults() {
+        let cfg = HyperliquidConfig::default();
+        assert_eq!(cfg.lots.lot_size("BTC"), 0.001);
+        assert_eq!(cfg.lots.lot_size("ETH"), 0.01);
+        assert_eq!(cfg.lots.lots_to_size("ETH", 100.0), 1.0);
+    }
+
+    #[test]
+    fn test_zero_x_defaults() {
+        let cfg = ZeroXConfig::default();
+        assert_eq!(cfg.default_slippage_bps, 100);
+        assert_eq!(cfg.default_chain, "ethereum");
+    }
+
+    #[test]
+    fn test_no_global_api_url() {
+        // Ensure api_url does NOT exist at top level — backend URL is hardcoded in code
+        let json = AppConfig::default().to_json_string().unwrap();
+        assert!(!json.contains("api_url"));
+    }
+
+    #[test]
+    fn test_api_key_optional() {
         let mut config = AppConfig::default();
-        config.trading.default_size_mode = SizeMode::Lots;
-        // Raw(100) with Lots default → 100 × 0.01 ETH/lot = 1.0 ETH
-        let (size, margin) = config.resolve_size_input("ETH", &SizeInput::Raw(100.0), 3500.0, None);
-        assert!((size - 1.0).abs() < 1e-10);
-        assert!(margin.is_none());
-    }
-
-    #[test]
-    fn test_resolve_size_input_explicit_usdc() {
-        let mut config = AppConfig::default();
-        config.trading.default_size_mode = SizeMode::Units; // even in units mode
-                                                            // Usdc(200) is always USDC regardless of default_size_mode
-        let (size, margin) =
-            config.resolve_size_input("ETH", &SizeInput::Usdc(200.0), 3500.0, Some(10));
-        let expected = (200.0 * 10.0) / 3500.0;
-        assert!((size - expected).abs() < 1e-6);
-        assert_eq!(margin, Some(200.0));
-    }
-
-    #[test]
-    fn test_resolve_size_input_explicit_units() {
-        let config = AppConfig::default(); // usdc default
-                                           // Units(0.5) is always 0.5 regardless of default_size_mode
-        let (size, margin) = config.resolve_size_input("ETH", &SizeInput::Units(0.5), 3500.0, None);
-        assert_eq!(size, 0.5);
-        assert!(margin.is_none());
-    }
-
-    #[test]
-    fn test_resolve_size_input_explicit_lots() {
-        let config = AppConfig::default(); // usdc default
-                                           // Lots(100) → 100 × 0.01 = 1.0 ETH regardless of default_size_mode
-        let (size, margin) =
-            config.resolve_size_input("ETH", &SizeInput::Lots(100.0), 3500.0, None);
-        assert!((size - 1.0).abs() < 1e-10);
-        assert!(margin.is_none());
-    }
-
-    #[test]
-    fn test_resolve_size_input_usdc_btc() {
-        let config = AppConfig::default();
-        // $500 margin, 5x leverage, BTC at $100,000
-        let (size, _) =
-            config.resolve_size_input("BTC", &SizeInput::Usdc(500.0), 100_000.0, Some(5));
-        assert!((size - 0.025).abs() < 1e-6);
-    }
-
-    #[test]
-    fn test_resolve_size_input_usdc_zero_price() {
-        let config = AppConfig::default();
-        let (size, margin) = config.resolve_size_input("ETH", &SizeInput::Usdc(200.0), 0.0, None);
-        assert_eq!(size, 0.0);
-        assert_eq!(margin, Some(200.0));
-    }
-
-    #[test]
-    fn test_format_size_input_raw_usdc_mode() {
-        let config = AppConfig::default();
-        let display = config.format_size_input("ETH", &SizeInput::Raw(200.0));
-        assert_eq!(display, "$200.00 USDC");
-    }
-
-    #[test]
-    fn test_format_size_input_raw_units_mode() {
-        let mut config = AppConfig::default();
-        config.trading.default_size_mode = SizeMode::Units;
-        let display = config.format_size_input("ETH", &SizeInput::Raw(0.5));
-        assert_eq!(display, "0.5 ETH");
-    }
-
-    #[test]
-    fn test_format_size_input_explicit_usdc() {
-        let config = AppConfig::default();
-        let display = config.format_size_input("ETH", &SizeInput::Usdc(200.0));
-        assert_eq!(display, "$200.00 USDC");
-    }
-
-    #[test]
-    fn test_format_size_input_explicit_units() {
-        let config = AppConfig::default();
-        let display = config.format_size_input("ETH", &SizeInput::Units(0.5));
-        assert_eq!(display, "0.5 ETH");
-    }
-
-    #[test]
-    fn test_size_mode_default_is_usdc() {
-        let config = AppConfig::default();
-        assert_eq!(config.trading.default_size_mode, SizeMode::Usdc);
-    }
-
-    #[test]
-    fn test_size_mode_display() {
-        assert_eq!(format!("{}", SizeMode::Usdc), "usdc");
-        assert_eq!(format!("{}", SizeMode::Units), "units");
-        assert_eq!(format!("{}", SizeMode::Lots), "lots");
+        assert!(config.system.api_key.is_none());
+        config.system.api_key = Some("ak_test_123".into());
+        let json = config.to_json_string().unwrap();
+        let parsed = AppConfig::from_json_str(&json).unwrap();
+        assert_eq!(parsed.system.api_key.as_deref(), Some("ak_test_123"));
     }
 }

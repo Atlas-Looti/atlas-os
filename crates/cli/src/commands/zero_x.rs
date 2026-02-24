@@ -46,6 +46,13 @@ pub async fn quote(
         return Ok(());
     }
 
+    let allowance_required = resp.issues.as_ref().and_then(|i| i.allowance.as_ref()).is_some();
+    let allowance_spender = resp
+        .issues
+        .as_ref()
+        .and_then(|i| i.allowance.as_ref())
+        .map(|a| a.spender.as_str());
+
     match fmt {
         OutputFormat::Json | OutputFormat::JsonPretty => {
             let json = serde_json::json!({
@@ -57,6 +64,8 @@ pub async fn quote(
                 "min_buy_amount": resp.min_buy_amount,
                 "gas_price": resp.gas_price,
                 "allowance_target": resp.allowance_target,
+                "allowance_required": allowance_required,
+                "allowance_spender": allowance_spender,
                 "route": resp.route,
                 "fees": resp.fees,
                 "issues": resp.issues,
@@ -160,10 +169,16 @@ pub async fn sources(chain: &str, fmt: OutputFormat) -> Result<()> {
         .downcast_ref::<atlas_mod_zero_x::ZeroXModule>()
         .ok_or_else(|| anyhow::anyhow!("0x module not available"))?;
 
-    let resp = zerox
-        .sources(&chain_enum)
-        .await
-        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let resp = zerox.sources(&chain_enum).await.map_err(|e| {
+        let msg = e.to_string();
+        if msg.contains("404") || msg.contains("Not Found") {
+            anyhow::anyhow!(
+                "Backend does not implement liquidity sources yet. Use `atlas zero-x chains` for supported chains."
+            )
+        } else {
+            anyhow::anyhow!("{e}")
+        }
+    })?;
 
     match fmt {
         OutputFormat::Json => println!("{}", serde_json::to_string(&resp)?),
@@ -194,7 +209,16 @@ pub async fn trades(
     let resp = zerox
         .swap_trades(None, start, end)
         .await
-        .map_err(|e| anyhow::anyhow!("{e}"))?;
+        .map_err(|e| {
+            let msg = e.to_string();
+            if msg.contains("404") || msg.contains("Not Found") {
+                anyhow::anyhow!(
+                    "Backend does not implement trade-analytics yet. Swap history will be available when the backend adds this route."
+                )
+            } else {
+                anyhow::anyhow!("{e}")
+            }
+        })?;
 
     match fmt {
         OutputFormat::Json | OutputFormat::JsonPretty => {

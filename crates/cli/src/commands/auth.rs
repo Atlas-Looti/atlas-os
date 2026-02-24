@@ -8,9 +8,12 @@ pub fn generate_wallet(name: &str, fmt: OutputFormat) -> Result<()> {
 
     if fmt != OutputFormat::Table {
         let json = serde_json::json!({
-            "name": profile_name,
-            "address": address,
-            "private_key": private_key,
+            "ok": true,
+            "data": {
+                "name": profile_name,
+                "address": address,
+                "private_key": private_key,
+            }
         });
         if matches!(fmt, OutputFormat::JsonPretty) {
             println!("{}", serde_json::to_string_pretty(&json)?);
@@ -54,8 +57,10 @@ pub fn import_wallet(name: &str, fmt: OutputFormat) -> Result<()> {
     if fmt != OutputFormat::Table {
         let json = serde_json::json!({
             "ok": true,
-            "name": profile_name,
-            "address": address,
+            "data": {
+                "name": profile_name,
+                "address": address,
+            }
         });
         if matches!(fmt, OutputFormat::JsonPretty) {
             println!("{}", serde_json::to_string_pretty(&json)?);
@@ -73,7 +78,7 @@ pub fn switch_profile(name: &str, fmt: OutputFormat) -> Result<()> {
     AuthManager::switch_profile(name)?;
 
     if fmt != OutputFormat::Table {
-        let json = serde_json::json!({"ok": true, "profile": name});
+        let json = serde_json::json!({"ok": true, "data": {"profile": name}});
         println!("{}", serde_json::to_string(&json)?);
     } else {
         println!("✓ Active profile switched to '{name}'");
@@ -87,9 +92,12 @@ pub fn export_wallet(name: &str, fmt: OutputFormat) -> Result<()> {
 
     if fmt != OutputFormat::Table {
         let json = serde_json::json!({
-            "name": profile_name,
-            "address": address,
-            "private_key": private_key,
+            "ok": true,
+            "data": {
+                "name": profile_name,
+                "address": address,
+                "private_key": private_key,
+            }
         });
         if matches!(fmt, OutputFormat::JsonPretty) {
             println!("{}", serde_json::to_string_pretty(&json)?);
@@ -129,10 +137,11 @@ pub fn list_profiles(fmt: OutputFormat) -> Result<()> {
                 })
             })
             .collect();
+        let json = serde_json::json!({"ok": true, "data": profiles});
         if matches!(fmt, OutputFormat::JsonPretty) {
-            println!("{}", serde_json::to_string_pretty(&profiles)?);
+            println!("{}", serde_json::to_string_pretty(&json)?);
         } else {
-            println!("{}", serde_json::to_string(&profiles)?);
+            println!("{}", serde_json::to_string(&json)?);
         }
         return Ok(());
     }

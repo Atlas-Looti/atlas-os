@@ -1,8 +1,8 @@
 use anyhow::Result;
 use atlas_core::Orchestrator;
 use atlas_types::output::*;
-use atlas_utils::output::OutputFormat;
 use atlas_utils::fmt::format_timestamp_ms;
+use atlas_utils::output::OutputFormat;
 use rust_decimal::prelude::*;
 
 /// Render a PriceOutput (table or JSON).
@@ -27,10 +27,16 @@ fn render_markets(output: &MarketsOutput, fmt: OutputFormat) {
         OutputFormat::JsonPretty => println!("{}", serde_json::to_string_pretty(output).unwrap()),
         OutputFormat::Table => {
             println!("Market type: {}\n", output.market_type.to_uppercase());
-            println!("{:<15} {:>6} {:>10} {:>12}", "NAME", "INDEX", "MAX LEV", "SZ DECIMALS");
+            println!(
+                "{:<15} {:>6} {:>10} {:>12}",
+                "NAME", "INDEX", "MAX LEV", "SZ DECIMALS"
+            );
             println!("{}", "─".repeat(45));
             for m in &output.markets {
-                println!("{:<15} {:>6} {:>10}x {:>12}", m.name, m.index, m.max_leverage, m.sz_decimals);
+                println!(
+                    "{:<15} {:>6} {:>10}x {:>12}",
+                    m.name, m.index, m.max_leverage, m.sz_decimals
+                );
             }
             println!("\nTotal: {} markets", output.markets.len());
         }
@@ -44,12 +50,16 @@ fn render_candles(output: &CandlesOutput, fmt: OutputFormat) {
         OutputFormat::JsonPretty => println!("{}", serde_json::to_string_pretty(output).unwrap()),
         OutputFormat::Table => {
             println!("{} — {} candles\n", output.coin, output.interval);
-            println!("{:<20} {:>12} {:>12} {:>12} {:>12} {:>12} {:>6}",
-                "TIME", "OPEN", "HIGH", "LOW", "CLOSE", "VOLUME", "TRADES");
+            println!(
+                "{:<20} {:>12} {:>12} {:>12} {:>12} {:>12} {:>6}",
+                "TIME", "OPEN", "HIGH", "LOW", "CLOSE", "VOLUME", "TRADES"
+            );
             println!("{}", "─".repeat(90));
             for c in &output.candles {
-                println!("{:<20} {:>12} {:>12} {:>12} {:>12} {:>12} {:>6}",
-                    c.time, c.open, c.high, c.low, c.close, c.volume, c.trades);
+                println!(
+                    "{:<20} {:>12} {:>12} {:>12} {:>12} {:>12} {:>6}",
+                    c.time, c.open, c.high, c.low, c.close, c.volume, c.trades
+                );
             }
         }
     }
@@ -62,10 +72,16 @@ fn render_funding(output: &FundingOutput, fmt: OutputFormat) {
         OutputFormat::JsonPretty => println!("{}", serde_json::to_string_pretty(output).unwrap()),
         OutputFormat::Table => {
             println!("{} — Funding Rate History\n", output.coin);
-            println!("{:<20} {:>12} {:>15} {:>15}", "TIME", "COIN", "RATE", "PREMIUM");
+            println!(
+                "{:<20} {:>12} {:>15} {:>15}",
+                "TIME", "COIN", "RATE", "PREMIUM"
+            );
             println!("{}", "─".repeat(65));
             for r in &output.rates {
-                println!("{:<20} {:>12} {:>15} {:>15}", r.time, r.coin, r.rate, r.premium);
+                println!(
+                    "{:<20} {:>12} {:>15} {:>15}",
+                    r.time, r.coin, r.rate, r.premium
+                );
             }
         }
     }
@@ -77,21 +93,28 @@ pub async fn price(coins: &[String], all: bool, fmt: OutputFormat) -> Result<()>
     let perp = orch.perp(None)?;
 
     let tickers = if all || coins.is_empty() {
-        perp.all_tickers().await.map_err(|e| anyhow::anyhow!("{e}"))?
+        perp.all_tickers()
+            .await
+            .map_err(|e| anyhow::anyhow!("{e}"))?
     } else {
         let mut result = Vec::new();
         for c in coins {
-            let t = perp.ticker(&c.to_uppercase()).await
+            let t = perp
+                .ticker(&c.to_uppercase())
+                .await
                 .map_err(|e| anyhow::anyhow!("{e}"))?;
             result.push(t);
         }
         result
     };
 
-    let prices: Vec<PriceRow> = tickers.iter().map(|t| PriceRow {
-        coin: t.symbol.clone(),
-        mid_price: t.mid_price.to_string(),
-    }).collect();
+    let prices: Vec<PriceRow> = tickers
+        .iter()
+        .map(|t| PriceRow {
+            coin: t.symbol.clone(),
+            mid_price: t.mid_price.to_string(),
+        })
+        .collect();
 
     render_prices(&PriceOutput { prices }, fmt);
     Ok(())
@@ -102,18 +125,26 @@ pub async fn markets(spot: bool, fmt: OutputFormat) -> Result<()> {
     let orch = Orchestrator::readonly().await?;
     let perp = orch.perp(None)?;
 
-    let market_list = perp.markets().await
-        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let market_list = perp.markets().await.map_err(|e| anyhow::anyhow!("{e}"))?;
 
-    let rows: Vec<MarketRow> = market_list.iter().map(|m| MarketRow {
-        name: m.symbol.clone(),
-        index: 0, // universal Market doesn't have index
-        max_leverage: m.max_leverage.unwrap_or(1) as u64,
-        sz_decimals: m.sz_decimals.unwrap_or(0) as i64,
-    }).collect();
+    let rows: Vec<MarketRow> = market_list
+        .iter()
+        .map(|m| MarketRow {
+            name: m.symbol.clone(),
+            index: 0, // universal Market doesn't have index
+            max_leverage: m.max_leverage.unwrap_or(1) as u64,
+            sz_decimals: m.sz_decimals.unwrap_or(0) as i64,
+        })
+        .collect();
 
     let market_type = if spot { "spot" } else { "perp" };
-    render_markets(&MarketsOutput { market_type: market_type.into(), markets: rows }, fmt);
+    render_markets(
+        &MarketsOutput {
+            market_type: market_type.into(),
+            markets: rows,
+        },
+        fmt,
+    );
     Ok(())
 }
 
@@ -123,24 +154,32 @@ pub async fn candles(coin: &str, interval: &str, limit: usize, fmt: OutputFormat
     let perp = orch.perp(None)?;
     let coin_upper = coin.to_uppercase();
 
-    let candle_data = perp.candles(&coin_upper, interval, limit).await
+    let candle_data = perp
+        .candles(&coin_upper, interval, limit)
+        .await
         .map_err(|e| anyhow::anyhow!("{e}"))?;
 
-    let rows: Vec<CandleRow> = candle_data.iter().map(|c| CandleRow {
-        time: format_timestamp_ms(c.open_time_ms),
-        open: c.open.to_string(),
-        high: c.high.to_string(),
-        low: c.low.to_string(),
-        close: c.close.to_string(),
-        volume: c.volume.to_string(),
-        trades: c.trades.unwrap_or(0),
-    }).collect();
+    let rows: Vec<CandleRow> = candle_data
+        .iter()
+        .map(|c| CandleRow {
+            time: format_timestamp_ms(c.open_time_ms),
+            open: c.open.to_string(),
+            high: c.high.to_string(),
+            low: c.low.to_string(),
+            close: c.close.to_string(),
+            volume: c.volume.to_string(),
+            trades: c.trades.unwrap_or(0),
+        })
+        .collect();
 
-    render_candles(&CandlesOutput {
-        coin: coin_upper,
-        interval: interval.into(),
-        candles: rows,
-    }, fmt);
+    render_candles(
+        &CandlesOutput {
+            coin: coin_upper,
+            interval: interval.into(),
+            candles: rows,
+        },
+        fmt,
+    );
     Ok(())
 }
 
@@ -150,17 +189,31 @@ pub async fn funding(coin: &str, fmt: OutputFormat) -> Result<()> {
     let perp = orch.perp(None)?;
     let coin_upper = coin.to_uppercase();
 
-    let rates = perp.funding(&coin_upper).await
+    let rates = perp
+        .funding(&coin_upper)
+        .await
         .map_err(|e| anyhow::anyhow!("{e}"))?;
 
-    let rows: Vec<FundingRow> = rates.iter().map(|r| FundingRow {
-        time: format_timestamp_ms(r.timestamp_ms),
-        coin: r.symbol.clone(),
-        rate: r.rate.to_string(),
-        premium: r.premium.map(|p| p.to_string()).unwrap_or_else(|| "—".into()),
-    }).collect();
+    let rows: Vec<FundingRow> = rates
+        .iter()
+        .map(|r| FundingRow {
+            time: format_timestamp_ms(r.timestamp_ms),
+            coin: r.symbol.clone(),
+            rate: r.rate.to_string(),
+            premium: r
+                .premium
+                .map(|p| p.to_string())
+                .unwrap_or_else(|| "—".into()),
+        })
+        .collect();
 
-    render_funding(&FundingOutput { coin: coin_upper, rates: rows }, fmt);
+    render_funding(
+        &FundingOutput {
+            coin: coin_upper,
+            rates: rows,
+        },
+        fmt,
+    );
     Ok(())
 }
 
@@ -192,12 +245,20 @@ pub async fn orderbook(ticker: &str, depth: usize, fmt: OutputFormat) -> Result<
                 }
                 OutputFormat::Table => {
                     println!("📖 {} Order Book (depth={})\n", ticker_upper, depth);
-                    println!("{:>14} {:>14}  |  {:>14} {:>14}", "BID SIZE", "BID PRICE", "ASK PRICE", "ASK SIZE");
+                    println!(
+                        "{:>14} {:>14}  |  {:>14} {:>14}",
+                        "BID SIZE", "BID PRICE", "ASK PRICE", "ASK SIZE"
+                    );
                     println!("{}", "─".repeat(65));
                     let show = depth.min(book.bids.len()).min(book.asks.len());
                     for i in 0..show {
-                        println!("{:>14} {:>14}  |  {:>14} {:>14}",
-                            book.bids[i].size, book.bids[i].price, book.asks[i].price, book.asks[i].size);
+                        println!(
+                            "{:>14} {:>14}  |  {:>14} {:>14}",
+                            book.bids[i].size,
+                            book.bids[i].price,
+                            book.asks[i].price,
+                            book.asks[i].size
+                        );
                     }
                 }
             }
@@ -213,7 +274,9 @@ pub async fn orderbook(ticker: &str, depth: usize, fmt: OutputFormat) -> Result<
                 println!("{}", serde_json::to_string(&json)?);
             } else {
                 println!("⚠️  Orderbook: {e}");
-                println!("   Use `atlas stream book {ticker_upper}` for live order book via WebSocket.");
+                println!(
+                    "   Use `atlas stream book {ticker_upper}` for live order book via WebSocket."
+                );
             }
             Ok(())
         }
@@ -226,10 +289,11 @@ pub async fn info(coin: &str, fmt: OutputFormat) -> Result<()> {
     let perp = orch.perp(None)?;
     let coin_upper = coin.to_uppercase();
 
-    let ticker = perp.ticker(&coin_upper).await
+    let ticker = perp
+        .ticker(&coin_upper)
+        .await
         .map_err(|e| anyhow::anyhow!("{e}"))?;
-    let markets = perp.markets().await
-        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let markets = perp.markets().await.map_err(|e| anyhow::anyhow!("{e}"))?;
     let market = markets.iter().find(|m| m.symbol == coin_upper);
 
     match fmt {
@@ -264,36 +328,71 @@ pub async fn info(coin: &str, fmt: OutputFormat) -> Result<()> {
             let spread_bps = spread.map(|s| {
                 if ticker.mid_price > Decimal::ZERO {
                     (s / ticker.mid_price * Decimal::from(10000)).round_dp(2)
-                } else { Decimal::ZERO }
+                } else {
+                    Decimal::ZERO
+                }
             });
 
             println!("┌─────────────────────────────────────────────────┐");
-            println!("│  {} — Market Info{:>width$}│", coin_upper, "", width = 47 - coin_upper.len() - 15);
+            println!(
+                "│  {} — Market Info{:>width$}│",
+                coin_upper,
+                "",
+                width = 47 - coin_upper.len() - 15
+            );
             println!("├─────────────────────────────────────────────────┤");
             println!("│  Mid Price     : ${:<29}│", ticker.mid_price);
-            println!("│  Best Bid      : ${:<29}│",
-                ticker.best_bid.map(|b| b.to_string()).unwrap_or("—".into()));
-            println!("│  Best Ask      : ${:<29}│",
-                ticker.best_ask.map(|a| a.to_string()).unwrap_or("—".into()));
-            println!("│  Spread        : ${:<22} ({} bps)│",
+            println!(
+                "│  Best Bid      : ${:<29}│",
+                ticker.best_bid.map(|b| b.to_string()).unwrap_or("—".into())
+            );
+            println!(
+                "│  Best Ask      : ${:<29}│",
+                ticker.best_ask.map(|a| a.to_string()).unwrap_or("—".into())
+            );
+            println!(
+                "│  Spread        : ${:<22} ({} bps)│",
                 spread.map(|s| s.to_string()).unwrap_or("—".into()),
-                spread_bps.map(|s| s.to_string()).unwrap_or("—".into()));
+                spread_bps.map(|s| s.to_string()).unwrap_or("—".into())
+            );
             println!("├─────────────────────────────────────────────────┤");
-            println!("│  24h Volume    : ${:<29}│",
-                ticker.volume_24h.map(|v| format!("{:.0}", v)).unwrap_or("—".into()));
-            println!("│  24h Change    : {:<30}│",
-                ticker.change_24h_pct.map(|c| format!("{:+.2}%", c)).unwrap_or("—".into()));
+            println!(
+                "│  24h Volume    : ${:<29}│",
+                ticker
+                    .volume_24h
+                    .map(|v| format!("{:.0}", v))
+                    .unwrap_or("—".into())
+            );
+            println!(
+                "│  24h Change    : {:<30}│",
+                ticker
+                    .change_24h_pct
+                    .map(|c| format!("{:+.2}%", c))
+                    .unwrap_or("—".into())
+            );
 
             if let Some(m) = market {
                 println!("├─────────────────────────────────────────────────┤");
-                println!("│  Mark Price    : ${:<29}│",
-                    m.mark_price.map(|p| p.to_string()).unwrap_or("—".into()));
-                println!("│  Index Price   : ${:<29}│",
-                    m.index_price.map(|p| p.to_string()).unwrap_or("—".into()));
-                println!("│  Open Interest : ${:<29}│",
-                    m.open_interest.map(|o| format!("{:.0}", o)).unwrap_or("—".into()));
-                println!("│  Max Leverage  : {:<30}│",
-                    m.max_leverage.map(|l| format!("{}x", l)).unwrap_or("—".into()));
+                println!(
+                    "│  Mark Price    : ${:<29}│",
+                    m.mark_price.map(|p| p.to_string()).unwrap_or("—".into())
+                );
+                println!(
+                    "│  Index Price   : ${:<29}│",
+                    m.index_price.map(|p| p.to_string()).unwrap_or("—".into())
+                );
+                println!(
+                    "│  Open Interest : ${:<29}│",
+                    m.open_interest
+                        .map(|o| format!("{:.0}", o))
+                        .unwrap_or("—".into())
+                );
+                println!(
+                    "│  Max Leverage  : {:<30}│",
+                    m.max_leverage
+                        .map(|l| format!("{}x", l))
+                        .unwrap_or("—".into())
+                );
             }
             println!("└─────────────────────────────────────────────────┘");
         }
@@ -303,16 +402,13 @@ pub async fn info(coin: &str, fmt: OutputFormat) -> Result<()> {
 }
 
 /// `atlas market top [--sort volume|change|oi] [--limit 20] [--reverse]`
-pub async fn top(
-    sort_by: &str,
-    limit: usize,
-    reverse: bool,
-    fmt: OutputFormat,
-) -> Result<()> {
+pub async fn top(sort_by: &str, limit: usize, reverse: bool, fmt: OutputFormat) -> Result<()> {
     let orch = Orchestrator::readonly().await?;
     let perp = orch.perp(None)?;
 
-    let mut tickers = perp.all_tickers().await
+    let mut tickers = perp
+        .all_tickers()
+        .await
         .map_err(|e| anyhow::anyhow!("{e}"))?;
 
     // Sort
@@ -358,16 +454,19 @@ pub async fn top(
 
     match fmt {
         OutputFormat::Json | OutputFormat::JsonPretty => {
-            let rows: Vec<serde_json::Value> = tickers.iter().map(|t| {
-                serde_json::json!({
-                    "symbol": t.symbol,
-                    "mid_price": t.mid_price.to_string(),
-                    "volume_24h": t.volume_24h.map(|v| v.to_string()),
-                    "change_24h_pct": t.change_24h_pct.map(|c| c.to_string()),
-                    "best_bid": t.best_bid.map(|b| b.to_string()),
-                    "best_ask": t.best_ask.map(|a| a.to_string()),
+            let rows: Vec<serde_json::Value> = tickers
+                .iter()
+                .map(|t| {
+                    serde_json::json!({
+                        "symbol": t.symbol,
+                        "mid_price": t.mid_price.to_string(),
+                        "volume_24h": t.volume_24h.map(|v| v.to_string()),
+                        "change_24h_pct": t.change_24h_pct.map(|c| c.to_string()),
+                        "best_bid": t.best_bid.map(|b| b.to_string()),
+                        "best_ask": t.best_ask.map(|a| a.to_string()),
+                    })
                 })
-            }).collect();
+                .collect();
             let json = serde_json::json!({ "markets": rows });
             let s = if matches!(fmt, OutputFormat::JsonPretty) {
                 serde_json::to_string_pretty(&json)?
@@ -384,10 +483,14 @@ pub async fn top(
                 _ => "By Volume",
             };
             println!("📊 {} (top {})\n", title, limit);
-            println!("{:<12} {:>14} {:>16} {:>10}", "COIN", "PRICE", "24h VOLUME", "24h CHG");
+            println!(
+                "{:<12} {:>14} {:>16} {:>10}",
+                "COIN", "PRICE", "24h VOLUME", "24h CHG"
+            );
             println!("{}", "─".repeat(55));
             for t in &tickers {
-                let vol = t.volume_24h
+                let vol = t
+                    .volume_24h
                     .map(|v| {
                         if v >= Decimal::from(1_000_000) {
                             format!("${:.1}M", v.to_f64().unwrap_or(0.0) / 1_000_000.0)
@@ -398,10 +501,14 @@ pub async fn top(
                         }
                     })
                     .unwrap_or("—".into());
-                let chg = t.change_24h_pct
+                let chg = t
+                    .change_24h_pct
                     .map(|c| format!("{:+.2}%", c))
                     .unwrap_or("—".into());
-                println!("{:<12} {:>14} {:>16} {:>10}", t.symbol, t.mid_price, vol, chg);
+                println!(
+                    "{:<12} {:>14} {:>16} {:>10}",
+                    t.symbol, t.mid_price, vol, chg
+                );
             }
         }
     }
@@ -415,11 +522,15 @@ pub async fn spread(coins: &[String], fmt: OutputFormat) -> Result<()> {
     let perp = orch.perp(None)?;
 
     let tickers = if coins.is_empty() {
-        perp.all_tickers().await.map_err(|e| anyhow::anyhow!("{e}"))?
+        perp.all_tickers()
+            .await
+            .map_err(|e| anyhow::anyhow!("{e}"))?
     } else {
         let mut result = Vec::new();
         for c in coins {
-            let t = perp.ticker(&c.to_uppercase()).await
+            let t = perp
+                .ticker(&c.to_uppercase())
+                .await
                 .map_err(|e| anyhow::anyhow!("{e}"))?;
             result.push(t);
         }
@@ -427,28 +538,34 @@ pub async fn spread(coins: &[String], fmt: OutputFormat) -> Result<()> {
     };
 
     // Filter to only those with bid/ask data
-    let with_spread: Vec<_> = tickers.iter()
+    let with_spread: Vec<_> = tickers
+        .iter()
         .filter(|t| t.best_bid.is_some() && t.best_ask.is_some())
         .collect();
 
     match fmt {
         OutputFormat::Json | OutputFormat::JsonPretty => {
-            let rows: Vec<serde_json::Value> = with_spread.iter().map(|t| {
-                let bid = t.best_bid.unwrap();
-                let ask = t.best_ask.unwrap();
-                let spread_abs = ask - bid;
-                let spread_bps = if t.mid_price > Decimal::ZERO {
-                    (spread_abs / t.mid_price * Decimal::from(10000)).round_dp(2)
-                } else { Decimal::ZERO };
-                serde_json::json!({
-                    "symbol": t.symbol,
-                    "bid": bid.to_string(),
-                    "ask": ask.to_string(),
-                    "spread": spread_abs.to_string(),
-                    "spread_bps": spread_bps.to_string(),
-                    "mid": t.mid_price.to_string(),
+            let rows: Vec<serde_json::Value> = with_spread
+                .iter()
+                .filter_map(|t| {
+                    let bid = t.best_bid?;
+                    let ask = t.best_ask?;
+                    let spread_abs = ask - bid;
+                    let spread_bps = if t.mid_price > Decimal::ZERO {
+                        (spread_abs / t.mid_price * Decimal::from(10000)).round_dp(2)
+                    } else {
+                        Decimal::ZERO
+                    };
+                    Some(serde_json::json!({
+                        "symbol": t.symbol,
+                        "bid": bid.to_string(),
+                        "ask": ask.to_string(),
+                        "spread": spread_abs.to_string(),
+                        "spread_bps": spread_bps.to_string(),
+                        "mid": t.mid_price.to_string(),
+                    }))
                 })
-            }).collect();
+                .collect();
             let s = if matches!(fmt, OutputFormat::JsonPretty) {
                 serde_json::to_string_pretty(&rows)?
             } else {
@@ -457,17 +574,26 @@ pub async fn spread(coins: &[String], fmt: OutputFormat) -> Result<()> {
             println!("{s}");
         }
         OutputFormat::Table => {
-            println!("{:<12} {:>14} {:>14} {:>12} {:>8}", "COIN", "BID", "ASK", "SPREAD", "BPS");
+            println!(
+                "{:<12} {:>14} {:>14} {:>12} {:>8}",
+                "COIN", "BID", "ASK", "SPREAD", "BPS"
+            );
             println!("{}", "─".repeat(63));
             for t in &with_spread {
-                let bid = t.best_bid.unwrap();
-                let ask = t.best_ask.unwrap();
+                let (Some(bid), Some(ask)) = (t.best_bid, t.best_ask) else {
+                    continue;
+                };
+                let (bid, ask) = (bid, ask);
                 let spread_abs = ask - bid;
                 let spread_bps = if t.mid_price > Decimal::ZERO {
                     (spread_abs / t.mid_price * Decimal::from(10000)).round_dp(2)
-                } else { Decimal::ZERO };
-                println!("{:<12} {:>14} {:>14} {:>12} {:>8}",
-                    t.symbol, bid, ask, spread_abs, spread_bps);
+                } else {
+                    Decimal::ZERO
+                };
+                println!(
+                    "{:<12} {:>14} {:>14} {:>12} {:>8}",
+                    t.symbol, bid, ask, spread_abs, spread_bps
+                );
             }
         }
     }
@@ -480,11 +606,11 @@ pub async fn search(query: &str, fmt: OutputFormat) -> Result<()> {
     let orch = Orchestrator::readonly().await?;
     let perp = orch.perp(None)?;
 
-    let all_markets = perp.markets().await
-        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let all_markets = perp.markets().await.map_err(|e| anyhow::anyhow!("{e}"))?;
 
     let q = query.to_uppercase();
-    let matches: Vec<_> = all_markets.iter()
+    let matches: Vec<_> = all_markets
+        .iter()
         .filter(|m| m.symbol.contains(&q) || m.base.to_uppercase().contains(&q))
         .collect();
 
@@ -495,16 +621,19 @@ pub async fn search(query: &str, fmt: OutputFormat) -> Result<()> {
 
     match fmt {
         OutputFormat::Json | OutputFormat::JsonPretty => {
-            let rows: Vec<serde_json::Value> = matches.iter().map(|m| {
-                serde_json::json!({
-                    "symbol": m.symbol,
-                    "base": m.base,
-                    "quote": m.quote,
-                    "market_type": format!("{:?}", m.market_type),
-                    "mark_price": m.mark_price.map(|p| p.to_string()),
-                    "max_leverage": m.max_leverage,
+            let rows: Vec<serde_json::Value> = matches
+                .iter()
+                .map(|m| {
+                    serde_json::json!({
+                        "symbol": m.symbol,
+                        "base": m.base,
+                        "quote": m.quote,
+                        "market_type": format!("{:?}", m.market_type),
+                        "mark_price": m.mark_price.map(|p| p.to_string()),
+                        "max_leverage": m.max_leverage,
+                    })
                 })
-            }).collect();
+                .collect();
             let s = if matches!(fmt, OutputFormat::JsonPretty) {
                 serde_json::to_string_pretty(&rows)?
             } else {
@@ -513,14 +642,29 @@ pub async fn search(query: &str, fmt: OutputFormat) -> Result<()> {
             println!("{s}");
         }
         OutputFormat::Table => {
-            println!("🔍 Markets matching '{}' ({} found)\n", query, matches.len());
-            println!("{:<15} {:<8} {:<8} {:>12} {:>8}", "SYMBOL", "BASE", "QUOTE", "MARK PRICE", "MAX LEV");
+            println!(
+                "🔍 Markets matching '{}' ({} found)\n",
+                query,
+                matches.len()
+            );
+            println!(
+                "{:<15} {:<8} {:<8} {:>12} {:>8}",
+                "SYMBOL", "BASE", "QUOTE", "MARK PRICE", "MAX LEV"
+            );
             println!("{}", "─".repeat(55));
             for m in &matches {
-                println!("{:<15} {:<8} {:<8} {:>12} {:>8}",
-                    m.symbol, m.base, m.quote,
-                    m.mark_price.map(|p| format!("${}", p)).unwrap_or("—".into()),
-                    m.max_leverage.map(|l| format!("{}x", l)).unwrap_or("—".into()));
+                println!(
+                    "{:<15} {:<8} {:<8} {:>12} {:>8}",
+                    m.symbol,
+                    m.base,
+                    m.quote,
+                    m.mark_price
+                        .map(|p| format!("${}", p))
+                        .unwrap_or("—".into()),
+                    m.max_leverage
+                        .map(|l| format!("{}x", l))
+                        .unwrap_or("—".into())
+                );
             }
         }
     }
@@ -533,18 +677,20 @@ pub async fn summary(fmt: OutputFormat) -> Result<()> {
     let orch = Orchestrator::readonly().await?;
     let perp = orch.perp(None)?;
 
-    let tickers = perp.all_tickers().await
+    let tickers = perp
+        .all_tickers()
+        .await
         .map_err(|e| anyhow::anyhow!("{e}"))?;
 
     let total = tickers.len();
-    let total_volume: Decimal = tickers.iter()
-        .filter_map(|t| t.volume_24h)
-        .sum();
+    let total_volume: Decimal = tickers.iter().filter_map(|t| t.volume_24h).sum();
 
-    let gainers = tickers.iter()
+    let gainers = tickers
+        .iter()
         .filter(|t| t.change_24h_pct.map(|c| c > Decimal::ZERO).unwrap_or(false))
         .count();
-    let losers = tickers.iter()
+    let losers = tickers
+        .iter()
         .filter(|t| t.change_24h_pct.map(|c| c < Decimal::ZERO).unwrap_or(false))
         .count();
 
@@ -592,9 +738,15 @@ pub async fn summary(fmt: OutputFormat) -> Result<()> {
         }
         OutputFormat::Table => {
             let vol_str = if total_volume >= Decimal::from(1_000_000_000) {
-                format!("${:.2}B", total_volume.to_f64().unwrap_or(0.0) / 1_000_000_000.0)
+                format!(
+                    "${:.2}B",
+                    total_volume.to_f64().unwrap_or(0.0) / 1_000_000_000.0
+                )
             } else if total_volume >= Decimal::from(1_000_000) {
-                format!("${:.1}M", total_volume.to_f64().unwrap_or(0.0) / 1_000_000.0)
+                format!(
+                    "${:.1}M",
+                    total_volume.to_f64().unwrap_or(0.0) / 1_000_000.0
+                )
             } else {
                 format!("${:.0}", total_volume)
             };
@@ -608,17 +760,24 @@ pub async fn summary(fmt: OutputFormat) -> Result<()> {
             println!("├─────────────────────────────────────────────────┤");
             println!("│  🟢 Top Gainers                                 │");
             for t in &top3_gainers {
-                let chg = t.change_24h_pct.map(|c| format!("{:+.2}%", c)).unwrap_or("—".into());
+                let chg = t
+                    .change_24h_pct
+                    .map(|c| format!("{:+.2}%", c))
+                    .unwrap_or("—".into());
                 println!("│    {:<12} {:>12}  ${:<18} │", t.symbol, chg, t.mid_price);
             }
             println!("│  🔴 Top Losers                                  │");
             for t in &top3_losers {
-                let chg = t.change_24h_pct.map(|c| format!("{:+.2}%", c)).unwrap_or("—".into());
+                let chg = t
+                    .change_24h_pct
+                    .map(|c| format!("{:+.2}%", c))
+                    .unwrap_or("—".into());
                 println!("│    {:<12} {:>12}  ${:<18} │", t.symbol, chg, t.mid_price);
             }
             println!("│  📈 Top Volume                                  │");
             for t in &top3_volume {
-                let vol = t.volume_24h
+                let vol = t
+                    .volume_24h
                     .map(|v| {
                         if v >= Decimal::from(1_000_000) {
                             format!("${:.1}M", v.to_f64().unwrap_or(0.0) / 1_000_000.0)

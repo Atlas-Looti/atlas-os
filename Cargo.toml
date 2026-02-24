@@ -1,89 +1,141 @@
 [workspace]
 resolver = "2"
+
+# ── Structure ─────────────────────────────────────────────────────────────────
+#
+#   atlas-os/
+#   ├── Cargo.toml                 ← this file
+#   ├── crates/
+#   │   ├── core/                  atlas-core     — engine (traits, types, orchestrator, db, auth)
+#   │   ├── cli/                   atlas-cli      — binary `atlas` (clap + ratatui TUI)
+#   │   └── modules/
+#   │       ├── hl/                atlas-hl       — Hyperliquid: PerpModule impl
+#   │       └── zero-x/            atlas-0x       — 0x Protocol: SwapModule impl
+#   └── apps/                      (not in workspace, managed separately)
+#       ├── backend/               Bun + TypeScript proxy gateway
+#       └── frontend/              Next.js dashboard
+#
+# ── Naming convention ─────────────────────────────────────────────────────────
+#   Core crates    : atlas-<name>          (atlas-core, atlas-cli)
+#   Protocol mods  : atlas-<protocol>      (atlas-hl, atlas-0x)
+#   Future mods    : atlas-<protocol>      (atlas-dydx, atlas-gmx, atlas-morpho)
+#
+# ── Features ──────────────────────────────────────────────────────────────────
+#   atlas-core  [default]          core engine, always compiled
+#   atlas-cli   tui                ratatui TUI (optional, default on binary)
+#   atlas-cli   ta                 technical analysis indicators (optional)
+#   atlas-hl    testnet            Hyperliquid testnet support
+#   atlas-0x    simulate           Quote-only mode without execution
+
 members = [
+    "crates/core",
+    "crates/cli",
     "crates/common",
     "crates/types",
     "crates/utils",
-    "crates/core",
-    "crates/cli",
     "crates/modules/hyperliquid",
-    "crates/modules/morpho",
     "crates/modules/zero_x",
 ]
 
+# ── Workspace-level package metadata ──────────────────────────────────────────
 [workspace.package]
-version = "0.1.0"
-edition = "2021"
-license = "MIT"
+version      = "0.1.0"
+edition      = "2021"
+license      = "MIT"
+rust-version = "1.80"
 
+# ── Build profiles ────────────────────────────────────────────────────────────
+[profile.release]
+opt-level     = 3
+lto           = "thin"
+codegen-units = 1
+strip         = "symbols"
+
+[profile.dev]
+opt-level = 0
+debug     = true
+
+# Build heavy deps (hypersdk, alloy, ratatui) with O2 even in dev mode
+[profile.dev.package."*"]
+opt-level = 2
+
+# ── Workspace-wide lint enforcement ───────────────────────────────────────────
+[workspace.lints.rust]
+unsafe_code     = "forbid"
+unused_must_use = "deny"
+
+[workspace.lints.clippy]
+all                     = { level = "warn", priority = -1 }
+cast_possible_truncation = "allow"   # rust_decimal has legit casts internally
+module_name_repetitions  = "allow"   # atlas_core::orchestrator::Orchestrator is fine
+
+# ── Shared dependencies (all crates use `dep = { workspace = true }`) ─────────
 [workspace.dependencies]
-# Internal crates
+
+# ── Internal crates ───────────────────────────────────────────────
 atlas-common = { path = "crates/common" }
-atlas-types = { path = "crates/types" }
-atlas-utils = { path = "crates/utils" }
-atlas-core = { path = "crates/core" }
+atlas-types  = { path = "crates/types" }
+atlas-utils  = { path = "crates/utils" }
+atlas-core   = { path = "crates/core" }
 atlas-mod-hyperliquid = { path = "crates/modules/hyperliquid" }
-atlas-mod-morpho = { path = "crates/modules/morpho" }
-atlas-mod-zero-x = { path = "crates/modules/zero_x" }
+atlas-mod-zero-x      = { path = "crates/modules/zero_x" }
 
-# Async
-tokio = { version = "1", features = ["full"] }
-async-trait = "0.1"
+# ── Async runtime ─────────────────────────────────────────────────
+tokio        = { version = "1",   features = ["full"] }
+async-trait  = "0.1"
+futures      = "0.3"
 
-# Serialization
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+# ── Serialization ─────────────────────────────────────────────────
+serde        = { version = "1",   features = ["derive"] }
+serde_json   = "1"
+rmp-serde    = "1"    # MessagePack — Hyperliquid action signing
 
-# CLI & TUI
-clap = { version = "4", features = ["derive"] }
-ratatui = "0.29"
-crossterm = "0.28"
+# ── CLI ───────────────────────────────────────────────────────────
+clap         = { version = "4",   features = ["derive"] }
 
-# Security
-keyring = { version = "3", features = ["sync-secret-service", "crypto-rust"] }
+# ── TUI (optional — only atlas-cli with feature `tui`) ────────────
+ratatui      = "0.29"
+crossterm    = "0.28"
 
-# Filesystem
-dirs = "5"
+# ── Error handling ────────────────────────────────────────────────
+anyhow       = "1"
+thiserror    = "2"
 
-# Error handling
-anyhow = "1"
-thiserror = "2"
-
-# Logging
-tracing = "0.1"
+# ── Logging ───────────────────────────────────────────────────────
+tracing            = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
-# EVM / Crypto (alloy — same as hyperliquid SDK)
-alloy = { version = "1.0", default-features = false, features = [
+# ── Security / keyring ────────────────────────────────────────────
+keyring      = { version = "3",   features = ["sync-secret-service", "crypto-rust"] }
+
+# ── EVM / Crypto ──────────────────────────────────────────────
+# Version must align with hypersdk's alloy requirement (~1.5.x)
+alloy        = { version = "1.5", default-features = false, features = [
     "dyn-abi",
     "sol-types",
     "signer-local",
+    "signers",
 ] }
-hex = "0.4"
-rand = "0.8"
+hex          = "0.4"
+rand         = "0.8"
 
-# Time
-chrono = "0.4"
+# ── Hyperliquid SDK ───────────────────────────────────────────
+# Repo: https://github.com/infinitefield/hypersdk
+# Use git + tag so any machine can build without local clone.
+# To update: change the tag to the latest release.
+hypersdk     = { git = "https://github.com/infinitefield/hypersdk", tag = "v0.2.2" }
 
-# UUID (for client order IDs)
-uuid = { version = "1", features = ["v4"] }
+# ── Decimal precision (required by hypersdk, mandatory across engine) ─
+rust_decimal = { version = "1",   features = ["serde-with-str"] }
 
-# Hyperliquid SDK (infinitefield — professional, rust_decimal-native)
-hypersdk = { path = "../hypersdk" }
+# ── HTTP client ───────────────────────────────────────────────────
+reqwest      = { version = "0.12", features = ["json"] }
+url          = "2"
 
+# ── Storage ───────────────────────────────────────────────────────
+rusqlite     = { version = "0.33", features = ["bundled"] }
 
-# Decimal precision (required by hypersdk)
-rust_decimal = { version = "1", features = ["serde-with-str"] }
-
-# HTTP (for builder fee injection)
-reqwest = { version = "0.12", features = ["json"] }
-url = "2"
-
-# Futures (for hypersdk async traits)
-futures = "0.3"
-
-# MessagePack serialization (for Hyperliquid action signing)
-rmp-serde = "1"
-
-# SQLite (embedded, for local data caching)
-rusqlite = { version = "0.33", features = ["bundled"] }
+# ── Utils ─────────────────────────────────────────────────────────
+dirs         = "5"
+chrono       = "0.4"
+uuid         = { version = "1",   features = ["v4"] }

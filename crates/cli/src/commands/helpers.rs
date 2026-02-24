@@ -7,7 +7,6 @@ pub fn normalize_protocol(p: &str) -> String {
     match p.to_lowercase().as_str() {
         "hl" | "hyperliquid" | "perp" => "hyperliquid".to_string(),
         "0x" | "zero_x" | "zerox" | "swap" => "0x".to_string(),
-        "morpho" | "lending" => "morpho".to_string(),
         other => other.to_string(),
     }
 }

@@ -214,21 +214,15 @@ impl Orchestrator {
             info!("Hyperliquid perp module loaded");
         }
 
-        // ── Morpho (lending) ────────────────────────────────────
-        if config.modules.morpho.enabled {
-            let chain = match config.modules.morpho.config.chain.as_str() {
-                "base" => Chain::Base,
-                _ => Chain::Ethereum,
-            };
-            let morpho = atlas_mod_morpho::client::MorphoModule::new(chain);
-            orch.add_lending(Arc::new(morpho));
-            info!("Morpho lending module loaded");
-        }
-
         // ── 0x (swap) ───────────────────────────────────────────
         if config.modules.zero_x.enabled {
-            let backend_url = config.system.api_url.clone();
-            let zero_x = atlas_mod_zero_x::client::ZeroXModule::new(backend_url);
+            let backend_url = "https://api.atlas-os.ai".to_string(); // Hardcoded default backend
+            let default_chain =
+                atlas_mod_zero_x::parse_chain(&config.modules.zero_x.config.default_chain);
+            let default_slippage_bps = config.modules.zero_x.config.default_slippage_bps;
+            let zero_x = atlas_mod_zero_x::client::ZeroXModule::new(backend_url)
+                .with_api_key(config.system.api_key.clone())
+                .with_defaults(default_chain, default_slippage_bps);
             orch.add_swap(Arc::new(zero_x));
             info!("0x swap module loaded");
         }

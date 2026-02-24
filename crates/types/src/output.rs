@@ -10,16 +10,42 @@ use serde::Serialize;
 
 // ─── Status ─────────────────────────────────────────────────────────
 
+/// PRD-compliant status output.
+///
+/// ```json
+/// {
+///   "ok": true,
+///   "data": {
+///     "profile": "main",
+///     "address": "0x...",
+///     "modules": ["hyperliquid"],
+///     "balances": [{ "asset": "USDC", "total": "5000.00", "available": "4800.00", "protocol": "hyperliquid" }],
+///     "positions": [...],
+///     "open_orders": 2
+///   }
+/// }
+/// ```
 #[derive(Debug, Clone, Serialize)]
 pub struct StatusOutput {
     pub profile: String,
     pub address: String,
     pub network: String,
+    pub modules: Vec<String>,
+    pub balances: Vec<BalanceRow>,
     pub account_value: Option<String>,
     pub margin_used: Option<String>,
     pub net_position: Option<String>,
     pub withdrawable: Option<String>,
     pub positions: Vec<PositionRow>,
+    pub open_orders: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct BalanceRow {
+    pub asset: String,
+    pub total: String,
+    pub available: String,
+    pub protocol: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -152,12 +178,52 @@ pub struct ConfigOutput {
 
 // ─── Doctor ─────────────────────────────────────────────────────────
 
+/// PRD-compliant doctor check result.
+///
+/// Status is "ok" or "fail". On failure, `fix` contains the actionable hint.
+#[derive(Debug, Clone, Serialize)]
+pub struct DoctorCheck {
+    pub name: String,
+    pub status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fix: Option<String>,
+}
+
+impl DoctorCheck {
+    pub fn ok(name: impl Into<String>, value: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            status: "ok".into(),
+            value: Some(value.into()),
+            fix: None,
+        }
+    }
+
+    pub fn ok_bare(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            status: "ok".into(),
+            value: None,
+            fix: None,
+        }
+    }
+
+    pub fn fail(name: impl Into<String>, fix: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            status: "fail".into(),
+            value: None,
+            fix: Some(fix.into()),
+        }
+    }
+}
+
+/// PRD-compliant `atlas doctor --output json` output.
 #[derive(Debug, Clone, Serialize)]
 pub struct DoctorOutput {
-    pub config_ok: bool,
-    pub keystore_ok: bool,
-    pub ntp_ok: Option<bool>,
-    pub api_latency_ms: Option<u64>,
+    pub checks: Vec<DoctorCheck>,
 }
 
 // ─── Market Data: Price ─────────────────────────────────────────────
@@ -436,6 +502,13 @@ mod tests {
             profile: "default".into(),
             address: "0x1234".into(),
             network: "Mainnet".into(),
+            modules: vec!["hyperliquid".into()],
+            balances: vec![BalanceRow {
+                asset: "USDC".into(),
+                total: "10000.00".into(),
+                available: "9500.00".into(),
+                protocol: "hyperliquid".into(),
+            }],
             account_value: Some("10000.00".into()),
             margin_used: Some("500.00".into()),
             net_position: Some("2500.00".into()),
@@ -446,10 +519,14 @@ mod tests {
                 entry_price: Some("3500.00".into()),
                 unrealized_pnl: Some("25.00".into()),
             }],
+            open_orders: 2,
         };
         let json = serde_json::to_string(&output).unwrap();
         assert!(json.contains("\"profile\":\"default\""));
         assert!(json.contains("\"coin\":\"ETH\""));
+        assert!(json.contains("\"modules\""));
+        assert!(json.contains("\"open_orders\":2"));
+        assert!(json.contains("\"balances\""));
     }
 
     #[test]
@@ -550,13 +627,17 @@ mod tests {
     #[test]
     fn test_doctor_output_serializes() {
         let output = DoctorOutput {
-            config_ok: true,
-            keystore_ok: true,
-            ntp_ok: None,
-            api_latency_ms: None,
+            checks: vec![
+                DoctorCheck::ok("profile", "main"),
+                DoctorCheck::ok_bare("keyring"),
+                DoctorCheck::fail("api_key", "Run: atlas configure system api-key <key>"),
+            ],
         };
         let json = serde_json::to_string(&output).unwrap();
-        assert!(json.contains("\"config_ok\":true"));
+        assert!(json.contains("\"checks\""));
+        assert!(json.contains("\"status\":\"ok\""));
+        assert!(json.contains("\"status\":\"fail\""));
+        assert!(json.contains("\"fix\""));
     }
 
     #[test]
@@ -565,11 +646,14 @@ mod tests {
             profile: "default".into(),
             address: "0x1234".into(),
             network: "Mainnet".into(),
+            modules: vec!["hyperliquid".into()],
+            balances: vec![],
             account_value: Some("10000.00".into()),
             margin_used: Some("500.00".into()),
             net_position: Some("2500.00".into()),
             withdrawable: Some("9500.00".into()),
             positions: vec![],
+            open_orders: 0,
         };
         let pretty = serde_json::to_string_pretty(&output).unwrap();
         assert!(pretty.contains('\n'));
@@ -580,8 +664,14 @@ mod tests {
     fn test_price_output_serializes() {
         let output = PriceOutput {
             prices: vec![
-                PriceRow { coin: "BTC".into(), mid_price: "105234.50".into() },
-                PriceRow { coin: "ETH".into(), mid_price: "3521.25".into() },
+                PriceRow {
+                    coin: "BTC".into(),
+                    mid_price: "105234.50".into(),
+                },
+                PriceRow {
+                    coin: "ETH".into(),
+                    mid_price: "3521.25".into(),
+                },
             ],
         };
         let json = serde_json::to_string(&output).unwrap();

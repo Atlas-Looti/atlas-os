@@ -13,7 +13,7 @@ async fn backend() -> Result<BackendClient> {
     if !client.health().await? {
         anyhow::bail!(
             "Atlas backend not reachable. Start it with: atlas-server\n\
-             Or set api_url: atlas configure system api-url <url>"
+             Or set api_key: atlas configure system api-key <key>"
         );
     }
     Ok(client)

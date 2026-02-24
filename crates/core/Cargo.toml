@@ -7,7 +7,6 @@ edition.workspace = true
 atlas-common = { workspace = true }
 atlas-types = { workspace = true }
 atlas-mod-hyperliquid = { workspace = true }
-atlas-mod-morpho = { workspace = true }
 atlas-mod-zero-x = { workspace = true }
 tokio = { workspace = true }
 async-trait = { workspace = true }

@@ -13,7 +13,8 @@ use serde::{Deserialize, Serialize};
 use tracing::info;
 
 /// Atlas backend API sub-route for 0x proxy.
-const ZEROX_API_BASE: &str = "/api/zerox";
+/// Backend mounts at /atlas-os/0x (see apps/backend index).
+const ZEROX_API_BASE: &str = "/atlas-os/0x";
 
 /// AllowanceHolder address for Cancun hardfork chains (Ethereum, Arbitrum, Base, etc.)
 pub const ALLOWANCE_HOLDER_CANCUN: &str = "0x0000000000001fF3684f28c67538d4D072C22734";
@@ -223,12 +224,28 @@ pub struct ZeroXChainInfo {
 /// 0x Swap module — multi-chain DEX aggregator (API v2).
 pub struct ZeroXModule {
     http: reqwest::Client,
-    /// Backend API URL.
+    /// Backend API URL (no trailing slash).
     pub backend_url: String,
+    /// Atlas API key for backend auth (X-API-Key / Authorization: Bearer).
+    pub api_key: Option<String>,
+    /// Default chain for SwapModule::quote() when trait doesn't pass chain.
+    pub default_chain: Chain,
+    /// Default slippage in bps for quote().
+    pub default_slippage_bps: u32,
     /// Atlas builder fee recipient address.
     pub fee_recipient: Option<String>,
     /// Atlas builder fee in bps (default: 1 bps = 0.01%).
     pub fee_bps: u16,
+}
+
+/// Parse chain name (e.g. from config) to Chain enum. Falls back to Ethereum if unknown.
+pub fn parse_chain(s: &str) -> Chain {
+    match s.to_lowercase().as_str() {
+        "ethereum" | "eth" | "1" => Chain::Ethereum,
+        "arbitrum" | "arb" | "42161" => Chain::Arbitrum,
+        "base" | "8453" => Chain::Base,
+        _ => Chain::Ethereum,
+    }
 }
 
 impl ZeroXModule {
@@ -240,12 +257,29 @@ impl ZeroXModule {
 
         info!("0x module initialized (API v2, AllowanceHolder flow)");
 
+        let backend_url = backend_url.trim_end_matches('/').to_string();
         Self {
             http,
             backend_url,
+            api_key: None,
+            default_chain: Chain::Ethereum,
+            default_slippage_bps: 100,
             fee_recipient: Some(ATLAS_FEE_WALLET.to_string()),
             fee_bps: BUILDER_FEE_BPS,
         }
+    }
+
+    /// Set Atlas API key for backend auth (required for /atlas-os/0x/*).
+    pub fn with_api_key(mut self, api_key: Option<String>) -> Self {
+        self.api_key = api_key;
+        self
+    }
+
+    /// Set default chain and slippage (from config) for SwapModule::quote().
+    pub fn with_defaults(mut self, default_chain: Chain, default_slippage_bps: u32) -> Self {
+        self.default_chain = default_chain;
+        self.default_slippage_bps = default_slippage_bps;
+        self
     }
 
     /// Set the builder fee recipient and bps.
@@ -255,13 +289,14 @@ impl ZeroXModule {
         self
     }
 
-    /// GET request to Atlas backend.
+    /// GET request to Atlas backend. Sends Authorization when api_key is set.
     async fn get(&self, path: &str, query: &[(&str, &str)]) -> AtlasResult<serde_json::Value> {
         let url = format!("{}{}", self.backend_url, path);
-        let resp = self
-            .http
-            .get(&url)
-            .query(query)
+        let mut req = self.http.get(&url).query(query);
+        if let Some(ref key) = self.api_key {
+            req = req.header("Authorization", format!("Bearer {}", key));
+        }
+        let resp = req
             .send()
             .await
             .map_err(|e| AtlasError::Network(e.to_string()))?;
@@ -418,12 +453,16 @@ impl SwapModule for ZeroXModule {
         buy_token: &str,
         amount: Decimal,
     ) -> AtlasResult<SwapQuote> {
-        // Default to Ethereum if no chain context (trait doesn't pass chain)
-        let chain = Chain::Ethereum;
         let sell_amount = amount.to_string();
-
         let resp = self
-            .price(&chain, sell_token, buy_token, &sell_amount, None, Some(100))
+            .price(
+                &self.default_chain,
+                sell_token,
+                buy_token,
+                &sell_amount,
+                None,
+                Some(self.default_slippage_bps),
+            )
             .await?;
 
         if !resp.liquidity_available {
@@ -460,7 +499,7 @@ impl SwapModule for ZeroXModule {
 
         Ok(SwapQuote {
             protocol: Protocol::ZeroX,
-            chain,
+            chain: self.default_chain.clone(),
             sell_token: sell_token.to_string(),
             buy_token: buy_token.to_string(),
             sell_amount: amount,

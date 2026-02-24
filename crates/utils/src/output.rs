@@ -30,9 +30,23 @@ pub trait TableDisplay {
     fn print_table(&self);
 }
 
+/// A generic API response wrapper for JSON output.
+///
+/// This struct provides a consistent envelope for JSON responses,
+/// indicating success or failure and containing the data or error details.
+#[derive(Serialize)]
+pub struct ApiResponse<T> {
+    ok: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    data: Option<T>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<serde_json::Value>,
+}
+
 /// Render structured output — JSON or table depending on format.
 ///
-/// For JSON formats, uses `serde_json` serialization.
+/// For JSON formats, uses `serde_json` serialization and wraps the output
+/// in an `ApiResponse` envelope (`{"ok":true,"data":...}` or `{"ok":false,"error":...}`).
 /// For table format, calls `TableDisplay::print_table()`.
 pub fn render<T: Serialize + TableDisplay>(format: OutputFormat, data: &T) -> Result<()> {
     match format {
@@ -41,12 +55,22 @@ pub fn render<T: Serialize + TableDisplay>(format: OutputFormat, data: &T) -> Re
             Ok(())
         }
         OutputFormat::Json => {
-            let json = serde_json::to_string(data)?;
+            let response = ApiResponse {
+                ok: true,
+                data: Some(data),
+                error: None,
+            };
+            let json = serde_json::to_string(&response)?;
             println!("{json}");
             Ok(())
         }
         OutputFormat::JsonPretty => {
-            let json = serde_json::to_string_pretty(data)?;
+            let response = ApiResponse {
+                ok: true,
+                data: Some(data),
+                error: None,
+            };
+            let json = serde_json::to_string_pretty(&response)?;
             println!("{json}");
             Ok(())
         }
@@ -55,16 +79,28 @@ pub fn render<T: Serialize + TableDisplay>(format: OutputFormat, data: &T) -> Re
 
 /// Render just the JSON formats (for types that handle their own table display).
 /// Returns true if JSON was rendered, false if table mode was requested.
+///
+/// This function also wraps the JSON output in an `ApiResponse` envelope.
 pub fn render_json_or<T: Serialize>(format: OutputFormat, data: &T) -> Result<bool> {
     match format {
         OutputFormat::Table => Ok(false),
         OutputFormat::Json => {
-            let json = serde_json::to_string(data)?;
+            let response = ApiResponse {
+                ok: true,
+                data: Some(data),
+                error: None,
+            };
+            let json = serde_json::to_string(&response)?;
             println!("{json}");
             Ok(true)
         }
         OutputFormat::JsonPretty => {
-            let json = serde_json::to_string_pretty(data)?;
+            let response = ApiResponse {
+                ok: true,
+                data: Some(data),
+                error: None,
+            };
+            let json = serde_json::to_string_pretty(&response)?;
             println!("{json}");
             Ok(true)
         }
@@ -83,21 +119,47 @@ impl TableDisplay for StatusOutput {
         println!("╠══════════════════════════════════════════════════════════╣");
         println!("║  Profile     : {:<41}║", self.profile);
         println!("║  Address     : {:<41}║", self.address);
-        println!("║  Account Val : {:<41}║", self.account_value.as_deref().unwrap_or(dash));
-        println!("║  Margin Used : {:<41}║", self.margin_used.as_deref().unwrap_or(dash));
-        println!("║  Net Pos     : {:<41}║", self.net_position.as_deref().unwrap_or(dash));
-        println!("║  Withdrawable: {:<41}║", self.withdrawable.as_deref().unwrap_or(dash));
+        println!("║  Network     : {:<41}║", self.network);
+        println!(
+            "║  Modules     : {:<41}║",
+            if self.modules.is_empty() {
+                "none".to_string()
+            } else {
+                self.modules.join(", ")
+            }
+        );
+        println!(
+            "║  Account Val : {:<41}║",
+            self.account_value.as_deref().unwrap_or(dash)
+        );
+        println!(
+            "║  Margin Used : {:<41}║",
+            self.margin_used.as_deref().unwrap_or(dash)
+        );
+        println!(
+            "║  Net Pos     : {:<41}║",
+            self.net_position.as_deref().unwrap_or(dash)
+        );
+        println!(
+            "║  Withdrawable: {:<41}║",
+            self.withdrawable.as_deref().unwrap_or(dash)
+        );
+        println!("║  Open Orders : {:<41}║", self.open_orders);
         println!("╠══════════════════════════════════════════════════════════╣");
 
         if self.positions.is_empty() {
             println!("║  No open positions.                                      ║");
         } else {
-            println!("║  {:^6} │ {:^10} │ {:^10} │ {:^12} ║", "Coin", "Size", "Entry", "uPnL");
+            println!(
+                "║  {:^6} │ {:^10} │ {:^10} │ {:^12} ║",
+                "Coin", "Size", "Entry", "uPnL"
+            );
             println!("║  ──────┼────────────┼────────────┼────────────── ║");
             for pos in &self.positions {
                 println!(
                     "║  {:^6} │ {:>10} │ {:>10} │ {:>12} ║",
-                    pos.coin, pos.size,
+                    pos.coin,
+                    pos.size,
                     pos.entry_price.as_deref().unwrap_or(dash),
                     pos.unrealized_pnl.as_deref().unwrap_or(dash),
                 );
@@ -153,7 +215,10 @@ impl TableDisplay for OrderResultOutput {
             "filled" => {
                 let sz = self.total_sz.as_deref().unwrap_or("—");
                 let px = self.avg_px.as_deref().unwrap_or("—");
-                println!("✓ Order FILLED (oid: {}, size: {}, avg_px: {})", self.oid, sz, px);
+                println!(
+                    "✓ Order FILLED (oid: {}, size: {}, avg_px: {})",
+                    self.oid, sz, px
+                );
             }
             "resting" => {
                 println!("✓ Order RESTING (oid: {})", self.oid);
@@ -167,7 +232,10 @@ impl TableDisplay for OrderResultOutput {
 
 impl TableDisplay for CancelOutput {
     fn print_table(&self) {
-        println!("✓ Cancelled {}/{} orders on {}.", self.cancelled, self.total, self.coin);
+        println!(
+            "✓ Cancelled {}/{} orders on {}.",
+            self.cancelled, self.total, self.coin
+        );
     }
 }
 
@@ -179,7 +247,10 @@ impl TableDisplay for CancelSingleOutput {
 
 impl TableDisplay for LeverageOutput {
     fn print_table(&self) {
-        println!("✓ {} leverage set to {}x ({})", self.coin, self.leverage, self.mode);
+        println!(
+            "✓ {} leverage set to {}x ({})",
+            self.coin, self.leverage, self.mode
+        );
     }
 }
 
@@ -191,7 +262,10 @@ impl TableDisplay for MarginOutput {
 
 impl TableDisplay for TransferOutput {
     fn print_table(&self) {
-        println!("✓ Transferred ${} USDC to {}", self.amount, self.destination);
+        println!(
+            "✓ Transferred ${} USDC to {}",
+            self.amount, self.destination
+        );
     }
 }
 
@@ -203,7 +277,10 @@ impl TableDisplay for ConfigOutput {
         println!("║  Mode      : {:<43}║", self.mode);
         println!("║  Size Mode : {:<43}║", self.size_mode);
         println!("║  Leverage  : {:<43}║", format!("{}x", self.leverage));
-        println!("║  Slippage  : {:<43}║", format!("{:.1}%", self.slippage * 100.0));
+        println!(
+            "║  Slippage  : {:<43}║",
+            format!("{:.1}%", self.slippage * 100.0)
+        );
         println!("║  Network   : {:<43}║", self.network);
         println!("╠══════════════════════════════════════════════════════════╣");
         if !self.lots.is_empty() {
@@ -223,23 +300,35 @@ impl TableDisplay for DoctorOutput {
         println!("┌─────────────────────────────────────────────┐");
         println!("│  ATLAS DOCTOR                               │");
         println!("├─────────────────────────────────────────────┤");
-        println!(
-            "│  Config         : {}                        │",
-            if self.config_ok { "✓" } else { "✗" }
-        );
-        match self.ntp_ok {
-            Some(true) => println!("│  NTP Sync       : ✓                        │"),
-            Some(false) => println!("│  NTP Sync       : ✗                        │"),
-            None => println!("│  NTP Sync       : ⏳ (not implemented)       │"),
+        for check in &self.checks {
+            let icon = if check.status == "ok" { "✓" } else { "✗" };
+            let label = format!("{:<14}", check.name);
+            if check.status == "ok" {
+                let val = check.value.as_deref().unwrap_or("");
+                let display = if val.is_empty() {
+                    format!("{icon}")
+                } else {
+                    format!("{icon} ({val})")
+                };
+                println!("│  {label}: {:<27}│", display);
+            } else {
+                let fix = check
+                    .fix
+                    .as_deref()
+                    .unwrap_or("")
+                    .chars()
+                    .take(26)
+                    .collect::<String>();
+                println!("│  {label}: {icon} → {:<26}│", fix);
+            }
         }
-        match self.api_latency_ms {
-            Some(ms) => println!("│  API Latency    : {}ms{:>24}│", ms, ""),
-            None => println!("│  API Latency    : ⏳ (not implemented)       │"),
+        let all_ok = self.checks.iter().all(|c| c.status == "ok");
+        println!("├─────────────────────────────────────────────┤");
+        if all_ok {
+            println!("│  ✓ All systems operational.                 │");
+        } else {
+            println!("│  Issues found. Run with --fix to repair.    │");
         }
-        println!(
-            "│  Keystore       : {}                        │",
-            if self.keystore_ok { "✓" } else { "✗" }
-        );
         println!("└─────────────────────────────────────────────┘");
     }
 }
@@ -249,9 +338,16 @@ impl TableDisplay for RiskCalcOutput {
         println!("╔══════════════════════════════════════════════════════════╗");
         println!("║  RISK CALCULATOR                                       ║");
         println!("╠══════════════════════════════════════════════════════════╣");
-        println!("║  Asset        : {:<6} {:<34}║", self.coin, self.side.to_uppercase());
+        println!(
+            "║  Asset        : {:<6} {:<34}║",
+            self.coin,
+            self.side.to_uppercase()
+        );
         println!("║  Entry Price  : ${:<43.4}║", self.entry_price);
-        println!("║  Size         : {:<40}║", format!("{:.6} {}", self.size, self.coin));
+        println!(
+            "║  Size         : {:<40}║",
+            format!("{:.6} {}", self.size, self.coin)
+        );
         if (self.lots - self.size).abs() > 0.0001 {
             println!("║  Lots         : {:<40.4}║", self.lots);
         }
@@ -262,7 +358,10 @@ impl TableDisplay for RiskCalcOutput {
         println!("║  Est. Liq     : ${:<43.4}║", self.est_liquidation);
         println!("╠══════════════════════════════════════════════════════════╣");
         println!("║  Risk (USDC)  : ${:<43.2}║", self.risk_usd);
-        println!("║  Risk (%)     : {:<43}║", format!("{:.2}%", self.risk_pct * 100.0));
+        println!(
+            "║  Risk (%)     : {:<43}║",
+            format!("{:.2}%", self.risk_pct * 100.0)
+        );
         println!("║  Margin Req.  : ${:<43.2}║", self.margin);
         println!("║  Leverage     : {:<43}║", format!("{}x", self.leverage));
         println!("╚══════════════════════════════════════════════════════════╝");
@@ -329,7 +428,10 @@ impl TableDisplay for SpotOrderOutput {
 
 impl TableDisplay for SpotTransferOutput {
     fn print_table(&self) {
-        println!("✓ Transferred {} {} ({})", self.amount, self.token, self.direction);
+        println!(
+            "✓ Transferred {} {} ({})",
+            self.amount, self.token, self.direction
+        );
     }
 }
 
@@ -342,17 +444,36 @@ impl TableDisplay for VaultDetailsOutput {
         println!("║  Address      : {:<41}║", self.address);
         println!("║  Leader       : {:<41}║", self.leader);
         println!("║  APR          : {:<41}║", format!("{}%", self.apr));
-        println!("║  Leader Frac  : {:<41}║", format!("{}%", self.leader_fraction));
-        println!("║  Commission   : {:<41}║", format!("{}%", self.leader_commission));
+        println!(
+            "║  Leader Frac  : {:<41}║",
+            format!("{}%", self.leader_fraction)
+        );
+        println!(
+            "║  Commission   : {:<41}║",
+            format!("{}%", self.leader_commission)
+        );
         println!("║  Distributable: ${:<40}║", self.max_distributable);
         println!("║  Withdrawable : ${:<40}║", self.max_withdrawable);
         println!("║  Followers    : {:<41}║", self.follower_count);
-        println!("║  Closed       : {:<41}║", if self.is_closed { "Yes" } else { "No" });
-        println!("║  Deposits     : {:<41}║", if self.allow_deposits { "Allowed" } else { "Closed" });
+        println!(
+            "║  Closed       : {:<41}║",
+            if self.is_closed { "Yes" } else { "No" }
+        );
+        println!(
+            "║  Deposits     : {:<41}║",
+            if self.allow_deposits {
+                "Allowed"
+            } else {
+                "Closed"
+            }
+        );
         println!("╠══════════════════════════════════════════════════════════╣");
 
         if !self.description.is_empty() {
-            println!("║  {:<55}║", self.description.chars().take(55).collect::<String>());
+            println!(
+                "║  {:<55}║",
+                self.description.chars().take(55).collect::<String>()
+            );
             println!("╠══════════════════════════════════════════════════════════╣");
         }
 
@@ -370,7 +491,10 @@ impl TableDisplay for VaultDetailsOutput {
 
         if !self.followers.is_empty() {
             println!("║  TOP FOLLOWERS                                         ║");
-            println!("║  {:<20} │ {:>12} │ {:>12} │ {:>4} ║", "User", "Equity", "PnL", "Days");
+            println!(
+                "║  {:<20} │ {:>12} │ {:>12} │ {:>4} ║",
+                "User", "Equity", "PnL", "Days"
+            );
             println!("║  ────────────────────┼──────────────┼──────────────┼──────║");
             for f in self.followers.iter().take(10) {
                 let user_short = if f.user.len() > 20 {
@@ -395,9 +519,15 @@ impl TableDisplay for VaultDepositsOutput {
             return;
         }
 
-        println!("┌──────────────────────────────────────────────┬──────────────┬──────────────────┐");
-        println!("│ Vault Address                                │ Equity       │ Locked Until      │");
-        println!("├──────────────────────────────────────────────┼──────────────┼──────────────────┤");
+        println!(
+            "┌──────────────────────────────────────────────┬──────────────┬──────────────────┐"
+        );
+        println!(
+            "│ Vault Address                                │ Equity       │ Locked Until      │"
+        );
+        println!(
+            "├──────────────────────────────────────────────┼──────────────┼──────────────────┤"
+        );
         for d in &self.deposits {
             let locked = d.locked_until.as_deref().unwrap_or("—");
             println!(
@@ -405,12 +535,16 @@ impl TableDisplay for VaultDepositsOutput {
                 d.vault_address, d.equity, locked,
             );
         }
-        println!("├──────────────────────────────────────────────┼──────────────┼──────────────────┤");
+        println!(
+            "├──────────────────────────────────────────────┼──────────────┼──────────────────┤"
+        );
         println!(
             "│ {:<44} │ {:>12} │ {:<16} │",
             "TOTAL", self.total_equity, "",
         );
-        println!("└──────────────────────────────────────────────┴──────────────┴──────────────────┘");
+        println!(
+            "└──────────────────────────────────────────────┴──────────────┴──────────────────┘"
+        );
     }
 }
 
@@ -435,12 +569,16 @@ impl TableDisplay for SubAccountsOutput {
             if sub.positions.is_empty() {
                 println!("║  No open positions.                                    ║");
             } else {
-                println!("║  {:^6} │ {:^10} │ {:^10} │ {:^12} ║", "Coin", "Size", "Entry", "uPnL");
+                println!(
+                    "║  {:^6} │ {:^10} │ {:^10} │ {:^12} ║",
+                    "Coin", "Size", "Entry", "uPnL"
+                );
                 println!("║  ──────┼────────────┼────────────┼────────────── ║");
                 for pos in &sub.positions {
                     println!(
                         "║  {:^6} │ {:>10} │ {:>10} │ {:>12} ║",
-                        pos.coin, pos.size,
+                        pos.coin,
+                        pos.size,
                         pos.entry_price.as_deref().unwrap_or("—"),
                         pos.unrealized_pnl.as_deref().unwrap_or("—"),
                     );
@@ -469,7 +607,10 @@ impl TableDisplay for AgentApproveOutput {
         } else {
             &self.agent_name
         };
-        println!("✓ Agent {} approved (name: {}, status: {})", self.agent_address, name_display, self.status);
+        println!(
+            "✓ Agent {} approved (name: {}, status: {})",
+            self.agent_address, name_display, self.status
+        );
     }
 }
 
@@ -524,13 +665,19 @@ impl TableDisplay for PnlSummaryOutput {
         println!("║  Total Fees   : ${:<40}║", self.total_fees);
         println!("║  Net PnL      : ${:<40}║", self.net_pnl);
         println!("║  Trades       : {:<41}║", self.trade_count);
-        println!("║  Win/Loss     : {:<41}║", format!("{} / {}", self.win_count, self.loss_count));
+        println!(
+            "║  Win/Loss     : {:<41}║",
+            format!("{} / {}", self.win_count, self.loss_count)
+        );
         println!("║  Win Rate     : {:<41}║", self.win_rate);
         println!("╠══════════════════════════════════════════════════════════╣");
 
         if !self.by_coin.is_empty() {
             println!("║  BREAKDOWN BY COIN                                     ║");
-            println!("║  {:<8} │ {:>12} │ {:>10} │ {:>6}      ║", "Coin", "PnL", "Fees", "Trades");
+            println!(
+                "║  {:<8} │ {:>12} │ {:>10} │ {:>6}      ║",
+                "Coin", "PnL", "Fees", "Trades"
+            );
             println!("║  ────────┼──────────────┼────────────┼────────────  ║");
             for row in &self.by_coin {
                 println!(
@@ -545,13 +692,19 @@ impl TableDisplay for PnlSummaryOutput {
 
 impl TableDisplay for SyncOutput {
     fn print_table(&self) {
-        println!("✓ Sync {} — fills: {}, orders: {}", self.status, self.fills_synced, self.orders_synced);
+        println!(
+            "✓ Sync {} — fills: {}, orders: {}",
+            self.status, self.fills_synced, self.orders_synced
+        );
     }
 }
 
 impl TableDisplay for ExportOutput {
     fn print_table(&self) {
-        println!("✓ Exported {} rows ({}) → {}", self.rows, self.format, self.path);
+        println!(
+            "✓ Exported {} rows ({}) → {}",
+            self.rows, self.format, self.path
+        );
     }
 }
 

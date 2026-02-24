@@ -175,7 +175,7 @@ mod tests {
             reloaded.system.active_profile,
             config.system.active_profile
         );
-        assert_eq!(reloaded.trading.mode, config.trading.mode);
+        assert_eq!(reloaded.modules.hyperliquid.config.mode, config.modules.hyperliquid.config.mode);
     }
 
     #[test]

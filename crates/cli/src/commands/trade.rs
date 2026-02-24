@@ -24,7 +24,8 @@ pub async fn limit_order(
     let orch = Orchestrator::from_active_profile().await?;
     let perp = orch.perp(None)?;
     let coin_upper = coin.to_uppercase();
-    let lev = config.trading.default_leverage.max(1);
+    let hl_cfg = &config.modules.hyperliquid.config;
+    let lev = hl_cfg.default_leverage.max(1);
 
     let price_dec = Decimal::from_f64(price)
         .ok_or_else(|| anyhow::anyhow!("Invalid price: {price}"))?;
@@ -39,7 +40,7 @@ pub async fn limit_order(
             }
             sz
         }
-        SizeInput::Raw(raw) if config.trading.default_size_mode == SizeMode::Usdc => {
+        SizeInput::Raw(raw) if hl_cfg.default_size_mode == SizeMode::Usdc => {
             let notional = raw * lev as f64;
             let sz = notional / price;
             if fmt == OutputFormat::Table {
@@ -49,8 +50,11 @@ pub async fn limit_order(
             sz
         }
         SizeInput::Units(u) => *u,
-        SizeInput::Lots(l) => config.trading.lots.lots_to_size(&coin_upper, *l),
-        SizeInput::Raw(raw) => config.resolve_size(&coin_upper, *raw),
+        SizeInput::Lots(l) => hl_cfg.lots.lots_to_size(&coin_upper, *l),
+        SizeInput::Raw(raw) => {
+            let (size, _) = hl_cfg.resolve_size_input(&coin_upper, &SizeInput::Raw(*raw), price, Some(lev));
+            size
+        }
     };
 
     let size_dec = Decimal::from_f64(size)
@@ -77,21 +81,22 @@ pub async fn market_buy(
     let orch = Orchestrator::from_active_profile().await?;
     let perp = orch.perp(None)?;
     let coin_upper = coin.to_uppercase();
-    let lev = leverage.unwrap_or(config.trading.default_leverage).max(1);
+    let hl_cfg = &config.modules.hyperliquid.config;
+    let lev = leverage.unwrap_or(hl_cfg.default_leverage).max(1);
 
     let ticker = perp.ticker(&coin_upper).await
         .map_err(|e| anyhow::anyhow!("{e}"))?;
     let mark = ticker.mid_price.to_f64().unwrap_or(0.0);
-    let (size, _) = config.resolve_size_input(&coin_upper, &size_input, mark, Some(lev));
+    let (size, _) = hl_cfg.resolve_size_input(&coin_upper, &size_input, mark, Some(lev));
 
     if fmt == OutputFormat::Table {
-        println!("📤 MARKET BUY {}", config.format_size(&coin_upper, size));
+        println!("📤 MARKET BUY {}", hl_cfg.format_size(&coin_upper, size));
     }
 
     let size_dec = Decimal::from_f64(size)
         .ok_or_else(|| anyhow::anyhow!("Invalid size: {size}"))?;
 
-    let effective_slippage = slippage.or(Some(config.trading.default_slippage));
+    let effective_slippage = slippage.or(Some(hl_cfg.default_slippage));
 
     let result = perp.market_order(&coin_upper, atlas_common::types::Side::Buy, size_dec, effective_slippage).await
         .map_err(|e| anyhow::anyhow!("{e}"))?;
@@ -113,21 +118,22 @@ pub async fn market_sell(
     let orch = Orchestrator::from_active_profile().await?;
     let perp = orch.perp(None)?;
     let coin_upper = coin.to_uppercase();
-    let lev = leverage.unwrap_or(config.trading.default_leverage).max(1);
+    let hl_cfg = &config.modules.hyperliquid.config;
+    let lev = leverage.unwrap_or(hl_cfg.default_leverage).max(1);
 
     let ticker = perp.ticker(&coin_upper).await
         .map_err(|e| anyhow::anyhow!("{e}"))?;
     let mark = ticker.mid_price.to_f64().unwrap_or(0.0);
-    let (size, _) = config.resolve_size_input(&coin_upper, &size_input, mark, Some(lev));
+    let (size, _) = hl_cfg.resolve_size_input(&coin_upper, &size_input, mark, Some(lev));
 
     if fmt == OutputFormat::Table {
-        println!("📤 MARKET SELL {}", config.format_size(&coin_upper, size));
+        println!("📤 MARKET SELL {}", hl_cfg.format_size(&coin_upper, size));
     }
 
     let size_dec = Decimal::from_f64(size)
         .ok_or_else(|| anyhow::anyhow!("Invalid size: {size}"))?;
 
-    let effective_slippage = slippage.or(Some(config.trading.default_slippage));
+    let effective_slippage = slippage.or(Some(hl_cfg.default_slippage));
 
     let result = perp.market_order(&coin_upper, atlas_common::types::Side::Sell, size_dec, effective_slippage).await
         .map_err(|e| anyhow::anyhow!("{e}"))?;
@@ -149,7 +155,7 @@ pub async fn close_position(
     let coin_upper = coin.to_uppercase();
 
     let size_dec = size.and_then(Decimal::from_f64);
-    let effective_slippage = slippage.or(Some(config.trading.default_slippage));
+    let effective_slippage = slippage.or(Some(config.modules.hyperliquid.config.default_slippage));
 
     let result = perp.close_position(&coin_upper, size_dec, effective_slippage).await
         .map_err(|e| anyhow::anyhow!("{e}"))?;

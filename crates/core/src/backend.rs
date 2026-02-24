@@ -23,10 +23,10 @@ impl BackendClient {
         }
     }
 
-    /// Create from the active config's api_url.
+    /// Create from the active config.
     pub fn from_config() -> Result<Self> {
-        let config = crate::workspace::load_config()?;
-        Ok(Self::new(&config.system.api_url))
+        let _config = crate::workspace::load_config()?;
+        Ok(Self::new("https://api.atlas-os.ai"))
     }
 
     /// GET a JSON endpoint from the backend.

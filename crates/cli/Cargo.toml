@@ -13,7 +13,6 @@ atlas-types = { workspace = true }
 atlas-utils = { workspace = true }
 atlas-core = { workspace = true }
 atlas-mod-hyperliquid = { workspace = true }
-atlas-mod-morpho = { workspace = true }
 atlas-mod-zero-x = { workspace = true }
 tokio = { workspace = true }
 clap = { workspace = true }

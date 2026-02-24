@@ -12,7 +12,6 @@ pub const BUILDER_ADDRESS_EVM: &str = ATLAS_FEE_WALLET;
 
 /// Supported protocol identifiers.
 pub const PROTOCOL_HYPERLIQUID: &str = "hyperliquid";
-pub const PROTOCOL_MORPHO: &str = "morpho";
 
 /// Default RPC endpoints.
 pub const HL_MAINNET_RPC: &str = "https://api.hyperliquid.xyz";
