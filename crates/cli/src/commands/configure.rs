@@ -13,7 +13,7 @@ pub fn run(fmt: OutputFormat) -> Result<()> {
         size_mode: format!("{} (bare numbers = {})", config.trading.default_size_mode, size_mode_hint(&config.trading.default_size_mode)),
         leverage: config.trading.default_leverage,
         slippage: config.trading.default_slippage,
-        network: if config.network.testnet { "Testnet".into() } else { "Mainnet".into() },
+        network: if config.modules.hyperliquid.config.network == "testnet" { "Testnet".into() } else { "Mainnet".into() },
         lots: config.trading.lots.assets.clone(),
     };
 
@@ -192,17 +192,17 @@ fn configure_slippage(config: &mut atlas_types::config::AppConfig) -> Result<()>
 }
 
 fn configure_network(config: &mut atlas_types::config::AppConfig) -> Result<()> {
-    let current = if config.network.testnet { "testnet" } else { "mainnet" };
+    let current = if config.modules.hyperliquid.config.network == "testnet" { "testnet" } else { "mainnet" };
     let input = prompt(&format!("Network [{}]", current))?;
     match input.trim().to_lowercase().as_str() {
         "mainnet" | "main" => {
-            config.network.testnet = false;
-            config.network.rpc_url = "https://api.hyperliquid.xyz".to_string();
+            config.modules.hyperliquid.config.network = "mainnet".into();
+            config.modules.hyperliquid.config.rpc_url = "https://api.hyperliquid.xyz".to_string();
             println!("  → Mainnet");
         }
         "testnet" | "test" => {
-            config.network.testnet = true;
-            config.network.rpc_url = "https://api.hyperliquid-testnet.xyz".to_string();
+            config.modules.hyperliquid.config.network = "testnet".into();
+            config.modules.hyperliquid.config.rpc_url = "https://api.hyperliquid-testnet.xyz".to_string();
             println!("  → Testnet");
         }
         "" => {}

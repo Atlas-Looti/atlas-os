@@ -84,7 +84,7 @@ impl Engine {
     /// from the OS keyring → connects to Hyperliquid.
     pub async fn from_active_profile() -> Result<Self> {
         let config = crate::workspace::load_config()?;
-        let profile_name = config.general.active_profile.clone();
+        let profile_name = config.system.active_profile.clone();
 
         info!(profile = %profile_name, "initializing engine");
 
@@ -92,7 +92,7 @@ impl Engine {
             .context("Failed to load signer for active profile")?;
         let address = signer.address();
 
-        let testnet = config.network.testnet;
+        let testnet = config.modules.hyperliquid.config.network == "testnet";
         let client = if testnet {
             hypercore::testnet()
         } else {

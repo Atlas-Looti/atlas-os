@@ -83,8 +83,8 @@ impl App {
     /// Create a new App and attempt initial data fetch.
     pub async fn new() -> Self {
         let config = atlas_core::workspace::load_config().unwrap_or_default();
-        let profile_name = config.general.active_profile.clone();
-        let network = if config.network.testnet {
+        let profile_name = config.system.active_profile.clone();
+        let network = if config.modules.hyperliquid.config.network == "testnet" {
             "Testnet".to_string()
         } else {
             "Mainnet".to_string()

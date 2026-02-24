@@ -96,19 +96,20 @@ pub fn load_config() -> Result<AppConfig> {
 
             // Attempt to extract active_profile from old config (JSON)
             if let Ok(old) = serde_json::from_str::<serde_json::Value>(&raw) {
-                if let Some(profile) = old
-                    .get("general")
+                // Try new "system" key first, then old "general" key
+                let profile = old.get("system")
+                    .or_else(|| old.get("general"))
                     .and_then(|g| g.get("active_profile"))
-                    .and_then(|v| v.as_str())
-                {
-                    new_config.general.active_profile = profile.to_string();
+                    .and_then(|v| v.as_str());
+                if let Some(profile) = profile {
+                    new_config.system.active_profile = profile.to_string();
                 }
                 if let Some(testnet) = old
                     .get("network")
                     .and_then(|n| n.get("testnet"))
                     .and_then(|v| v.as_bool())
                 {
-                    new_config.network.testnet = testnet;
+                    new_config.modules.hyperliquid.config.network = if testnet { "testnet".into() } else { "mainnet".into() };
                 }
             }
 
@@ -171,8 +172,8 @@ mod tests {
         save_config(&config).unwrap();
         let reloaded = load_config().unwrap();
         assert_eq!(
-            reloaded.general.active_profile,
-            config.general.active_profile
+            reloaded.system.active_profile,
+            config.system.active_profile
         );
         assert_eq!(reloaded.trading.mode, config.trading.mode);
     }

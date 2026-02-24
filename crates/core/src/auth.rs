@@ -147,7 +147,7 @@ impl AuthManager {
         }
 
         let mut config = crate::workspace::load_config()?;
-        config.general.active_profile = name.to_string();
+        config.system.active_profile = name.to_string();
         crate::workspace::save_config(&config)?;
 
         println!("✓ Active profile switched to '{name}'");
@@ -169,7 +169,7 @@ impl AuthManager {
         println!("│ Profile          │ Address                                    │ Active   │");
         println!("├──────────────────┼────────────────────────────────────────────┼──────────┤");
         for w in &store.wallets {
-            let active = if w.name == config.general.active_profile {
+            let active = if w.name == config.system.active_profile {
                 "  ●"
             } else {
                 ""
@@ -184,7 +184,7 @@ impl AuthManager {
     /// Get a `PrivateKeySigner` for the currently active profile.
     pub fn get_active_signer() -> Result<PrivateKeySigner> {
         let config = crate::workspace::load_config()?;
-        let profile_name = &config.general.active_profile;
+        let profile_name = &config.system.active_profile;
         let hex_key = Self::retrieve_key(profile_name)?;
         let signer: PrivateKeySigner = hex_key
             .parse()

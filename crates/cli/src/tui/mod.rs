@@ -55,7 +55,7 @@ async fn run_loop(
 ) -> Result<()> {
     // ── Connect WebSocket for live price streaming ──────────────
     let config = atlas_core::workspace::load_config().unwrap_or_default();
-    let core = if config.network.testnet {
+    let core = if config.modules.hyperliquid.config.network == "testnet" {
         hypersdk::hypercore::testnet()
     } else {
         hypersdk::hypercore::mainnet()

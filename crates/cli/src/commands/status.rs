@@ -17,9 +17,9 @@ pub async fn run(fmt: OutputFormat) -> Result<()> {
             Err(e) => {
                 // Even in JSON mode, output a structured error
                 let output = StatusOutput {
-                    profile: config.general.active_profile.clone(),
+                    profile: config.system.active_profile.clone(),
                     address: "unknown".into(),
-                    network: if config.network.testnet { "Testnet".into() } else { "Mainnet".into() },
+                    network: if config.modules.hyperliquid.config.network == "testnet" { "Testnet".into() } else { "Mainnet".into() },
                     account_value: "—".into(),
                     margin_used: "—".into(),
                     net_position: "—".into(),
@@ -37,16 +37,16 @@ pub async fn run(fmt: OutputFormat) -> Result<()> {
     println!("┌─────────────────────────────────────────────┐");
     println!("│  ATLAS STATUS                               │");
     println!("├─────────────────────────────────────────────┤");
-    println!("│  Active Profile : {:<26}│", config.general.active_profile);
+    println!("│  Active Profile : {:<26}│", config.system.active_profile);
     println!(
         "│  Network        : {:<26}│",
-        if config.network.testnet {
+        if config.modules.hyperliquid.config.network == "testnet" {
             "Testnet"
         } else {
             "Mainnet"
         }
     );
-    println!("│  RPC            : {:<26}│", config.network.rpc_url);
+    println!("│  RPC            : {:<26}│", config.modules.hyperliquid.config.rpc_url);
     println!("├─────────────────────────────────────────────┤");
 
     // Attempt to connect and fetch balance.

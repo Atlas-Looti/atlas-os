@@ -25,21 +25,98 @@ pub enum SizeInput {
 }
 
 /// Top-level configuration stored in `$HOME/.atlas-os/atlas.json`.
+///
+/// Structure:
+/// ```json
+/// {
+///   "system": { "active_profile": "main", "verbose": false },
+///   "trading": { ... },
+///   "risk": { ... },
+///   "modules": {
+///     "hyperliquid": { "enabled": true, "network": "mainnet", "rpc_url": "..." },
+///     "morpho": { "enabled": true, "chain": "ethereum" }
+///   }
+/// }
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
-    pub general: GeneralConfig,
+    /// System-wide settings.
+    pub system: SystemConfig,
+    /// Trading defaults (applies to all perp modules).
     pub trading: TradingConfig,
+    /// Risk management settings.
     pub risk: RiskConfig,
-    pub network: NetworkConfig,
+    /// Per-module configuration.
+    #[serde(default)]
+    pub modules: ModulesConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GeneralConfig {
-    /// The currently active profile name (maps to a keyring entry).
+pub struct SystemConfig {
+    /// The currently active wallet profile name.
     pub active_profile: String,
     /// Enable verbose tracing output.
     pub verbose: bool,
 }
+
+/// Per-module configuration — each protocol has its own config block.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModulesConfig {
+    #[serde(default = "default_hl_config")]
+    pub hyperliquid: ModuleEntry<HyperliquidConfig>,
+    #[serde(default = "default_morpho_config")]
+    pub morpho: ModuleEntry<MorphoConfig>,
+}
+
+/// A module entry: enabled flag + module-specific settings.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModuleEntry<T> {
+    pub enabled: bool,
+    #[serde(flatten)]
+    pub config: T,
+}
+
+/// Hyperliquid-specific configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HyperliquidConfig {
+    /// Network: "mainnet" or "testnet".
+    #[serde(default = "default_hl_network")]
+    pub network: String,
+    /// Custom RPC URL (overrides network default).
+    #[serde(default = "default_hl_rpc")]
+    pub rpc_url: String,
+}
+
+/// Morpho-specific configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MorphoConfig {
+    /// Chain: "ethereum" or "base".
+    #[serde(default = "default_morpho_chain")]
+    pub chain: String,
+}
+
+fn default_hl_config() -> ModuleEntry<HyperliquidConfig> {
+    ModuleEntry {
+        enabled: true,
+        config: HyperliquidConfig {
+            network: "mainnet".into(),
+            rpc_url: "https://api.hyperliquid.xyz".into(),
+        },
+    }
+}
+
+fn default_morpho_config() -> ModuleEntry<MorphoConfig> {
+    ModuleEntry {
+        enabled: true,
+        config: MorphoConfig {
+            chain: "ethereum".into(),
+        },
+    }
+}
+
+fn default_hl_network() -> String { "mainnet".into() }
+fn default_hl_rpc() -> String { "https://api.hyperliquid.xyz".into() }
+fn default_morpho_chain() -> String { "ethereum".into() }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TradingConfig {
@@ -157,31 +234,22 @@ impl LotConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NetworkConfig {
-    /// Hyperliquid RPC endpoint (mainnet or testnet).
-    pub rpc_url: String,
-    /// Use testnet mode.
-    pub testnet: bool,
-}
-
 impl Default for AppConfig {
     fn default() -> Self {
         let mut default_assets = HashMap::new();
-        // Popular assets with sensible default lot sizes
-        default_assets.insert("BTC".to_string(), 0.001); // 1 lot = 0.001 BTC (~$100 at 100k)
-        default_assets.insert("ETH".to_string(), 0.01); // 1 lot = 0.01 ETH (~$35 at 3.5k)
-        default_assets.insert("SOL".to_string(), 1.0); // 1 lot = 1 SOL
-        default_assets.insert("DOGE".to_string(), 100.0); // 1 lot = 100 DOGE
-        default_assets.insert("ARB".to_string(), 10.0); // 1 lot = 10 ARB
-        default_assets.insert("AVAX".to_string(), 1.0); // 1 lot = 1 AVAX
-        default_assets.insert("MATIC".to_string(), 100.0); // 1 lot = 100 MATIC
-        default_assets.insert("LINK".to_string(), 1.0); // 1 lot = 1 LINK
-        default_assets.insert("OP".to_string(), 10.0); // 1 lot = 10 OP
-        default_assets.insert("SUI".to_string(), 10.0); // 1 lot = 10 SUI
+        default_assets.insert("BTC".to_string(), 0.001);
+        default_assets.insert("ETH".to_string(), 0.01);
+        default_assets.insert("SOL".to_string(), 1.0);
+        default_assets.insert("DOGE".to_string(), 100.0);
+        default_assets.insert("ARB".to_string(), 10.0);
+        default_assets.insert("AVAX".to_string(), 1.0);
+        default_assets.insert("MATIC".to_string(), 100.0);
+        default_assets.insert("LINK".to_string(), 1.0);
+        default_assets.insert("OP".to_string(), 10.0);
+        default_assets.insert("SUI".to_string(), 10.0);
 
         Self {
-            general: GeneralConfig {
+            system: SystemConfig {
                 active_profile: String::from("default"),
                 verbose: false,
             },
@@ -196,10 +264,16 @@ impl Default for AppConfig {
                 },
             },
             risk: RiskConfig::default(),
-            network: NetworkConfig {
-                rpc_url: String::from("https://api.hyperliquid.xyz"),
-                testnet: false,
-            },
+            modules: ModulesConfig::default(),
+        }
+    }
+}
+
+impl Default for ModulesConfig {
+    fn default() -> Self {
+        Self {
+            hyperliquid: default_hl_config(),
+            morpho: default_morpho_config(),
         }
     }
 }
@@ -329,11 +403,12 @@ mod tests {
     #[test]
     fn test_default_config() {
         let config = AppConfig::default();
-        assert_eq!(config.general.active_profile, "default");
-        assert!(!config.general.verbose);
+        assert_eq!(config.system.active_profile, "default");
+        assert!(!config.system.verbose);
         assert_eq!(config.trading.mode, TradingMode::Futures);
         assert_eq!(config.trading.default_leverage, 1);
-        assert!(!config.network.testnet);
+        assert!(config.modules.hyperliquid.enabled);
+        assert_eq!(config.modules.hyperliquid.config.network, "mainnet");
     }
 
     #[test]
@@ -341,9 +416,10 @@ mod tests {
         let config = AppConfig::default();
         let json_str = config.to_json_string().unwrap();
         let parsed = AppConfig::from_json_str(&json_str).unwrap();
-        assert_eq!(parsed.general.active_profile, config.general.active_profile);
+        assert_eq!(parsed.system.active_profile, config.system.active_profile);
         assert_eq!(parsed.trading.mode, config.trading.mode);
-        assert_eq!(parsed.network.testnet, config.network.testnet);
+        assert_eq!(parsed.modules.hyperliquid.config.network, config.modules.hyperliquid.config.network);
+        assert_eq!(parsed.modules.morpho.enabled, config.modules.morpho.enabled);
     }
 
     #[test]
