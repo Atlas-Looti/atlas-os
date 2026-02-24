@@ -19,7 +19,7 @@ pub async fn run(fix: bool, fmt: OutputFormat) -> Result<()> {
             } else {
                 DoctorCheck::fail(
                     "profile",
-                    &format!(
+                    format!(
                         "Active profile '{active}' not found. Run: atlas profile generate {active}"
                     ),
                 )
@@ -112,7 +112,7 @@ pub async fn run(fix: bool, fmt: OutputFormat) -> Result<()> {
         if check.status == "ok" {
             let val = check.value.as_deref().unwrap_or("");
             let display = if val.is_empty() {
-                format!("{icon}")
+                icon.to_string()
             } else {
                 format!("{icon} ({val})")
             };

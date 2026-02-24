@@ -172,10 +172,11 @@ pub async fn chains(fmt: OutputFormat) -> Result<()> {
 
     match fmt {
         OutputFormat::Json | OutputFormat::JsonPretty => {
+            let envelope = serde_json::json!({"ok": true, "data": resp});
             let s = if matches!(fmt, OutputFormat::JsonPretty) {
-                serde_json::to_string_pretty(&resp)?
+                serde_json::to_string_pretty(&envelope)?
             } else {
-                serde_json::to_string(&resp)?
+                serde_json::to_string(&envelope)?
             };
             println!("{s}");
         }
@@ -215,8 +216,14 @@ pub async fn sources(chain: &str, fmt: OutputFormat) -> Result<()> {
     })?;
 
     match fmt {
-        OutputFormat::Json => println!("{}", serde_json::to_string(&resp)?),
-        OutputFormat::JsonPretty => println!("{}", serde_json::to_string_pretty(&resp)?),
+        OutputFormat::Json => {
+            let envelope = serde_json::json!({"ok": true, "data": resp});
+            println!("{}", serde_json::to_string(&envelope)?);
+        }
+        OutputFormat::JsonPretty => {
+            let envelope = serde_json::json!({"ok": true, "data": resp});
+            println!("{}", serde_json::to_string_pretty(&envelope)?);
+        }
         OutputFormat::Table => {
             println!("Liquidity sources for {chain}:\n");
             println!("{}", serde_json::to_string_pretty(&resp)?);

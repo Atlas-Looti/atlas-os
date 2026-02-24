@@ -13,10 +13,11 @@ pub async fn vault_details(vault: &str, fmt: OutputFormat) -> Result<()> {
 
     match fmt {
         OutputFormat::Json | OutputFormat::JsonPretty => {
+            let envelope = serde_json::json!({"ok": true, "data": details});
             let json = if matches!(fmt, OutputFormat::JsonPretty) {
-                serde_json::to_string_pretty(&details)?
+                serde_json::to_string_pretty(&envelope)?
             } else {
-                serde_json::to_string(&details)?
+                serde_json::to_string(&envelope)?
             };
             println!("{json}");
         }
@@ -66,10 +67,11 @@ pub async fn vault_deposits(fmt: OutputFormat) -> Result<()> {
 
     match fmt {
         OutputFormat::Json | OutputFormat::JsonPretty => {
+            let envelope = serde_json::json!({"ok": true, "data": deposits});
             let json = if matches!(fmt, OutputFormat::JsonPretty) {
-                serde_json::to_string_pretty(&deposits)?
+                serde_json::to_string_pretty(&envelope)?
             } else {
-                serde_json::to_string(&deposits)?
+                serde_json::to_string(&envelope)?
             };
             println!("{json}");
         }

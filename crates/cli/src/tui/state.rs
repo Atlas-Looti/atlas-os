@@ -44,6 +44,7 @@ pub enum SwapFocus {
     SellAmount,
 }
 
+#[derive(Default)]
 pub struct SwapPopup {
     pub visible: bool,
     pub focus: SwapFocus,
@@ -53,18 +54,6 @@ pub struct SwapPopup {
     pub status: Option<String>,
 }
 
-impl Default for SwapPopup {
-    fn default() -> Self {
-        Self {
-            visible: false,
-            focus: SwapFocus::default(),
-            sell_token: Input::default(),
-            buy_token: Input::default(),
-            sell_amount: Input::default(),
-            status: None,
-        }
-    }
-}
 
 /// All data the TUI needs to render — fetched from Hyperliquid via Engine.
 pub struct App {
@@ -312,8 +301,8 @@ impl App {
 
         let mut resolved_mids = HashMap::new();
         for (k, v) in mids {
-            if k.starts_with('@') {
-                if let Ok(idx) = k[1..].parse::<usize>() {
+            if let Some(stripped) = k.strip_prefix('@') {
+                if let Ok(idx) = stripped.parse::<usize>() {
                     if let Some(name) = self.spot_map.get(&idx) {
                         resolved_mids.insert(name.clone(), v);
                         continue;
@@ -370,8 +359,8 @@ impl App {
 
         let mut resolved_mids = HashMap::new();
         for (k, v) in mids {
-            if k.starts_with('@') {
-                if let Ok(idx) = k[1..].parse::<usize>() {
+            if let Some(stripped) = k.strip_prefix('@') {
+                if let Ok(idx) = stripped.parse::<usize>() {
                     if let Some(name) = self.spot_map.get(&idx) {
                         resolved_mids.insert(name.clone(), v);
                         continue;
@@ -564,7 +553,7 @@ impl App {
 
         self.swap_popup.status = Some("Executing swap...".into());
         // We clone inputs because `self` will be borrowed through `do_swap` 
-        match self.do_swap(&sell_token.to_string(), &buy_token.to_string(), &sell_amount.to_string()).await {
+        match self.do_swap(sell_token, buy_token, sell_amount).await {
             Ok(hash) => {
                 self.swap_popup.status = Some(format!("Swap sent: {hash}"));
                 self.refresh().await;

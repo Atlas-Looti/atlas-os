@@ -10,7 +10,7 @@ pub fn run(fmt: OutputFormat) -> Result<()> {
 
     // JSON gets clean machine-readable values; table gets human-friendly text
     if fmt != OutputFormat::Table {
-        let json = serde_json::json!({
+        let data = serde_json::json!({
             "mode": hl.mode.to_string(),
             "size_mode": hl.default_size_mode.to_string(),
             "leverage": hl.default_leverage,
@@ -18,10 +18,11 @@ pub fn run(fmt: OutputFormat) -> Result<()> {
             "network": hl.network,
             "lots": hl.lots.assets,
         });
+        let envelope = serde_json::json!({"ok": true, "data": data});
         let s = if matches!(fmt, OutputFormat::JsonPretty) {
-            serde_json::to_string_pretty(&json)?
+            serde_json::to_string_pretty(&envelope)?
         } else {
-            serde_json::to_string(&json)?
+            serde_json::to_string(&envelope)?
         };
         println!("{s}");
         return Ok(());

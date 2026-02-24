@@ -316,8 +316,14 @@ pub async fn list_positions(fmt: OutputFormat) -> Result<()> {
         .collect();
 
     match fmt {
-        OutputFormat::Json => println!("{}", serde_json::to_string(&rows)?),
-        OutputFormat::JsonPretty => println!("{}", serde_json::to_string_pretty(&rows)?),
+        OutputFormat::Json => {
+            let envelope = serde_json::json!({"ok": true, "data": rows});
+            println!("{}", serde_json::to_string(&envelope)?);
+        }
+        OutputFormat::JsonPretty => {
+            let envelope = serde_json::json!({"ok": true, "data": rows});
+            println!("{}", serde_json::to_string_pretty(&envelope)?);
+        }
         OutputFormat::Table => {
             println!(
                 "{:<12} {:>14} {:>14} {:>14}",

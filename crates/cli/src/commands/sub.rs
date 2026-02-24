@@ -18,10 +18,11 @@ pub async fn sub_list(fmt: OutputFormat) -> Result<()> {
 
     match fmt {
         OutputFormat::Json | OutputFormat::JsonPretty => {
+            let envelope = serde_json::json!({"ok": true, "data": subs});
             let json = if matches!(fmt, OutputFormat::JsonPretty) {
-                serde_json::to_string_pretty(&subs)?
+                serde_json::to_string_pretty(&envelope)?
             } else {
-                serde_json::to_string(&subs)?
+                serde_json::to_string(&envelope)?
             };
             println!("{json}");
         }
@@ -53,16 +54,17 @@ pub async fn agent_approve(address: &str, name: Option<&str>, fmt: OutputFormat)
 
     match fmt {
         OutputFormat::Json | OutputFormat::JsonPretty => {
-            let json = serde_json::json!({
+            let data = serde_json::json!({
                 "agent_address": address,
                 "name": name.unwrap_or("(unnamed)"),
                 "status": "approved",
                 "message": result,
             });
+            let envelope = serde_json::json!({"ok": true, "data": data});
             let s = if matches!(fmt, OutputFormat::JsonPretty) {
-                serde_json::to_string_pretty(&json)?
+                serde_json::to_string_pretty(&envelope)?
             } else {
-                serde_json::to_string(&json)?
+                serde_json::to_string(&envelope)?
             };
             println!("{s}");
         }

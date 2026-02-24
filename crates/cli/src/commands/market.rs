@@ -7,8 +7,14 @@ use rust_decimal::prelude::*;
 /// Render a PriceOutput (table or JSON).
 fn render_prices(output: &PriceOutput, fmt: OutputFormat) {
     match fmt {
-        OutputFormat::Json => println!("{}", serde_json::to_string(output).unwrap()),
-        OutputFormat::JsonPretty => println!("{}", serde_json::to_string_pretty(output).unwrap()),
+        OutputFormat::Json => {
+            let envelope = serde_json::json!({"ok": true, "data": output});
+            println!("{}", serde_json::to_string(&envelope).unwrap());
+        }
+        OutputFormat::JsonPretty => {
+            let envelope = serde_json::json!({"ok": true, "data": output});
+            println!("{}", serde_json::to_string_pretty(&envelope).unwrap());
+        }
         OutputFormat::Table => {
             println!("{:<12} {:>15}", "COIN", "MID PRICE");
             println!("{}", "─".repeat(28));
@@ -22,8 +28,14 @@ fn render_prices(output: &PriceOutput, fmt: OutputFormat) {
 /// Render a MarketsOutput (table or JSON).
 fn render_markets(output: &MarketsOutput, fmt: OutputFormat) {
     match fmt {
-        OutputFormat::Json => println!("{}", serde_json::to_string(output).unwrap()),
-        OutputFormat::JsonPretty => println!("{}", serde_json::to_string_pretty(output).unwrap()),
+        OutputFormat::Json => {
+            let envelope = serde_json::json!({"ok": true, "data": output});
+            println!("{}", serde_json::to_string(&envelope).unwrap());
+        }
+        OutputFormat::JsonPretty => {
+            let envelope = serde_json::json!({"ok": true, "data": output});
+            println!("{}", serde_json::to_string_pretty(&envelope).unwrap());
+        }
         OutputFormat::Table => {
             println!("Market type: {}\n", output.market_type.to_uppercase());
             println!(
@@ -45,8 +57,14 @@ fn render_markets(output: &MarketsOutput, fmt: OutputFormat) {
 /// Render a CandlesOutput (table or JSON).
 fn render_candles(output: &CandlesOutput, fmt: OutputFormat) {
     match fmt {
-        OutputFormat::Json => println!("{}", serde_json::to_string(output).unwrap()),
-        OutputFormat::JsonPretty => println!("{}", serde_json::to_string_pretty(output).unwrap()),
+        OutputFormat::Json => {
+            let envelope = serde_json::json!({"ok": true, "data": output});
+            println!("{}", serde_json::to_string(&envelope).unwrap());
+        }
+        OutputFormat::JsonPretty => {
+            let envelope = serde_json::json!({"ok": true, "data": output});
+            println!("{}", serde_json::to_string_pretty(&envelope).unwrap());
+        }
         OutputFormat::Table => {
             println!("{} — {} candles\n", output.coin, output.interval);
             println!(
@@ -67,8 +85,14 @@ fn render_candles(output: &CandlesOutput, fmt: OutputFormat) {
 /// Render a FundingOutput (table or JSON).
 fn render_funding(output: &FundingOutput, fmt: OutputFormat) {
     match fmt {
-        OutputFormat::Json => println!("{}", serde_json::to_string(output).unwrap()),
-        OutputFormat::JsonPretty => println!("{}", serde_json::to_string_pretty(output).unwrap()),
+        OutputFormat::Json => {
+            let envelope = serde_json::json!({"ok": true, "data": output});
+            println!("{}", serde_json::to_string(&envelope).unwrap());
+        }
+        OutputFormat::JsonPretty => {
+            let envelope = serde_json::json!({"ok": true, "data": output});
+            println!("{}", serde_json::to_string_pretty(&envelope).unwrap());
+        }
         OutputFormat::Table => {
             println!("{} — Funding Rate History\n", output.coin);
             println!(
@@ -236,10 +260,11 @@ pub async fn orderbook(ticker: &str, depth: usize, fmt: OutputFormat) -> Result<
                             serde_json::json!({"price": a.price.to_string(), "size": a.size.to_string()})
                         }).collect::<Vec<_>>(),
                     });
+                    let envelope = serde_json::json!({"ok": true, "data": json});
                     let s = if matches!(fmt, OutputFormat::JsonPretty) {
-                        serde_json::to_string_pretty(&json)?
+                        serde_json::to_string_pretty(&envelope)?
                     } else {
-                        serde_json::to_string(&json)?
+                        serde_json::to_string(&envelope)?
                     };
                     println!("{s}");
                 }
@@ -271,7 +296,8 @@ pub async fn orderbook(ticker: &str, depth: usize, fmt: OutputFormat) -> Result<
                     "error": format!("{e}"),
                     "hint": format!("atlas stream book {ticker_upper}"),
                 });
-                println!("{}", serde_json::to_string(&json)?);
+                let envelope = serde_json::json!({"ok": true, "data": json});
+                println!("{}", serde_json::to_string(&envelope)?);
             } else {
                 println!("⚠️  Orderbook: {e}");
                 println!(
@@ -467,7 +493,7 @@ pub async fn top(sort_by: &str, limit: usize, reverse: bool, fmt: OutputFormat) 
                     })
                 })
                 .collect();
-            let json = serde_json::json!({ "markets": rows });
+            let json = serde_json::json!({"ok": true, "data": { "markets": rows }});
             let s = if matches!(fmt, OutputFormat::JsonPretty) {
                 serde_json::to_string_pretty(&json)?
             } else {
