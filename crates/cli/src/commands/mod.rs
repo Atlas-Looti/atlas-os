@@ -1,5 +1,7 @@
 pub mod auth;
 pub mod doctor;
+pub mod export;
+pub mod history;
 pub mod market;
 pub mod status;
 pub mod stream;

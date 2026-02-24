@@ -354,6 +354,77 @@ pub struct AuthProfileRow {
     pub active: bool,
 }
 
+// ─── History (trade/order/pnl from local DB cache) ──────────────────
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TradeHistoryOutput {
+    pub trades: Vec<TradeHistoryRow>,
+    pub total: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TradeHistoryRow {
+    pub coin: String,
+    pub side: String,
+    pub size: String,
+    pub price: String,
+    pub pnl: String,
+    pub fee: String,
+    pub time: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct OrderHistoryOutput {
+    pub orders: Vec<OrderHistoryRow>,
+    pub total: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct OrderHistoryRow {
+    pub coin: String,
+    pub side: String,
+    pub size: String,
+    pub price: String,
+    pub oid: i64,
+    pub status: String,
+    pub order_type: String,
+    pub time: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PnlSummaryOutput {
+    pub total_pnl: String,
+    pub total_fees: String,
+    pub net_pnl: String,
+    pub trade_count: usize,
+    pub win_count: usize,
+    pub loss_count: usize,
+    pub win_rate: String,
+    pub by_coin: Vec<PnlByCoinRow>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PnlByCoinRow {
+    pub coin: String,
+    pub pnl: String,
+    pub fees: String,
+    pub trades: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SyncOutput {
+    pub fills_synced: usize,
+    pub orders_synced: usize,
+    pub status: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ExportOutput {
+    pub path: String,
+    pub rows: usize,
+    pub format: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -701,5 +772,90 @@ mod tests {
         let json = serde_json::to_string(&output).unwrap();
         assert!(json.contains("\"agent_address\":\"0xagent\""));
         assert!(json.contains("\"status\":\"approved\""));
+    }
+
+    #[test]
+    fn test_trade_history_output_serializes() {
+        let output = TradeHistoryOutput {
+            trades: vec![TradeHistoryRow {
+                coin: "ETH".into(),
+                side: "Buy".into(),
+                size: "0.5".into(),
+                price: "3500.00".into(),
+                pnl: "100.00".into(),
+                fee: "1.75".into(),
+                time: "2026-02-24 08:00:00".into(),
+            }],
+            total: 1,
+        };
+        let json = serde_json::to_string(&output).unwrap();
+        assert!(json.contains("\"coin\":\"ETH\""));
+        assert!(json.contains("\"total\":1"));
+    }
+
+    #[test]
+    fn test_order_history_output_serializes() {
+        let output = OrderHistoryOutput {
+            orders: vec![OrderHistoryRow {
+                coin: "BTC".into(),
+                side: "Sell".into(),
+                size: "0.01".into(),
+                price: "105000.00".into(),
+                oid: 42,
+                status: "filled".into(),
+                order_type: "Limit".into(),
+                time: "2026-02-24 09:00:00".into(),
+            }],
+            total: 1,
+        };
+        let json = serde_json::to_string(&output).unwrap();
+        assert!(json.contains("\"oid\":42"));
+        assert!(json.contains("\"status\":\"filled\""));
+    }
+
+    #[test]
+    fn test_pnl_summary_output_serializes() {
+        let output = PnlSummaryOutput {
+            total_pnl: "500.00".into(),
+            total_fees: "25.00".into(),
+            net_pnl: "475.00".into(),
+            trade_count: 10,
+            win_count: 7,
+            loss_count: 3,
+            win_rate: "70.0%".into(),
+            by_coin: vec![PnlByCoinRow {
+                coin: "ETH".into(),
+                pnl: "300.00".into(),
+                fees: "15.00".into(),
+                trades: 6,
+            }],
+        };
+        let json = serde_json::to_string(&output).unwrap();
+        assert!(json.contains("\"net_pnl\":\"475.00\""));
+        assert!(json.contains("\"win_rate\":\"70.0%\""));
+    }
+
+    #[test]
+    fn test_sync_output_serializes() {
+        let output = SyncOutput {
+            fills_synced: 50,
+            orders_synced: 30,
+            status: "complete".into(),
+        };
+        let json = serde_json::to_string(&output).unwrap();
+        assert!(json.contains("\"fills_synced\":50"));
+        assert!(json.contains("\"orders_synced\":30"));
+    }
+
+    #[test]
+    fn test_export_output_serializes() {
+        let output = ExportOutput {
+            path: "/home/user/.atlas-os/data/export-trades-123.csv".into(),
+            rows: 100,
+            format: "csv".into(),
+        };
+        let json = serde_json::to_string(&output).unwrap();
+        assert!(json.contains("\"rows\":100"));
+        assert!(json.contains("\"format\":\"csv\""));
     }
 }

@@ -468,6 +468,88 @@ impl TableDisplay for AgentApproveOutput {
     }
 }
 
+impl TableDisplay for TradeHistoryOutput {
+    fn print_table(&self) {
+        if self.trades.is_empty() {
+            println!("No trade history cached. Run `atlas history sync` first.");
+            return;
+        }
+
+        println!("┌────────┬──────┬────────────┬──────────────┬──────────────┬──────────┬─────────────────────┐");
+        println!("│ Coin   │ Side │ Size       │ Price        │ PnL          │ Fee      │ Time                │");
+        println!("├────────┼──────┼────────────┼──────────────┼──────────────┼──────────┼─────────────────────┤");
+        for t in &self.trades {
+            println!(
+                "│ {:<6} │ {:<4} │ {:>10} │ {:>12} │ {:>12} │ {:>8} │ {:>19} │",
+                t.coin, t.side, t.size, t.price, t.pnl, t.fee, t.time,
+            );
+        }
+        println!("└────────┴──────┴────────────┴──────────────┴──────────────┴──────────┴─────────────────────┘");
+        println!("Total: {} trades", self.total);
+    }
+}
+
+impl TableDisplay for OrderHistoryOutput {
+    fn print_table(&self) {
+        if self.orders.is_empty() {
+            println!("No order history cached. Run `atlas history sync` first.");
+            return;
+        }
+
+        println!("┌────────┬──────┬────────────┬──────────────┬────────────────┬──────────┬─────────────────────┐");
+        println!("│ Coin   │ Side │ Size       │ Price        │ OID            │ Status   │ Time                │");
+        println!("├────────┼──────┼────────────┼──────────────┼────────────────┼──────────┼─────────────────────┤");
+        for o in &self.orders {
+            println!(
+                "│ {:<6} │ {:<4} │ {:>10} │ {:>12} │ {:>14} │ {:>8} │ {:>19} │",
+                o.coin, o.side, o.size, o.price, o.oid, o.status, o.time,
+            );
+        }
+        println!("└────────┴──────┴────────────┴──────────────┴────────────────┴──────────┴─────────────────────┘");
+        println!("Total: {} orders", self.total);
+    }
+}
+
+impl TableDisplay for PnlSummaryOutput {
+    fn print_table(&self) {
+        println!("╔══════════════════════════════════════════════════════════╗");
+        println!("║  PNL SUMMARY                                           ║");
+        println!("╠══════════════════════════════════════════════════════════╣");
+        println!("║  Total PnL    : ${:<40}║", self.total_pnl);
+        println!("║  Total Fees   : ${:<40}║", self.total_fees);
+        println!("║  Net PnL      : ${:<40}║", self.net_pnl);
+        println!("║  Trades       : {:<41}║", self.trade_count);
+        println!("║  Win/Loss     : {:<41}║", format!("{} / {}", self.win_count, self.loss_count));
+        println!("║  Win Rate     : {:<41}║", self.win_rate);
+        println!("╠══════════════════════════════════════════════════════════╣");
+
+        if !self.by_coin.is_empty() {
+            println!("║  BREAKDOWN BY COIN                                     ║");
+            println!("║  {:<8} │ {:>12} │ {:>10} │ {:>6}      ║", "Coin", "PnL", "Fees", "Trades");
+            println!("║  ────────┼──────────────┼────────────┼────────────  ║");
+            for row in &self.by_coin {
+                println!(
+                    "║  {:<8} │ {:>12} │ {:>10} │ {:>6}      ║",
+                    row.coin, row.pnl, row.fees, row.trades,
+                );
+            }
+        }
+        println!("╚══════════════════════════════════════════════════════════╝");
+    }
+}
+
+impl TableDisplay for SyncOutput {
+    fn print_table(&self) {
+        println!("✓ Sync {} — fills: {}, orders: {}", self.status, self.fills_synced, self.orders_synced);
+    }
+}
+
+impl TableDisplay for ExportOutput {
+    fn print_table(&self) {
+        println!("✓ Exported {} rows ({}) → {}", self.rows, self.format, self.path);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -239,6 +239,18 @@ enum Commands {
         #[command(subcommand)]
         action: AgentAction,
     },
+
+    /// Query cached trade/order history and PnL.
+    History {
+        #[command(subcommand)]
+        action: HistoryAction,
+    },
+
+    /// Export cached data to CSV or JSON files.
+    Export {
+        #[command(subcommand)]
+        action: ExportAction,
+    },
 }
 
 #[derive(Subcommand)]
@@ -424,6 +436,92 @@ enum AgentAction {
     },
 }
 
+#[derive(Subcommand)]
+enum HistoryAction {
+    /// Query cached trade fills.
+    Trades {
+        /// Filter by coin symbol (e.g. ETH).
+        #[arg(long)]
+        coin: Option<String>,
+        /// Start date (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS).
+        #[arg(long)]
+        from: Option<String>,
+        /// End date (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS).
+        #[arg(long)]
+        to: Option<String>,
+        /// Maximum number of results (default: 50).
+        #[arg(long, default_value_t = 50)]
+        limit: usize,
+    },
+    /// Query cached orders.
+    Orders {
+        /// Filter by coin symbol.
+        #[arg(long)]
+        coin: Option<String>,
+        /// Filter by order status (e.g. open, filled, canceled).
+        #[arg(long)]
+        status: Option<String>,
+        /// Maximum number of results (default: 50).
+        #[arg(long, default_value_t = 50)]
+        limit: usize,
+    },
+    /// Show PnL summary from cached fills.
+    Pnl {
+        /// Filter by coin symbol.
+        #[arg(long)]
+        coin: Option<String>,
+        /// Start date.
+        #[arg(long)]
+        from: Option<String>,
+        /// End date.
+        #[arg(long)]
+        to: Option<String>,
+    },
+    /// Sync all data from API into local cache.
+    Sync {
+        /// Force full re-sync (ignore incremental state).
+        #[arg(long)]
+        full: bool,
+    },
+}
+
+#[derive(Subcommand)]
+enum ExportAction {
+    /// Export cached trades to a file.
+    Trades {
+        /// Export as CSV (default).
+        #[arg(long)]
+        csv: bool,
+        /// Export as JSON.
+        #[arg(long)]
+        json: bool,
+        /// Filter by coin symbol.
+        #[arg(long)]
+        coin: Option<String>,
+        /// Start date.
+        #[arg(long)]
+        from: Option<String>,
+        /// End date.
+        #[arg(long)]
+        to: Option<String>,
+    },
+    /// Export PnL summary to a file.
+    Pnl {
+        /// Export as CSV (default).
+        #[arg(long)]
+        csv: bool,
+        /// Export as JSON.
+        #[arg(long)]
+        json: bool,
+        /// Start date.
+        #[arg(long)]
+        from: Option<String>,
+        /// End date.
+        #[arg(long)]
+        to: Option<String>,
+    },
+}
+
 // ─── Entrypoint ─────────────────────────────────────────────────────
 
 #[tokio::main]
@@ -563,6 +661,42 @@ async fn main() -> Result<()> {
         Commands::Agent { action } => match action {
             AgentAction::Approve { address, name } => {
                 commands::sub::agent_approve(&address, name.as_deref(), fmt).await
+            }
+        },
+
+        // ── History ─────────────────────────────────────────────
+        Commands::History { action } => match action {
+            HistoryAction::Trades { coin, from, to, limit } => {
+                commands::history::run_trades(
+                    coin.as_deref(), from.as_deref(), to.as_deref(), limit, fmt,
+                )
+            }
+            HistoryAction::Orders { coin, status, limit } => {
+                commands::history::run_orders(
+                    coin.as_deref(), status.as_deref(), limit, fmt,
+                )
+            }
+            HistoryAction::Pnl { coin, from, to } => {
+                commands::history::run_pnl(
+                    coin.as_deref(), from.as_deref(), to.as_deref(), fmt,
+                )
+            }
+            HistoryAction::Sync { full } => {
+                commands::history::run_sync(full, fmt).await
+            }
+        },
+
+        // ── Export ──────────────────────────────────────────────
+        Commands::Export { action } => match action {
+            ExportAction::Trades { csv: _, json, coin, from, to } => {
+                commands::export::run_export_trades(
+                    json, coin.as_deref(), from.as_deref(), to.as_deref(), fmt,
+                )
+            }
+            ExportAction::Pnl { csv: _, json, from, to } => {
+                commands::export::run_export_pnl(
+                    json, from.as_deref(), to.as_deref(), fmt,
+                )
             }
         },
     }

@@ -24,3 +24,4 @@ reqwest = { workspace = true }
 url = { workspace = true }
 futures = { workspace = true }
 rmp-serde = { workspace = true }
+rusqlite = { workspace = true }
