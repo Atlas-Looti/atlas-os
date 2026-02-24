@@ -2,6 +2,7 @@ pub mod auth;
 pub mod doctor;
 pub mod market;
 pub mod status;
+pub mod stream;
 pub mod trade;
 pub mod account;
 pub mod configure;

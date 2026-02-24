@@ -1154,6 +1154,7 @@ dependencies = [
  "chrono",
  "clap",
  "crossterm",
+ "futures",
  "hypersdk",
  "ratatui",
  "rust_decimal",

@@ -197,6 +197,13 @@ enum Commands {
         coin: String,
     },
 
+    // ── Streaming ───────────────────────────────────────────────
+    /// Stream real-time data via WebSocket.
+    Stream {
+        #[command(subcommand)]
+        action: StreamAction,
+    },
+
     /// Configure trading settings (mode, leverage, slippage, lots).
     Configure {
         #[command(subcommand)]
@@ -277,6 +284,34 @@ enum RiskAction {
         #[arg(long)]
         leverage: Option<u32>,
     },
+}
+
+#[derive(Subcommand)]
+enum StreamAction {
+    /// Stream live mid prices for all markets.
+    Prices,
+    /// Stream live trades for a coin.
+    Trades {
+        /// Asset symbol (e.g. ETH, BTC).
+        coin: String,
+    },
+    /// Stream live order book for a coin.
+    Book {
+        /// Asset symbol.
+        coin: String,
+        /// Number of levels to show (default: 10).
+        #[arg(long, default_value_t = 10)]
+        depth: usize,
+    },
+    /// Stream live candle updates for a coin.
+    Candles {
+        /// Asset symbol.
+        coin: String,
+        /// Interval (e.g. 1m, 5m, 1h, 1d).
+        interval: String,
+    },
+    /// Stream user events (fills, order updates, liquidations).
+    User,
 }
 
 #[derive(Subcommand)]
@@ -371,6 +406,15 @@ async fn main() -> Result<()> {
         Commands::Funding { coin } => {
             commands::market::funding(&coin, fmt).await
         }
+
+        // ── Streaming ───────────────────────────────────────────
+        Commands::Stream { action } => match action {
+            StreamAction::Prices => commands::stream::stream_prices(fmt).await,
+            StreamAction::Trades { coin } => commands::stream::stream_trades(&coin, fmt).await,
+            StreamAction::Book { coin, depth } => commands::stream::stream_book(&coin, depth, fmt).await,
+            StreamAction::Candles { coin, interval } => commands::stream::stream_candles(&coin, &interval, fmt).await,
+            StreamAction::User => commands::stream::stream_user(fmt).await,
+        },
 
         // ── Configuration ───────────────────────────────────────
         Commands::Configure { action } => match action {
