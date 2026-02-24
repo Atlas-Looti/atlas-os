@@ -6,10 +6,14 @@ import { apiKeyAuth } from "./middleware/apikey.ts";
 import { health } from "./routes/health.ts";
 import { keys } from "./routes/keys.ts";
 import { rpc } from "./routes/atlas-os/rpc.ts";
+import { dex } from "./routes/atlas-os/market/dex/index.ts";
+import { compute, setupComputeUsage } from "./routes/atlas-os/compute/index.ts";
+import { zerox } from "./routes/atlas-os/0x/index.ts";
 import { runMigrations } from "./lib/migrate.ts";
 
-// Run migrations before accepting traffic
+// Run migrations + setup tables before accepting traffic
 await runMigrations();
+await setupComputeUsage();
 
 const app = new Hono();
 
@@ -28,6 +32,12 @@ app.route("/keys", keys);
 const atlasOs = new Hono();
 atlasOs.use("/rpc/*", apiKeyAuth);
 atlasOs.route("/rpc", rpc);
+atlasOs.use("/dex/*", apiKeyAuth);
+atlasOs.route("/dex", dex);
+atlasOs.use("/compute/*", apiKeyAuth);
+atlasOs.route("/compute", compute);
+atlasOs.use("/0x/*", apiKeyAuth);
+atlasOs.route("/0x", zerox);
 
 app.route("/atlas-os", atlasOs);
 

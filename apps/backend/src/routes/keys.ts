@@ -95,4 +95,49 @@ keys.delete("/:id", async (ctx) => {
     return ctx.json({ success: true, id });
 });
 
+/**
+ * GET /keys/compute-usage
+ * Fetch compute usage events for the authenticated user (Clerk JWT).
+ * Used by the dashboard chart — does not require the raw API key.
+ */
+keys.get("/compute-usage", async (ctx) => {
+    const userId = ctx.get("userId");
+    const action = ctx.req.query("action");
+    const workflow = ctx.req.query("workflow");
+    const status = ctx.req.query("status");
+    const limit = Math.min(parseInt(ctx.req.query("limit") ?? "200", 10), 500);
+    const offset = parseInt(ctx.req.query("offset") ?? "0", 10);
+
+    const conditions: string[] = ["user_id = $1"];
+    const params: unknown[] = [userId];
+    let idx = 2;
+
+    if (action) { conditions.push(`action = $${idx++}`); params.push(action); }
+    if (workflow) { conditions.push(`workflow = $${idx++}`); params.push(workflow); }
+    if (status) { conditions.push(`status = $${idx++}`); params.push(status); }
+
+    const where = conditions.join(" AND ");
+
+    const [dataResult, countResult] = await Promise.all([
+        db.query(
+            `SELECT id, action, workflow, duration_ms, status, error_msg, metadata, created_at
+             FROM compute_usage
+             WHERE ${where}
+             ORDER BY created_at DESC
+             LIMIT $${idx++} OFFSET $${idx}`,
+            [...params, limit, offset]
+        ),
+        db.query(
+            `SELECT COUNT(*)::int AS total FROM compute_usage WHERE ${where}`,
+            params
+        ),
+    ]);
+
+    return ctx.json({
+        data: dataResult.rows,
+        meta: { total: countResult.rows[0]?.total ?? 0, limit, offset },
+    });
+});
+
 export { keys };
+
