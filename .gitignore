@@ -11,6 +11,9 @@
 # Env files
 .env
 .env.*
+.env.local
+.env.*.local
+*.env
 !.env.example
 
 # OS-generated files

@@ -34,12 +34,15 @@ use crate::signing::compute_agent_signing_hash;
 struct AssetCtxRaw {
     name: String,
     mid_px: Option<Decimal>,
+    #[allow(dead_code)]
     mark_px: Option<Decimal>,
     impact_bid: Option<Decimal>,
     impact_ask: Option<Decimal>,
     volume: Option<Decimal>,
     prev_day_px: Option<Decimal>,
+    #[allow(dead_code)]
     oi: Option<Decimal>,
+    #[allow(dead_code)]
     funding: Option<Decimal>,
 }
 
@@ -429,7 +432,7 @@ impl PerpModule for HyperliquidModule {
         let ctxs = self.fetch_asset_ctxs().await?;
         let mut tickers: Vec<Ticker> = ctxs.iter()
             .filter(|c| c.mid_px.is_some())
-            .map(|c| Self::ctx_to_ticker(c))
+            .map(Self::ctx_to_ticker)
             .collect();
         tickers.sort_by(|a, b| a.symbol.cmp(&b.symbol));
         Ok(tickers)
