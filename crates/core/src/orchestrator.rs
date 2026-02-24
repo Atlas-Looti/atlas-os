@@ -9,7 +9,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use tracing::info;
 
-use atlas_common::traits::{PerpModule, LendingModule};
+use atlas_common::traits::{LendingModule, PerpModule, SwapModule};
 use atlas_common::types::*;
 use atlas_types::config::AppConfig;
 
@@ -22,10 +22,14 @@ pub struct Orchestrator {
     perp_modules: HashMap<String, Arc<dyn PerpModule>>,
     /// Lending modules keyed by protocol name.
     lending_modules: HashMap<String, Arc<dyn LendingModule>>,
+    /// Swap modules keyed by protocol name.
+    swap_modules: HashMap<String, Arc<dyn SwapModule>>,
     /// Default perp protocol (used when user doesn't specify).
     pub default_perp: Option<String>,
     /// Default lending protocol.
     pub default_lending: Option<String>,
+    /// Default swap protocol.
+    pub default_swap: Option<String>,
 }
 
 impl Orchestrator {
@@ -33,8 +37,10 @@ impl Orchestrator {
         Self {
             perp_modules: HashMap::new(),
             lending_modules: HashMap::new(),
+            swap_modules: HashMap::new(),
             default_perp: None,
             default_lending: None,
+            default_swap: None,
         }
     }
 
@@ -58,13 +64,24 @@ impl Orchestrator {
         self.lending_modules.insert(name, module);
     }
 
+    /// Register a swap module.
+    pub fn add_swap(&mut self, module: Arc<dyn SwapModule>) {
+        let name = module.protocol().to_string();
+        if self.default_swap.is_none() {
+            self.default_swap = Some(name.clone());
+        }
+        info!(protocol = %name, "registered swap module");
+        self.swap_modules.insert(name, module);
+    }
+
     /// Get a perp module by name, or the default.
     pub fn perp(&self, protocol: Option<&str>) -> Result<&Arc<dyn PerpModule>> {
         let name = protocol
             .map(|s| s.to_string())
             .or_else(|| self.default_perp.clone())
             .ok_or_else(|| anyhow::anyhow!("No perp module registered"))?;
-        self.perp_modules.get(&name)
+        self.perp_modules
+            .get(&name)
             .ok_or_else(|| anyhow::anyhow!("Unknown perp protocol: {name}"))
     }
 
@@ -74,8 +91,20 @@ impl Orchestrator {
             .map(|s| s.to_string())
             .or_else(|| self.default_lending.clone())
             .ok_or_else(|| anyhow::anyhow!("No lending module registered"))?;
-        self.lending_modules.get(&name)
+        self.lending_modules
+            .get(&name)
             .ok_or_else(|| anyhow::anyhow!("Unknown lending protocol: {name}"))
+    }
+
+    /// Get a swap module by name, or the default.
+    pub fn swap(&self, protocol: Option<&str>) -> Result<&Arc<dyn SwapModule>> {
+        let name = protocol
+            .map(|s| s.to_string())
+            .or_else(|| self.default_swap.clone())
+            .ok_or_else(|| anyhow::anyhow!("No swap module registered"))?;
+        self.swap_modules
+            .get(&name)
+            .ok_or_else(|| anyhow::anyhow!("Unknown swap protocol: {name}"))
     }
 
     /// List all registered protocols.
@@ -91,6 +120,12 @@ impl Orchestrator {
             protos.push(ProtocolInfo {
                 name: name.clone(),
                 module_type: "lending".into(),
+            });
+        }
+        for (name, _) in &self.swap_modules {
+            protos.push(ProtocolInfo {
+                name: name.clone(),
+                module_type: "swap".into(),
             });
         }
         protos
@@ -164,8 +199,11 @@ impl Orchestrator {
             let testnet = config.modules.hyperliquid.config.network == "testnet";
             let hl = match signer {
                 Some(s) => atlas_mod_hyperliquid::client::HyperliquidModule::new(s, testnet).await,
-                None => atlas_mod_hyperliquid::client::HyperliquidModule::new_readonly(testnet).await,
-            }.map_err(|e| anyhow::anyhow!("{e}"))?;
+                None => {
+                    atlas_mod_hyperliquid::client::HyperliquidModule::new_readonly(testnet).await
+                }
+            }
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
             orch.add_perp(Arc::new(hl));
             info!("Hyperliquid perp module loaded");
         }
@@ -179,6 +217,14 @@ impl Orchestrator {
             let morpho = atlas_mod_morpho::client::MorphoModule::new(chain);
             orch.add_lending(Arc::new(morpho));
             info!("Morpho lending module loaded");
+        }
+
+        // ── 0x (swap) ───────────────────────────────────────────
+        if config.modules.zero_x.enabled {
+            let api_key = config.modules.zero_x.config.api_key.clone();
+            let zero_x = atlas_mod_zero_x::client::ZeroXModule::new(api_key);
+            orch.add_swap(Arc::new(zero_x));
+            info!("0x swap module loaded");
         }
 
         Ok(orch)

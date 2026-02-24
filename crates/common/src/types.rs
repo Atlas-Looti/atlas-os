@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 pub enum Protocol {
     Hyperliquid,
     Morpho,
+    ZeroX,
     // Future: Dydx, Gmx, Vertex, Jupiter, Drift, ...
 }
 
@@ -20,6 +21,7 @@ impl std::fmt::Display for Protocol {
         match self {
             Protocol::Hyperliquid => write!(f, "hyperliquid"),
             Protocol::Morpho => write!(f, "morpho"),
+            Protocol::ZeroX => write!(f, "0x"),
         }
     }
 }
@@ -290,4 +292,23 @@ pub struct SubAccount {
     pub name: String,
     pub address: String,
     pub account_value: Decimal,
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  SWAPS
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Swap quote for DEX protocols.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SwapQuote {
+    pub protocol: Protocol,
+    pub chain: Chain,
+    pub sell_token: String,
+    pub buy_token: String,
+    pub sell_amount: Decimal,
+    pub buy_amount: Decimal,
+    pub estimated_gas: Option<u64>,
+    pub price: Decimal,
+    pub allowance_target: Option<String>,
+    pub tx_data: Option<String>,
 }

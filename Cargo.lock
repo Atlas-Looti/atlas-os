@@ -1225,6 +1225,7 @@ dependencies = [
  "atlas-common",
  "atlas-mod-hyperliquid",
  "atlas-mod-morpho",
+ "atlas-mod-zero-x",
  "atlas-types",
  "chrono",
  "dirs",
@@ -1271,6 +1272,19 @@ dependencies = [
 
 [[package]]
 name = "atlas-mod-morpho"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "atlas-common",
+ "reqwest 0.12.28",
+ "rust_decimal",
+ "serde",
+ "serde_json",
+ "tracing",
+]
+
+[[package]]
+name = "atlas-mod-zero-x"
 version = "0.1.0"
 dependencies = [
  "async-trait",

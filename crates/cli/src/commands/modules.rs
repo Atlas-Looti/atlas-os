@@ -12,6 +12,8 @@ pub fn run(fmt: OutputFormat) -> Result<()> {
          format!("network={}, rpc={}", config.modules.hyperliquid.config.network, config.modules.hyperliquid.config.rpc_url)),
         ("morpho", "DeFi Lending", config.modules.morpho.enabled,
          format!("chain={}", config.modules.morpho.config.chain)),
+        ("zero_x", "DEX Aggregator (0x)", config.modules.zero_x.enabled,
+         format!("api_key={}", if config.modules.zero_x.config.api_key.is_empty() { "<not set>" } else { "***" })),
     ];
 
     match fmt {
@@ -62,7 +64,12 @@ pub fn enable(name: &str, _fmt: OutputFormat) -> Result<()> {
             atlas_core::workspace::save_config(&config)?;
             println!("✓ Module 'morpho' enabled.");
         }
-        _ => anyhow::bail!("Unknown module: {name}. Available: hyperliquid, morpho"),
+        "zero_x" | "0x" | "swap" => {
+            config.modules.zero_x.enabled = true;
+            atlas_core::workspace::save_config(&config)?;
+            println!("✓ Module 'zero_x' (0x) enabled.");
+        }
+        _ => anyhow::bail!("Unknown module: {name}. Available: hyperliquid, morpho, zero_x"),
     }
     Ok(())
 }
@@ -82,7 +89,12 @@ pub fn disable(name: &str, _fmt: OutputFormat) -> Result<()> {
             atlas_core::workspace::save_config(&config)?;
             println!("✗ Module 'morpho' disabled.");
         }
-        _ => anyhow::bail!("Unknown module: {name}. Available: hyperliquid, morpho"),
+        "zero_x" | "0x" | "swap" => {
+            config.modules.zero_x.enabled = false;
+            atlas_core::workspace::save_config(&config)?;
+            println!("✗ Module 'zero_x' (0x) disabled.");
+        }
+        _ => anyhow::bail!("Unknown module: {name}. Available: hyperliquid, morpho, zero_x"),
     }
     Ok(())
 }
@@ -117,7 +129,15 @@ pub fn config_set(module: &str, key: &str, value: &str, _fmt: OutputFormat) -> R
                 _ => anyhow::bail!("Unknown key '{key}' for morpho. Available: chain"),
             }
         }
-        _ => anyhow::bail!("Unknown module: {module}. Available: hyperliquid, morpho"),
+        "zero_x" | "0x" => {
+            match key {
+                "api_key" | "key" => {
+                    config.modules.zero_x.config.api_key = value.to_string();
+                }
+                _ => anyhow::bail!("Unknown key '{key}' for zero_x. Available: api_key"),
+            }
+        }
+        _ => anyhow::bail!("Unknown module: {module}. Available: hyperliquid, morpho, zero_x"),
     }
 
     atlas_core::workspace::save_config(&config)?;

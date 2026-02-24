@@ -34,7 +34,8 @@ pub enum SizeInput {
 ///   "risk": { ... },
 ///   "modules": {
 ///     "hyperliquid": { "enabled": true, "network": "mainnet", "rpc_url": "..." },
-///     "morpho": { "enabled": true, "chain": "ethereum" }
+///     "morpho": { "enabled": true, "chain": "ethereum" },
+///     "zero_x": { "enabled": true, "api_key": "" }
 ///   }
 /// }
 /// ```
@@ -64,6 +65,8 @@ pub struct ModulesConfig {
     pub hyperliquid: ModuleEntry<HyperliquidConfig>,
     #[serde(default = "default_morpho_config")]
     pub morpho: ModuleEntry<MorphoConfig>,
+    #[serde(default = "default_zero_x_config")]
+    pub zero_x: ModuleEntry<ZeroXConfig>,
 }
 
 /// A module entry: enabled flag + module-specific settings.
@@ -99,6 +102,14 @@ pub struct MorphoConfig {
     pub risk: RiskConfig,
 }
 
+/// 0x API configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ZeroXConfig {
+    /// 0x API Key
+    #[serde(default)]
+    pub api_key: String,
+}
+
 fn default_hl_config() -> ModuleEntry<HyperliquidConfig> {
     ModuleEntry {
         enabled: true,
@@ -120,9 +131,22 @@ fn default_morpho_config() -> ModuleEntry<MorphoConfig> {
     }
 }
 
-fn default_hl_network() -> String { "mainnet".into() }
-fn default_hl_rpc() -> String { "https://api.hyperliquid.xyz".into() }
-fn default_morpho_chain() -> String { "ethereum".into() }
+fn default_zero_x_config() -> ModuleEntry<ZeroXConfig> {
+    ModuleEntry {
+        enabled: false,
+        config: ZeroXConfig { api_key: "".into() },
+    }
+}
+
+fn default_hl_network() -> String {
+    "mainnet".into()
+}
+fn default_hl_rpc() -> String {
+    "https://api.hyperliquid.xyz".into()
+}
+fn default_morpho_chain() -> String {
+    "ethereum".into()
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TradingConfig {
@@ -279,6 +303,7 @@ impl Default for ModulesConfig {
         Self {
             hyperliquid: default_hl_config(),
             morpho: default_morpho_config(),
+            zero_x: default_zero_x_config(),
         }
     }
 }
@@ -423,8 +448,12 @@ mod tests {
         let parsed = AppConfig::from_json_str(&json_str).unwrap();
         assert_eq!(parsed.system.active_profile, config.system.active_profile);
         assert_eq!(parsed.trading.mode, config.trading.mode);
-        assert_eq!(parsed.modules.hyperliquid.config.network, config.modules.hyperliquid.config.network);
+        assert_eq!(
+            parsed.modules.hyperliquid.config.network,
+            config.modules.hyperliquid.config.network
+        );
         assert_eq!(parsed.modules.morpho.enabled, config.modules.morpho.enabled);
+        assert_eq!(parsed.modules.zero_x.enabled, config.modules.zero_x.enabled);
     }
 
     #[test]

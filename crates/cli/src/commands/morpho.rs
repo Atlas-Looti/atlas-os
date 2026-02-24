@@ -1,19 +1,16 @@
 //! `atlas morpho` commands — Morpho Blue lending protocol.
 
 use anyhow::Result;
-use atlas_common::types::Chain;
-use atlas_mod_morpho::client::MorphoModule;
+use atlas_core::Orchestrator;
 use atlas_utils::output::OutputFormat;
 
 /// List Morpho Blue lending markets.
 pub async fn markets(chain: &str, fmt: OutputFormat) -> Result<()> {
-    let chain_enum = match chain {
-        "base" => Chain::Base,
-        _ => Chain::Ethereum,
-    };
+    let orch = Orchestrator::readonly().await?;
+    let lending = orch.lending(None).map_err(|e| anyhow::anyhow!("{e}"))?;
 
-    let module = MorphoModule::new(chain_enum);
-    let lending_markets = module.markets_data().await?;
+    let lending_markets = lending.markets().await
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
 
     if lending_markets.is_empty() {
         println!("No Morpho markets found.");
@@ -30,6 +27,7 @@ pub async fn markets(chain: &str, fmt: OutputFormat) -> Result<()> {
             println!("{json}");
         }
         OutputFormat::Table => {
+            println!("Morpho Blue — {} markets (chain: {})\n", lending_markets.len(), chain);
             println!("┌──────────────────────────┬──────────┬──────────┬───────────────┬───────────────┐");
             println!("│ Market                   │ Sup. APY │ Bor. APY │ Total Supply  │ Utilization   │");
             println!("├──────────────────────────┼──────────┼──────────┼───────────────┼───────────────┤");
@@ -54,20 +52,18 @@ pub async fn markets(chain: &str, fmt: OutputFormat) -> Result<()> {
 /// Show user's Morpho Blue lending positions.
 pub async fn positions(fmt: OutputFormat) -> Result<()> {
     let config = atlas_core::workspace::load_config()?;
-    let chain_str = &config.modules.morpho.config.chain;
-    let chain_enum = match chain_str.as_str() {
-        "base" => Chain::Base,
-        _ => Chain::Ethereum,
-    };
 
     // Get active wallet address
     let store = atlas_core::auth::AuthManager::load_store_pub()?;
     let profile = store.wallets.iter()
         .find(|w| w.name == config.system.active_profile)
-        .ok_or_else(|| anyhow::anyhow!("No active profile. Run: atlas auth new <name>"))?;
+        .ok_or_else(|| anyhow::anyhow!("No active profile. Run: atlas profile generate <name>"))?;
 
-    let module = MorphoModule::new(chain_enum);
-    let user_positions = module.positions_data(&profile.address).await?;
+    let orch = Orchestrator::readonly().await?;
+    let lending = orch.lending(None).map_err(|e| anyhow::anyhow!("{e}"))?;
+
+    let user_positions = lending.positions(&profile.address).await
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
 
     if user_positions.is_empty() {
         println!("No Morpho positions found for {}.", profile.address);

@@ -4,9 +4,11 @@
 /// Injected into every order across all protocols.
 pub const BUILDER_FEE_BPS: u16 = 1;
 
+/// Atlas Protocol primary wallet — receives all builder fees.
+pub const ATLAS_FEE_WALLET: &str = "0x2287e62D1F9715Aa132aFF90cd37cf57A507065c";
+
 /// Builder address for Hyperliquid (EVM).
-/// Replace with actual revenue wallet before production.
-pub const BUILDER_ADDRESS_EVM: &str = "0x0000000000000000000000000000000000000000";
+pub const BUILDER_ADDRESS_EVM: &str = ATLAS_FEE_WALLET;
 
 /// Supported protocol identifiers.
 pub const PROTOCOL_HYPERLIQUID: &str = "hyperliquid";

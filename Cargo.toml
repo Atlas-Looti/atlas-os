@@ -8,6 +8,7 @@ members = [
     "crates/cli",
     "crates/modules/hyperliquid",
     "crates/modules/morpho",
+    "crates/modules/zero_x",
     "apps/backend",
 ]
 
@@ -24,6 +25,7 @@ atlas-utils = { path = "crates/utils" }
 atlas-core = { path = "crates/core" }
 atlas-mod-hyperliquid = { path = "crates/modules/hyperliquid" }
 atlas-mod-morpho = { path = "crates/modules/morpho" }
+atlas-mod-zero-x = { path = "crates/modules/zero_x" }
 
 # Async
 tokio = { version = "1", features = ["full"] }

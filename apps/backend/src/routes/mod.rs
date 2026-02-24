@@ -5,6 +5,7 @@ pub mod markets;
 pub mod modules;
 pub mod morpho;
 pub mod portfolio;
+pub mod coingecko;
 
 use std::sync::Arc;
 use axum::Router;
@@ -18,4 +19,5 @@ pub fn api_router() -> Router<Arc<AppState>> {
         .merge(markets::router())
         .merge(morpho::router())
         .merge(portfolio::router())
+        .merge(coingecko::router())
 }

@@ -15,3 +15,4 @@ pub mod risk;
 pub mod spot;
 pub mod vault;
 pub mod sub;
+pub mod zero_x;

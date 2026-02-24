@@ -94,6 +94,13 @@ enum Commands {
         action: MorphoAction,
     },
 
+    /// 0x Protocol: multi-chain DEX aggregator (swaps).
+    #[command(name = "zero-x", alias = "0x")]
+    ZeroX {
+        #[command(subcommand)]
+        action: ZeroXAction,
+    },
+
     // ── UTILITIES ───────────────────────────────────────────────
 
     /// Query cached history and PnL.
@@ -383,6 +390,45 @@ enum MorphoAction {
     Markets { #[arg(long, default_value = "ethereum")] chain: String },
     /// Show lending positions.
     Positions,
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  0x — Protocol namespace (multi-chain DEX aggregator)
+// ═══════════════════════════════════════════════════════════════════════
+
+#[derive(Subcommand)]
+enum ZeroXAction {
+    /// Get indicative swap price quote.
+    Quote {
+        /// Sell token contract address.
+        sell_token: String,
+        /// Buy token contract address.
+        buy_token: String,
+        /// Amount to sell (in base units / wei).
+        amount: String,
+        /// Chain to swap on (ethereum, arbitrum, base).
+        #[arg(long, default_value = "ethereum")]
+        chain: String,
+        /// Max slippage in basis points (default 100 = 1%).
+        #[arg(long)]
+        slippage: Option<u32>,
+    },
+    /// List chains supported by 0x.
+    Chains,
+    /// List liquidity sources on a chain.
+    Sources {
+        #[arg(long, default_value = "ethereum")]
+        chain: String,
+    },
+    /// View completed swap trade analytics.
+    Trades {
+        /// Start timestamp (unix seconds).
+        #[arg(long)]
+        start: Option<u64>,
+        /// End timestamp (unix seconds).
+        #[arg(long)]
+        end: Option<u64>,
+    },
 }
 
 // ═══════════════════════════════════════════════════════════════════════

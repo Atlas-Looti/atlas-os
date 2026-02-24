@@ -5,7 +5,7 @@
 
 use async_trait::async_trait;
 use rust_decimal::Decimal;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use crate::error::AtlasResult;
 use crate::types::*;
@@ -26,12 +26,8 @@ pub trait PerpModule: Send + Sync {
     async fn all_tickers(&self) -> AtlasResult<Vec<Ticker>>;
 
     /// Get candle data.
-    async fn candles(
-        &self,
-        symbol: &str,
-        interval: &str,
-        limit: usize,
-    ) -> AtlasResult<Vec<Candle>>;
+    async fn candles(&self, symbol: &str, interval: &str, limit: usize)
+        -> AtlasResult<Vec<Candle>>;
 
     /// Get funding rate history.
     async fn funding(&self, symbol: &str) -> AtlasResult<Vec<FundingRate>>;
@@ -85,12 +81,7 @@ pub trait PerpModule: Send + Sync {
     async fn balances(&self) -> AtlasResult<Vec<Balance>>;
 
     /// Set leverage.
-    async fn set_leverage(
-        &self,
-        symbol: &str,
-        leverage: u32,
-        is_cross: bool,
-    ) -> AtlasResult<()>;
+    async fn set_leverage(&self, symbol: &str, leverage: u32, is_cross: bool) -> AtlasResult<()>;
 
     /// Update isolated margin for a position.
     async fn update_margin(&self, symbol: &str, amount: Decimal) -> AtlasResult<()>;
@@ -119,7 +110,9 @@ pub trait PerpModule: Send + Sync {
         _size: Decimal,
         _slippage: Option<f64>,
     ) -> AtlasResult<OrderResult> {
-        Err(crate::error::AtlasError::Other("Spot trading not supported on this protocol".into()))
+        Err(crate::error::AtlasError::Other(
+            "Spot trading not supported on this protocol".into(),
+        ))
     }
 
     /// Internal transfer between sub-wallets (perps↔spot↔evm).
@@ -129,14 +122,18 @@ pub trait PerpModule: Send + Sync {
         _amount: Decimal,
         _token: Option<&str>,
     ) -> AtlasResult<String> {
-        Err(crate::error::AtlasError::Other("Internal transfers not supported on this protocol".into()))
+        Err(crate::error::AtlasError::Other(
+            "Internal transfers not supported on this protocol".into(),
+        ))
     }
 
     // ── Vault / subaccount operations (optional) ────────────────
 
     /// Get vault details.
     async fn vault_details(&self, _vault_address: &str) -> AtlasResult<VaultDetails> {
-        Err(crate::error::AtlasError::Other("Vaults not supported on this protocol".into()))
+        Err(crate::error::AtlasError::Other(
+            "Vaults not supported on this protocol".into(),
+        ))
     }
 
     /// Get user's vault deposits.
@@ -150,8 +147,14 @@ pub trait PerpModule: Send + Sync {
     }
 
     /// Approve an agent wallet.
-    async fn approve_agent(&self, _agent_address: &str, _name: Option<&str>) -> AtlasResult<String> {
-        Err(crate::error::AtlasError::Other("Agent approval not supported on this protocol".into()))
+    async fn approve_agent(
+        &self,
+        _agent_address: &str,
+        _name: Option<&str>,
+    ) -> AtlasResult<String> {
+        Err(crate::error::AtlasError::Other(
+            "Agent approval not supported on this protocol".into(),
+        ))
     }
 }
 
@@ -162,7 +165,8 @@ pub trait MarketDataProvider: Send + Sync {
     async fn markets(&self) -> AtlasResult<Vec<Market>>;
     async fn ticker(&self, symbol: &str) -> AtlasResult<Ticker>;
     async fn all_tickers(&self) -> AtlasResult<Vec<Ticker>>;
-    async fn candles(&self, symbol: &str, interval: &str, limit: usize) -> AtlasResult<Vec<Candle>>;
+    async fn candles(&self, symbol: &str, interval: &str, limit: usize)
+        -> AtlasResult<Vec<Candle>>;
     async fn funding(&self, symbol: &str) -> AtlasResult<Vec<FundingRate>>;
 }
 
@@ -218,4 +222,24 @@ pub struct LendingPosition {
     pub supplied: Decimal,
     pub borrowed: Decimal,
     pub health_factor: Option<Decimal>,
+}
+
+/// DEX / Swap operations — 0x, Uniswap, Jupiter, etc.
+#[async_trait]
+pub trait SwapModule: Send + Sync {
+    fn protocol(&self) -> Protocol;
+
+    /// Get a price quote for a swap.
+    async fn quote(
+        &self,
+        sell_token: &str,
+        buy_token: &str,
+        amount: Decimal,
+    ) -> AtlasResult<SwapQuote>;
+
+    /// Execute a swap.
+    async fn swap(&self, quote: &SwapQuote) -> AtlasResult<String>;
+
+    /// Downcast to concrete type for protocol-specific features.
+    fn as_any(&self) -> &dyn std::any::Any;
 }
