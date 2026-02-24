@@ -1,12 +1,12 @@
 use anyhow::Result;
-use atlas_core::Engine;
+use atlas_core::Orchestrator;
 use atlas_types::output::RiskCalcOutput;
 use atlas_utils::output::{render, OutputFormat};
 use atlas_utils::parse;
 use atlas_utils::risk::{self, RiskInput};
+use rust_decimal::prelude::*;
 
 /// `atlas risk calc <coin> <side> <entry_price> [--stop <price>] [--leverage <n>]`
-/// Calculate position size based on risk management rules.
 pub async fn calculate(
     coin: &str,
     side: &str,
@@ -16,15 +16,17 @@ pub async fn calculate(
     fmt: OutputFormat,
 ) -> Result<()> {
     let is_buy = parse::parse_side(side)?;
-    let engine = Engine::from_active_profile().await?;
+    let config = atlas_core::workspace::load_config()?;
+    let orch = Orchestrator::from_active_profile().await?;
+    let perp = orch.perp(None)?;
     let coin_upper = coin.to_uppercase();
 
-    // Fetch account value — hypersdk uses clearinghouse_state
-    let state = engine.client.clearinghouse_state(engine.address, None).await
-        .map_err(|e| anyhow::anyhow!("{e:?}"))?;
-    let account_value: f64 = state.margin_summary.account_value
-        .to_string()
-        .parse()
+    // Get account value and positions from module
+    let balances = perp.balances().await.map_err(|e| anyhow::anyhow!("{e}"))?;
+    let positions = perp.positions().await.map_err(|e| anyhow::anyhow!("{e}"))?;
+
+    let account_value = balances.first()
+        .map(|b| b.total.to_f64().unwrap_or(0.0))
         .unwrap_or(0.0);
 
     let input = RiskInput {
@@ -37,21 +39,14 @@ pub async fn calculate(
         leverage,
     };
 
-    let output = risk::calculate_position(&engine.config, &input);
+    let output = risk::calculate_position(&config, &input);
 
-    // Validate
-    let current_positions = state.asset_positions.len();
-    let total_exposure: f64 = state.asset_positions.iter()
-        .map(|p| p.position.position_value.to_string().parse::<f64>().unwrap_or(0.0).abs())
+    let current_positions = positions.len();
+    let total_exposure: f64 = positions.iter()
+        .map(|p| (p.size * p.entry_price.unwrap_or(Decimal::ZERO)).to_f64().unwrap_or(0.0).abs())
         .sum();
 
-    let warnings = risk::validate_risk(
-        &engine.config,
-        &input,
-        &output,
-        current_positions,
-        total_exposure,
-    );
+    let warnings = risk::validate_risk(&config, &input, &output, current_positions, total_exposure);
 
     let risk_output = RiskCalcOutput {
         coin: coin_upper,
@@ -76,7 +71,6 @@ pub async fn calculate(
 }
 
 /// `atlas risk offline <coin> <side> <entry> <account_value> [--stop <price>] [--leverage <n>]`
-/// Calculate without connecting to Hyperliquid.
 pub fn calculate_offline(
     coin: &str,
     side: &str,
@@ -101,7 +95,6 @@ pub fn calculate_offline(
     };
 
     let output = risk::calculate_position(&config, &input);
-
     let warnings = risk::validate_risk(&config, &input, &output, 0, 0.0);
 
     let risk_output = RiskCalcOutput {

@@ -1,74 +1,66 @@
 use anyhow::Result;
-use atlas_core::Engine;
+use atlas_core::Orchestrator;
+use atlas_core::workspace::load_config;
 use atlas_types::config::{SizeInput, SizeMode};
+use atlas_types::output::{OrdersOutput, OrderRow, FillsOutput, FillRow, CancelSingleOutput, CancelOutput};
 use atlas_utils::output::{render, OutputFormat};
+use atlas_utils::format::order_result_to_output;
 use atlas_utils::parse;
+use rust_decimal::prelude::*;
 
 /// `atlas order <coin> <side> <size> <price> [--reduce-only] [--tif Gtc|Ioc|Alo]`
-///
-/// Size can be:
-///   - `200`      → default mode (USDC by default)
-///   - `$200`     → $200 USDC margin
-///   - `0.5eth`   → 0.5 asset units
-///   - `50lots`   → 50 lots
 pub async fn limit_order(
     coin: &str,
     side: &str,
     size_str: &str,
     price: f64,
     reduce_only: bool,
-    tif: &str,
+    _tif: &str,
     fmt: OutputFormat,
 ) -> Result<()> {
     let is_buy = parse::parse_side(side)?;
     let size_input = parse::parse_size(size_str)?;
-    let engine = Engine::from_active_profile().await?;
+    let config = load_config()?;
+    let orch = Orchestrator::from_active_profile().await?;
+    let perp = orch.perp(None)?;
     let coin_upper = coin.to_uppercase();
-    let lev = engine.config.trading.default_leverage.max(1);
+    let lev = config.trading.default_leverage.max(1);
 
-    // For limit orders, we can use the limit price to compute USDC→size
+    let price_dec = Decimal::from_f64(price)
+        .ok_or_else(|| anyhow::anyhow!("Invalid price: {price}"))?;
+
     let size = match &size_input {
         SizeInput::Usdc(margin_usdc) => {
             let notional = margin_usdc * lev as f64;
             let sz = notional / price;
             if fmt == OutputFormat::Table {
-                println!(
-                    "💰 ${:.2} × {}x = ${:.2} notional → {:.6} {} @ ${:.2}",
-                    margin_usdc, lev, notional, sz, coin_upper, price
-                );
+                println!("💰 ${:.2} × {}x = ${:.2} notional → {:.6} {} @ ${:.2}",
+                    margin_usdc, lev, notional, sz, coin_upper, price);
             }
             sz
         }
-        SizeInput::Raw(raw) if engine.config.trading.default_size_mode == SizeMode::Usdc => {
+        SizeInput::Raw(raw) if config.trading.default_size_mode == SizeMode::Usdc => {
             let notional = raw * lev as f64;
             let sz = notional / price;
             if fmt == OutputFormat::Table {
-                println!(
-                    "💰 ${:.2} × {}x = ${:.2} notional → {:.6} {} @ ${:.2}",
-                    raw, lev, notional, sz, coin_upper, price
-                );
+                println!("💰 ${:.2} × {}x = ${:.2} notional → {:.6} {} @ ${:.2}",
+                    raw, lev, notional, sz, coin_upper, price);
             }
             sz
         }
         SizeInput::Units(u) => *u,
-        SizeInput::Lots(l) => engine.config.trading.lots.lots_to_size(&coin_upper, *l),
-        SizeInput::Raw(raw) => engine.config.resolve_size(&coin_upper, *raw),
+        SizeInput::Lots(l) => config.trading.lots.lots_to_size(&coin_upper, *l),
+        SizeInput::Raw(raw) => config.resolve_size(&coin_upper, *raw),
     };
 
-    if fmt == OutputFormat::Table {
-        let size_display = engine.config.format_size(&coin_upper, size);
-        println!(
-            "📤 {} {} @ {price} (tif={tif}, reduce_only={reduce_only})",
-            if is_buy { "BUY" } else { "SELL" },
-            size_display,
-        );
-    }
+    let size_dec = Decimal::from_f64(size)
+        .ok_or_else(|| anyhow::anyhow!("Invalid size: {size}"))?;
+    let uni_side = if is_buy { atlas_common::types::Side::Buy } else { atlas_common::types::Side::Sell };
 
-    let result = engine
-        .limit_order_raw(&coin_upper, is_buy, size, price, reduce_only, tif)
-        .await?;
+    let result = perp.limit_order(&coin_upper, uni_side, size_dec, price_dec, reduce_only).await
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
 
-    render(fmt, &result.output)?;
+    render(fmt, &order_result_to_output(&result))?;
     Ok(())
 }
 
@@ -81,17 +73,28 @@ pub async fn market_buy(
     fmt: OutputFormat,
 ) -> Result<()> {
     let size_input = parse::parse_size(size_str)?;
-    let engine = Engine::from_active_profile().await?;
+    let config = load_config()?;
+    let orch = Orchestrator::from_active_profile().await?;
+    let perp = orch.perp(None)?;
     let coin_upper = coin.to_uppercase();
+    let lev = leverage.unwrap_or(config.trading.default_leverage).max(1);
 
-    let (size, display) = engine.resolve_size_input(&coin_upper, &size_input, leverage).await?;
+    let ticker = perp.ticker(&coin_upper).await
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let mark = ticker.mid_price.to_f64().unwrap_or(0.0);
+    let (size, _) = config.resolve_size_input(&coin_upper, &size_input, mark, Some(lev));
 
     if fmt == OutputFormat::Table {
-        println!("📤 MARKET BUY {display}");
+        println!("📤 MARKET BUY {}", config.format_size(&coin_upper, size));
     }
 
-    let result = engine.market_open_raw(&coin_upper, true, size, slippage).await?;
-    render(fmt, &result.output)?;
+    let size_dec = Decimal::from_f64(size)
+        .ok_or_else(|| anyhow::anyhow!("Invalid size: {size}"))?;
+
+    let result = perp.market_order(&coin_upper, atlas_common::types::Side::Buy, size_dec, slippage).await
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+
+    render(fmt, &order_result_to_output(&result))?;
     Ok(())
 }
 
@@ -104,17 +107,28 @@ pub async fn market_sell(
     fmt: OutputFormat,
 ) -> Result<()> {
     let size_input = parse::parse_size(size_str)?;
-    let engine = Engine::from_active_profile().await?;
+    let config = load_config()?;
+    let orch = Orchestrator::from_active_profile().await?;
+    let perp = orch.perp(None)?;
     let coin_upper = coin.to_uppercase();
+    let lev = leverage.unwrap_or(config.trading.default_leverage).max(1);
 
-    let (size, display) = engine.resolve_size_input(&coin_upper, &size_input, leverage).await?;
+    let ticker = perp.ticker(&coin_upper).await
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let mark = ticker.mid_price.to_f64().unwrap_or(0.0);
+    let (size, _) = config.resolve_size_input(&coin_upper, &size_input, mark, Some(lev));
 
     if fmt == OutputFormat::Table {
-        println!("📤 MARKET SELL {display}");
+        println!("📤 MARKET SELL {}", config.format_size(&coin_upper, size));
     }
 
-    let result = engine.market_open_raw(&coin_upper, false, size, slippage).await?;
-    render(fmt, &result.output)?;
+    let size_dec = Decimal::from_f64(size)
+        .ok_or_else(|| anyhow::anyhow!("Invalid size: {size}"))?;
+
+    let result = perp.market_order(&coin_upper, atlas_common::types::Side::Sell, size_dec, slippage).await
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+
+    render(fmt, &order_result_to_output(&result))?;
     Ok(())
 }
 
@@ -125,55 +139,73 @@ pub async fn close_position(
     slippage: Option<f64>,
     fmt: OutputFormat,
 ) -> Result<()> {
-    let engine = Engine::from_active_profile().await?;
+    let orch = Orchestrator::from_active_profile().await?;
+    let perp = orch.perp(None)?;
     let coin_upper = coin.to_uppercase();
 
-    if fmt == OutputFormat::Table {
-        let label = match size {
-            Some(s) => engine.config.format_size(&coin_upper,
-                engine.config.resolve_size(&coin_upper, s)),
-            None => "full position".to_string(),
-        };
-        println!("📤 CLOSE {coin_upper} ({label})");
-    }
+    let size_dec = size.and_then(|s| Decimal::from_f64(s));
 
-    // For close, size is in raw asset units (not lots) — it's position-based.
-    let result = engine.market_close(&coin_upper, size, slippage).await?;
-    render(fmt, &result.output)?;
+    let result = perp.close_position(&coin_upper, size_dec, slippage).await
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+
+    render(fmt, &order_result_to_output(&result))?;
     Ok(())
 }
 
 /// `atlas cancel <coin> [--oid 12345]`
 pub async fn cancel(coin: &str, oid: Option<u64>, fmt: OutputFormat) -> Result<()> {
-    let engine = Engine::from_active_profile().await?;
+    let orch = Orchestrator::from_active_profile().await?;
+    let perp = orch.perp(None)?;
     let coin_upper = coin.to_uppercase();
 
     match oid {
         Some(id) => {
-            let output = engine.cancel_order(&coin_upper, id).await?;
-            render(fmt, &output)?;
+            perp.cancel_order(&coin_upper, &id.to_string()).await
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
+            render(fmt, &CancelSingleOutput { coin: coin_upper, oid: id, status: "cancelled".into() })?;
         }
         None => {
-            let output = engine.cancel_all_orders(&coin_upper).await?;
-            render(fmt, &output)?;
+            let count = perp.cancel_all(&coin_upper).await
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
+            render(fmt, &CancelOutput { coin: coin_upper, cancelled: count, total: count, oids: vec![] })?;
         }
     }
-
     Ok(())
 }
 
 /// `atlas orders`
 pub async fn list_orders(fmt: OutputFormat) -> Result<()> {
-    let engine = Engine::from_active_profile().await?;
-    let output = engine.get_open_orders().await?;
-    render(fmt, &output)?;
+    let orch = Orchestrator::from_active_profile().await?;
+    let perp = orch.perp(None)?;
+    let orders = perp.open_orders().await.map_err(|e| anyhow::anyhow!("{e}"))?;
+
+    let rows: Vec<OrderRow> = orders.iter().map(|o| OrderRow {
+        coin: o.symbol.clone(),
+        side: format!("{:?}", o.side),
+        size: o.size.to_string(),
+        price: o.price.map(|p| p.to_string()).unwrap_or_else(|| "—".into()),
+        oid: o.order_id.parse().unwrap_or(0),
+    }).collect();
+
+    render(fmt, &OrdersOutput { orders: rows })?;
     Ok(())
 }
 
 /// `atlas fills`
 pub async fn list_fills(fmt: OutputFormat) -> Result<()> {
-    let engine = Engine::from_active_profile().await?;
-    let output = engine.get_fills().await?;
-    render(fmt, &output)?;
+    let orch = Orchestrator::from_active_profile().await?;
+    let perp = orch.perp(None)?;
+    let fills = perp.fills().await.map_err(|e| anyhow::anyhow!("{e}"))?;
+
+    let rows: Vec<FillRow> = fills.iter().map(|f| FillRow {
+        coin: f.symbol.clone(),
+        side: format!("{:?}", f.side),
+        size: f.size.to_string(),
+        price: f.price.to_string(),
+        fee: f.fee.to_string(),
+        closed_pnl: f.realized_pnl.map(|p| p.to_string()).unwrap_or_else(|| "—".into()),
+    }).collect();
+
+    render(fmt, &FillsOutput { fills: rows })?;
     Ok(())
 }

@@ -13,6 +13,9 @@ use atlas_common::traits::{PerpModule, LendingModule};
 use atlas_common::types::*;
 use atlas_types::config::AppConfig;
 
+use crate::auth::AuthManager;
+use crate::workspace::load_config;
+
 /// The core orchestrator — holds all protocol modules.
 pub struct Orchestrator {
     /// Perp modules keyed by protocol name.
@@ -179,6 +182,23 @@ impl Orchestrator {
         }
 
         Ok(orch)
+    }
+
+    /// Convenience: load config, load active wallet signer, and build Orchestrator.
+    ///
+    /// This is the main entry point for CLI commands that need trading access.
+    pub async fn from_active_profile() -> Result<Self> {
+        let config = load_config()?;
+        let signer = AuthManager::load_active_signer(&config)?;
+        Self::from_config(&config, Some(signer)).await
+    }
+
+    /// Convenience: build a read-only Orchestrator (no signer needed).
+    ///
+    /// For commands that only need market data (prices, markets, candles, funding).
+    pub async fn readonly() -> Result<Self> {
+        let config = load_config()?;
+        Self::from_config(&config, None).await
     }
 }
 

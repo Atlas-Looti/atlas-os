@@ -189,6 +189,11 @@ impl AuthManager {
     /// Get a `PrivateKeySigner` for the currently active profile.
     pub fn get_active_signer() -> Result<PrivateKeySigner> {
         let config = crate::workspace::load_config()?;
+        Self::load_active_signer(&config)
+    }
+
+    /// Load the signer for the active profile from the given config.
+    pub fn load_active_signer(config: &atlas_types::config::AppConfig) -> Result<PrivateKeySigner> {
         let profile_name = &config.system.active_profile;
         let hex_key = Self::retrieve_key(profile_name)?;
         let signer: PrivateKeySigner = hex_key
