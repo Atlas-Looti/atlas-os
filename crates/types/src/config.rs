@@ -24,7 +24,7 @@ pub enum SizeInput {
     Lots(f64),
 }
 
-/// Top-level configuration stored in `$HOME/.atlas-os/config.json`.
+/// Top-level configuration stored in `$HOME/.atlas-os/atlas.json`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub general: GeneralConfig,
@@ -169,16 +169,16 @@ impl Default for AppConfig {
     fn default() -> Self {
         let mut default_assets = HashMap::new();
         // Popular assets with sensible default lot sizes
-        default_assets.insert("BTC".to_string(), 0.001);    // 1 lot = 0.001 BTC (~$100 at 100k)
-        default_assets.insert("ETH".to_string(), 0.01);     // 1 lot = 0.01 ETH (~$35 at 3.5k)
-        default_assets.insert("SOL".to_string(), 1.0);      // 1 lot = 1 SOL
-        default_assets.insert("DOGE".to_string(), 100.0);   // 1 lot = 100 DOGE
-        default_assets.insert("ARB".to_string(), 10.0);     // 1 lot = 10 ARB
-        default_assets.insert("AVAX".to_string(), 1.0);     // 1 lot = 1 AVAX
-        default_assets.insert("MATIC".to_string(), 100.0);  // 1 lot = 100 MATIC
-        default_assets.insert("LINK".to_string(), 1.0);     // 1 lot = 1 LINK
-        default_assets.insert("OP".to_string(), 10.0);      // 1 lot = 10 OP
-        default_assets.insert("SUI".to_string(), 10.0);     // 1 lot = 10 SUI
+        default_assets.insert("BTC".to_string(), 0.001); // 1 lot = 0.001 BTC (~$100 at 100k)
+        default_assets.insert("ETH".to_string(), 0.01); // 1 lot = 0.01 ETH (~$35 at 3.5k)
+        default_assets.insert("SOL".to_string(), 1.0); // 1 lot = 1 SOL
+        default_assets.insert("DOGE".to_string(), 100.0); // 1 lot = 100 DOGE
+        default_assets.insert("ARB".to_string(), 10.0); // 1 lot = 10 ARB
+        default_assets.insert("AVAX".to_string(), 1.0); // 1 lot = 1 AVAX
+        default_assets.insert("MATIC".to_string(), 100.0); // 1 lot = 100 MATIC
+        default_assets.insert("LINK".to_string(), 1.0); // 1 lot = 1 LINK
+        default_assets.insert("OP".to_string(), 10.0); // 1 lot = 10 OP
+        default_assets.insert("SUI".to_string(), 10.0); // 1 lot = 10 SUI
 
         Self {
             general: GeneralConfig {
@@ -472,8 +472,9 @@ mod tests {
     fn test_resolve_size_input_explicit_usdc() {
         let mut config = AppConfig::default();
         config.trading.default_size_mode = SizeMode::Units; // even in units mode
-        // Usdc(200) is always USDC regardless of default_size_mode
-        let (size, margin) = config.resolve_size_input("ETH", &SizeInput::Usdc(200.0), 3500.0, Some(10));
+                                                            // Usdc(200) is always USDC regardless of default_size_mode
+        let (size, margin) =
+            config.resolve_size_input("ETH", &SizeInput::Usdc(200.0), 3500.0, Some(10));
         let expected = (200.0 * 10.0) / 3500.0;
         assert!((size - expected).abs() < 1e-6);
         assert_eq!(margin, Some(200.0));
@@ -482,7 +483,7 @@ mod tests {
     #[test]
     fn test_resolve_size_input_explicit_units() {
         let config = AppConfig::default(); // usdc default
-        // Units(0.5) is always 0.5 regardless of default_size_mode
+                                           // Units(0.5) is always 0.5 regardless of default_size_mode
         let (size, margin) = config.resolve_size_input("ETH", &SizeInput::Units(0.5), 3500.0, None);
         assert_eq!(size, 0.5);
         assert!(margin.is_none());
@@ -491,8 +492,9 @@ mod tests {
     #[test]
     fn test_resolve_size_input_explicit_lots() {
         let config = AppConfig::default(); // usdc default
-        // Lots(100) → 100 × 0.01 = 1.0 ETH regardless of default_size_mode
-        let (size, margin) = config.resolve_size_input("ETH", &SizeInput::Lots(100.0), 3500.0, None);
+                                           // Lots(100) → 100 × 0.01 = 1.0 ETH regardless of default_size_mode
+        let (size, margin) =
+            config.resolve_size_input("ETH", &SizeInput::Lots(100.0), 3500.0, None);
         assert!((size - 1.0).abs() < 1e-10);
         assert!(margin.is_none());
     }
@@ -501,7 +503,8 @@ mod tests {
     fn test_resolve_size_input_usdc_btc() {
         let config = AppConfig::default();
         // $500 margin, 5x leverage, BTC at $100,000
-        let (size, _) = config.resolve_size_input("BTC", &SizeInput::Usdc(500.0), 100_000.0, Some(5));
+        let (size, _) =
+            config.resolve_size_input("BTC", &SizeInput::Usdc(500.0), 100_000.0, Some(5));
         assert!((size - 0.025).abs() < 1e-6);
     }
 

@@ -27,7 +27,7 @@ pub fn resolve(relative: &str) -> Result<PathBuf> {
 ///
 /// ```text
 /// $HOME/.atlas-os/
-/// ├── config.json
+/// ├── atlas.json
 /// ├── logs/
 /// ├── data/
 /// └── keystore/
@@ -46,16 +46,23 @@ pub fn init_workspace() -> Result<()> {
         }
     }
 
-    // Seed config.json with defaults if absent.
-    let config_path = root.join("config.json");
+    // Seed atlas.json with defaults if absent. Support migration from config.json.
+    let config_path = root.join("atlas.json");
+    let old_config_path = root.join("config.json");
     if !config_path.exists() {
-        let default_config = AppConfig::default();
-        let json_str = default_config
-            .to_json_string()
-            .context("Failed to serialize default config")?;
-        fs::write(&config_path, &json_str)
-            .with_context(|| format!("Failed to write {}", config_path.display()))?;
-        info!("created default config: {}", config_path.display());
+        if old_config_path.exists() {
+            fs::rename(&old_config_path, &config_path)
+                .with_context(|| format!("Failed to rename config.json to atlas.json"))?;
+            info!("migrated config.json to atlas.json");
+        } else {
+            let default_config = AppConfig::default();
+            let json_str = default_config
+                .to_json_string()
+                .context("Failed to serialize default config")?;
+            fs::write(&config_path, &json_str)
+                .with_context(|| format!("Failed to write {}", config_path.display()))?;
+            info!("created default config: {}", config_path.display());
+        }
     }
 
     // Seed empty wallets.json if absent.
@@ -76,7 +83,7 @@ pub fn init_workspace() -> Result<()> {
 /// Load the config from disk. If the config is outdated (missing fields),
 /// regenerate with defaults while preserving `active_profile`.
 pub fn load_config() -> Result<AppConfig> {
-    let config_path = root_dir()?.join("config.json");
+    let config_path = root_dir()?.join("atlas.json");
     let raw = fs::read_to_string(&config_path)
         .with_context(|| format!("Failed to read {}", config_path.display()))?;
 
@@ -84,19 +91,23 @@ pub fn load_config() -> Result<AppConfig> {
         Ok(config) => Ok(config),
         Err(_) => {
             // Config schema changed — try to preserve active_profile
-            info!("config.json outdated, migrating to new schema");
+            info!("atlas.json outdated, migrating to new schema");
             let mut new_config = AppConfig::default();
 
             // Attempt to extract active_profile from old config (JSON)
             if let Ok(old) = serde_json::from_str::<serde_json::Value>(&raw) {
-                if let Some(profile) = old.get("general")
+                if let Some(profile) = old
+                    .get("general")
                     .and_then(|g| g.get("active_profile"))
-                    .and_then(|v| v.as_str()) {
+                    .and_then(|v| v.as_str())
+                {
                     new_config.general.active_profile = profile.to_string();
                 }
-                if let Some(testnet) = old.get("network")
+                if let Some(testnet) = old
+                    .get("network")
                     .and_then(|n| n.get("testnet"))
-                    .and_then(|v| v.as_bool()) {
+                    .and_then(|v| v.as_bool())
+                {
                     new_config.network.testnet = testnet;
                 }
             }
@@ -111,7 +122,7 @@ pub fn load_config() -> Result<AppConfig> {
 
 /// Write the config back to disk.
 pub fn save_config(config: &AppConfig) -> Result<()> {
-    let config_path = root_dir()?.join("config.json");
+    let config_path = root_dir()?.join("atlas.json");
     let json_str = config
         .to_json_string()
         .context("Failed to serialize config")?;
@@ -159,7 +170,10 @@ mod tests {
         // Save and reload should be stable
         save_config(&config).unwrap();
         let reloaded = load_config().unwrap();
-        assert_eq!(reloaded.general.active_profile, config.general.active_profile);
+        assert_eq!(
+            reloaded.general.active_profile,
+            config.general.active_profile
+        );
         assert_eq!(reloaded.trading.mode, config.trading.mode);
     }
 
@@ -175,7 +189,7 @@ mod tests {
     #[test]
     fn test_config_file_exists_after_init() {
         init_workspace().unwrap();
-        let config_path = root_dir().unwrap().join("config.json");
+        let config_path = root_dir().unwrap().join("atlas.json");
         assert!(config_path.is_file());
     }
 
