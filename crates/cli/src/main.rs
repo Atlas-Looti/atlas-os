@@ -215,6 +215,12 @@ enum Commands {
         #[command(subcommand)]
         action: RiskAction,
     },
+
+    /// Spot trading: buy, sell, balance, and transfers.
+    Spot {
+        #[command(subcommand)]
+        action: SpotAction,
+    },
 }
 
 #[derive(Subcommand)]
@@ -335,6 +341,42 @@ enum AuthAction {
     List,
 }
 
+#[derive(Subcommand)]
+enum SpotAction {
+    /// Buy a spot token at market (IOC with slippage).
+    Buy {
+        /// Base token symbol (e.g. PURR, HYPE).
+        base: String,
+        /// Amount of base token to buy.
+        size: f64,
+        /// Slippage tolerance (default: config default).
+        #[arg(long)]
+        slippage: Option<f64>,
+    },
+    /// Sell a spot token at market (IOC with slippage).
+    Sell {
+        /// Base token symbol (e.g. PURR, HYPE).
+        base: String,
+        /// Amount of base token to sell.
+        size: f64,
+        /// Slippage tolerance (default: config default).
+        #[arg(long)]
+        slippage: Option<f64>,
+    },
+    /// Show spot token balances.
+    Balance,
+    /// Transfer between perps, spot, and EVM wallets.
+    Transfer {
+        /// Direction: to-spot, to-perps, or to-evm.
+        direction: String,
+        /// Amount to transfer.
+        amount: String,
+        /// Token to transfer (default: USDC). Required for to-evm with non-USDC.
+        #[arg(long)]
+        token: Option<String>,
+    },
+}
+
 // ─── Entrypoint ─────────────────────────────────────────────────────
 
 #[tokio::main]
@@ -434,6 +476,22 @@ async fn main() -> Result<()> {
             }
             RiskAction::Offline { coin, side, entry, account, stop, leverage } => {
                 commands::risk::calculate_offline(&coin, &side, entry, account, stop, leverage, fmt)
+            }
+        },
+
+        // ── Spot trading ────────────────────────────────────────
+        Commands::Spot { action } => match action {
+            SpotAction::Buy { base, size, slippage } => {
+                commands::spot::spot_buy(&base, size, slippage, fmt).await
+            }
+            SpotAction::Sell { base, size, slippage } => {
+                commands::spot::spot_sell(&base, size, slippage, fmt).await
+            }
+            SpotAction::Balance => {
+                commands::spot::spot_balance(fmt).await
+            }
+            SpotAction::Transfer { direction, amount, token } => {
+                commands::spot::spot_transfer(&direction, &amount, token.as_deref(), fmt).await
             }
         },
     }

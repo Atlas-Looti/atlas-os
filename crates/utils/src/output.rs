@@ -277,6 +277,59 @@ impl TableDisplay for RiskCalcOutput {
     }
 }
 
+impl TableDisplay for SpotBalanceOutput {
+    fn print_table(&self) {
+        if self.balances.is_empty() {
+            println!("No spot token balances.");
+            return;
+        }
+
+        println!("┌──────────┬──────────────┬──────────────┬──────────────┐");
+        println!("│ Token    │ Total        │ Held         │ Available    │");
+        println!("├──────────┼──────────────┼──────────────┼──────────────┤");
+        for b in &self.balances {
+            println!(
+                "│ {:<8} │ {:>12} │ {:>12} │ {:>12} │",
+                b.coin, b.total, b.held, b.available,
+            );
+        }
+        println!("└──────────┴──────────────┴──────────────┴──────────────┘");
+    }
+}
+
+impl TableDisplay for SpotOrderOutput {
+    fn print_table(&self) {
+        match self.status.as_str() {
+            "filled" => {
+                let sz = self.total_sz.as_deref().unwrap_or("—");
+                let px = self.avg_px.as_deref().unwrap_or("—");
+                println!(
+                    "✓ Spot {} {} FILLED (oid: {}, size: {}, avg_px: {})",
+                    self.side, self.market, self.oid, sz, px
+                );
+            }
+            "resting" => {
+                println!(
+                    "✓ Spot {} {} RESTING (oid: {})",
+                    self.side, self.market, self.oid
+                );
+            }
+            _ => {
+                println!(
+                    "✓ Spot {} {} accepted (oid: {})",
+                    self.side, self.market, self.oid
+                );
+            }
+        }
+    }
+}
+
+impl TableDisplay for SpotTransferOutput {
+    fn print_table(&self) {
+        println!("✓ Transferred {} {} ({})", self.amount, self.token, self.direction);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

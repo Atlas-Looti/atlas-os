@@ -24,7 +24,7 @@ pub enum SizeInput {
     Lots(f64),
 }
 
-/// Top-level configuration stored in `$HOME/.atlas-os/config.toml`.
+/// Top-level configuration stored in `$HOME/.atlas-os/config.json`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub general: GeneralConfig,
@@ -205,14 +205,14 @@ impl Default for AppConfig {
 }
 
 impl AppConfig {
-    /// Serialize to TOML string for writing to disk.
-    pub fn to_toml_string(&self) -> Result<String, toml::ser::Error> {
-        toml::to_string_pretty(self)
+    /// Serialize to JSON string for writing to disk.
+    pub fn to_json_string(&self) -> Result<String, serde_json::Error> {
+        serde_json::to_string_pretty(self)
     }
 
-    /// Deserialize from a TOML string.
-    pub fn from_toml_str(s: &str) -> Result<Self, toml::de::Error> {
-        toml::from_str(s)
+    /// Deserialize from a JSON string.
+    pub fn from_json_str(s: &str) -> Result<Self, serde_json::Error> {
+        serde_json::from_str(s)
     }
 
     /// Check if we're in CFD lot mode.
@@ -337,10 +337,10 @@ mod tests {
     }
 
     #[test]
-    fn test_config_roundtrip_toml() {
+    fn test_config_roundtrip_json() {
         let config = AppConfig::default();
-        let toml_str = config.to_toml_string().unwrap();
-        let parsed = AppConfig::from_toml_str(&toml_str).unwrap();
+        let json_str = config.to_json_string().unwrap();
+        let parsed = AppConfig::from_json_str(&json_str).unwrap();
         assert_eq!(parsed.general.active_profile, config.general.active_profile);
         assert_eq!(parsed.trading.mode, config.trading.mode);
         assert_eq!(parsed.network.testnet, config.network.testnet);
@@ -350,8 +350,8 @@ mod tests {
     fn test_config_cfd_mode_roundtrip() {
         let mut config = AppConfig::default();
         config.trading.mode = TradingMode::Cfd;
-        let toml_str = config.to_toml_string().unwrap();
-        let parsed = AppConfig::from_toml_str(&toml_str).unwrap();
+        let json_str = config.to_json_string().unwrap();
+        let parsed = AppConfig::from_json_str(&json_str).unwrap();
         assert_eq!(parsed.trading.mode, TradingMode::Cfd);
         assert!(parsed.is_cfd());
     }

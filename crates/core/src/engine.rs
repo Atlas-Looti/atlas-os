@@ -10,7 +10,7 @@ use hypersdk::hypercore::{
         TimeInForce, Side, BatchCancel, Cancel, BatchCancelCloid,
         CancelByCloid, UsdSend, CandleInterval,
     },
-    Cloid, HttpClient, NonceHandler, PerpMarket,
+    Cloid, HttpClient, NonceHandler, PerpMarket, SpotMarket, SpotToken,
 };
 use rust_decimal::prelude::*;
 use rust_decimal::Decimal;
@@ -25,6 +25,7 @@ use atlas_types::output::{
     FillsOutput, FundingOutput, FundingRow, LeverageOutput, MarginOutput,
     MarketRow, MarketsOutput, OrderResultOutput, OrderRow, OrdersOutput,
     PositionRow, PriceOutput, PriceRow, StatusOutput, TransferOutput,
+    SpotBalanceOutput, SpotBalanceRow, SpotOrderOutput, SpotTransferOutput,
 };
 
 use crate::auth::AuthManager;
@@ -1235,6 +1236,199 @@ impl Engine {
         Ok(FundingOutput {
             coin: coin.to_string(),
             rates: rows,
+        })
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  SPOT TRADING
+    // ═══════════════════════════════════════════════════════════════════
+
+    /// Find a SpotToken by name from the token list.
+    async fn find_spot_token(&self, name: &str) -> Result<SpotToken> {
+        let tokens = self.client.spot_tokens().await
+            .context("Failed to fetch spot tokens")?;
+        tokens.into_iter()
+            .find(|t| t.name.eq_ignore_ascii_case(name))
+            .ok_or_else(|| anyhow::anyhow!("Unknown spot token: {name}"))
+    }
+
+    /// Resolve a spot market by base token name (e.g. "PURR" → PURR/USDC).
+    async fn find_spot_market(&self, base: &str) -> Result<SpotMarket> {
+        let markets = self.client.spot().await
+            .context("Failed to fetch spot markets")?;
+        markets.into_iter()
+            .find(|m| m.tokens[0].name.eq_ignore_ascii_case(base))
+            .ok_or_else(|| anyhow::anyhow!("No spot market found for {base}"))
+    }
+
+    /// Get spot token balances for the active wallet.
+    pub async fn get_spot_balances(&self) -> Result<SpotBalanceOutput> {
+        let balances = self.client.user_balances(self.address).await
+            .context("Failed to fetch spot balances")?;
+
+        let rows: Vec<SpotBalanceRow> = balances.iter().map(|b| {
+            SpotBalanceRow {
+                coin: b.coin.clone(),
+                total: b.total.to_string(),
+                held: b.hold.to_string(),
+                available: b.available().to_string(),
+            }
+        }).collect();
+
+        Ok(SpotBalanceOutput { balances: rows })
+    }
+
+    /// Place a spot market order (IOC with slippage).
+    ///
+    /// Uses the same BatchOrder mechanism as perps but with the spot market index.
+    pub async fn spot_market_order(
+        &self,
+        base: &str,
+        is_buy: bool,
+        size: f64,
+        slippage: Option<f64>,
+    ) -> Result<SpotOrderOutput> {
+        let market = self.find_spot_market(base).await?;
+        let slip = slippage.unwrap_or(self.config.trading.default_slippage);
+
+        // Fetch mid price for slippage calc
+        let mids = self.client.all_mids(None).await
+            .context("Failed to fetch mids for spot order")?;
+
+        // Spot mids use the symbol name like the spot market symbol
+        // Try base token name first, then the @index format
+        let mid_key = format!("@{}", market.index);
+        let mid = mids.get(base)
+            .or_else(|| mids.get(&mid_key))
+            .ok_or_else(|| anyhow::anyhow!("No mid price for spot {base}"))?;
+
+        let slip_dec = Decimal::from_f64(slip)
+            .ok_or_else(|| anyhow::anyhow!("Invalid slippage: {slip}"))?;
+        let slippage_mult = if is_buy {
+            Decimal::ONE + slip_dec
+        } else {
+            Decimal::ONE - slip_dec
+        };
+        let raw_px = *mid * slippage_mult;
+        let px = market.round_price(raw_px)
+            .ok_or_else(|| anyhow::anyhow!("Cannot round spot price {raw_px}"))?;
+
+        let sz = Decimal::from_f64(size)
+            .ok_or_else(|| anyhow::anyhow!("Invalid size: {size}"))?;
+        let sz_dp = market.tokens[0].sz_decimals.max(0) as u32;
+        let sz = sz.round_dp(sz_dp);
+
+        if sz.is_zero() {
+            bail!("Spot order size rounds to zero");
+        }
+
+        let order = OrderRequest {
+            asset: market.index,
+            is_buy,
+            reduce_only: false,
+            limit_px: px,
+            sz,
+            cloid: random_cloid(),
+            order_type: OrderTypePlacement::Limit { tif: TimeInForce::Ioc },
+        };
+
+        info!(
+            base, side = if is_buy { "BUY" } else { "SELL" },
+            %sz, mid = %mid, %px, slippage = slip,
+            market_index = market.index,
+            "placing spot market order (IOC with slippage)"
+        );
+
+        let batch = BatchOrder {
+            orders: vec![order],
+            grouping: OrderGrouping::Na,
+        };
+
+        // Use the SDK's place method (no builder fee for spot)
+        let result = self.client
+            .place(&self.signer, batch, self.nonce.next(), None, None)
+            .await;
+
+        match result {
+            Ok(statuses) => {
+                let spot_result = parse_order_response(&statuses)?;
+                Ok(SpotOrderOutput {
+                    market: market.symbol(),
+                    side: if is_buy { "BUY" } else { "SELL" }.to_string(),
+                    oid: spot_result.oid,
+                    status: spot_result.output.status,
+                    total_sz: spot_result.output.total_sz,
+                    avg_px: spot_result.output.avg_px,
+                })
+            }
+            Err(e) => bail!("Spot order failed: {}", e.message()),
+        }
+    }
+
+    /// Transfer USDC from perps to spot.
+    pub async fn transfer_perps_to_spot(&self, amount: &str) -> Result<SpotTransferOutput> {
+        let amount_dec: Decimal = amount.parse()
+            .context(format!("Invalid amount: {amount}"))?;
+
+        let token = self.find_spot_token("USDC").await?;
+
+        info!(%amount_dec, "transferring USDC: perps → spot");
+
+        self.client
+            .transfer_to_spot(&self.signer, token, amount_dec, self.nonce.next())
+            .await
+            .context("Transfer perps → spot failed")?;
+
+        Ok(SpotTransferOutput {
+            direction: "perps → spot".to_string(),
+            token: "USDC".to_string(),
+            amount: amount.to_string(),
+        })
+    }
+
+    /// Transfer USDC from spot to perps.
+    pub async fn transfer_spot_to_perps(&self, amount: &str) -> Result<SpotTransferOutput> {
+        let amount_dec: Decimal = amount.parse()
+            .context(format!("Invalid amount: {amount}"))?;
+
+        let token = self.find_spot_token("USDC").await?;
+
+        info!(%amount_dec, "transferring USDC: spot → perps");
+
+        self.client
+            .transfer_to_perps(&self.signer, token, amount_dec, self.nonce.next())
+            .await
+            .context("Transfer spot → perps failed")?;
+
+        Ok(SpotTransferOutput {
+            direction: "spot → perps".to_string(),
+            token: "USDC".to_string(),
+            amount: amount.to_string(),
+        })
+    }
+
+    /// Transfer a token from spot to HyperEVM.
+    pub async fn transfer_spot_to_evm(
+        &self,
+        token_name: &str,
+        amount: &str,
+    ) -> Result<SpotTransferOutput> {
+        let amount_dec: Decimal = amount.parse()
+            .context(format!("Invalid amount: {amount}"))?;
+
+        let token = self.find_spot_token(token_name).await?;
+
+        info!(token = token_name, %amount_dec, "transferring: spot → EVM");
+
+        self.client
+            .transfer_to_evm(&self.signer, token, amount_dec, self.nonce.next())
+            .await
+            .context("Transfer spot → EVM failed")?;
+
+        Ok(SpotTransferOutput {
+            direction: "spot → EVM".to_string(),
+            token: token_name.to_uppercase(),
+            amount: amount.to_string(),
         })
     }
 }

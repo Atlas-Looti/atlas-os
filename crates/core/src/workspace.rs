@@ -27,7 +27,7 @@ pub fn resolve(relative: &str) -> Result<PathBuf> {
 ///
 /// ```text
 /// $HOME/.atlas-os/
-/// ├── config.toml
+/// ├── config.json
 /// ├── logs/
 /// ├── data/
 /// └── keystore/
@@ -46,14 +46,14 @@ pub fn init_workspace() -> Result<()> {
         }
     }
 
-    // Seed config.toml with defaults if absent.
-    let config_path = root.join("config.toml");
+    // Seed config.json with defaults if absent.
+    let config_path = root.join("config.json");
     if !config_path.exists() {
         let default_config = AppConfig::default();
-        let toml_str = default_config
-            .to_toml_string()
+        let json_str = default_config
+            .to_json_string()
             .context("Failed to serialize default config")?;
-        fs::write(&config_path, &toml_str)
+        fs::write(&config_path, &json_str)
             .with_context(|| format!("Failed to write {}", config_path.display()))?;
         info!("created default config: {}", config_path.display());
     }
@@ -76,28 +76,28 @@ pub fn init_workspace() -> Result<()> {
 /// Load the config from disk. If the config is outdated (missing fields),
 /// regenerate with defaults while preserving `active_profile`.
 pub fn load_config() -> Result<AppConfig> {
-    let config_path = root_dir()?.join("config.toml");
+    let config_path = root_dir()?.join("config.json");
     let raw = fs::read_to_string(&config_path)
         .with_context(|| format!("Failed to read {}", config_path.display()))?;
 
-    match AppConfig::from_toml_str(&raw) {
+    match AppConfig::from_json_str(&raw) {
         Ok(config) => Ok(config),
         Err(_) => {
             // Config schema changed — try to preserve active_profile
-            info!("config.toml outdated, migrating to new schema");
+            info!("config.json outdated, migrating to new schema");
             let mut new_config = AppConfig::default();
 
-            // Attempt to extract active_profile from old config
-            if let Ok(old) = raw.parse::<toml::Table>() {
-                if let Some(general) = old.get("general").and_then(|v| v.as_table()) {
-                    if let Some(profile) = general.get("active_profile").and_then(|v| v.as_str()) {
-                        new_config.general.active_profile = profile.to_string();
-                    }
+            // Attempt to extract active_profile from old config (JSON)
+            if let Ok(old) = serde_json::from_str::<serde_json::Value>(&raw) {
+                if let Some(profile) = old.get("general")
+                    .and_then(|g| g.get("active_profile"))
+                    .and_then(|v| v.as_str()) {
+                    new_config.general.active_profile = profile.to_string();
                 }
-                if let Some(network) = old.get("network").and_then(|v| v.as_table()) {
-                    if let Some(testnet) = network.get("testnet").and_then(|v| v.as_bool()) {
-                        new_config.network.testnet = testnet;
-                    }
+                if let Some(testnet) = old.get("network")
+                    .and_then(|n| n.get("testnet"))
+                    .and_then(|v| v.as_bool()) {
+                    new_config.network.testnet = testnet;
                 }
             }
 
@@ -111,11 +111,11 @@ pub fn load_config() -> Result<AppConfig> {
 
 /// Write the config back to disk.
 pub fn save_config(config: &AppConfig) -> Result<()> {
-    let config_path = root_dir()?.join("config.toml");
-    let toml_str = config
-        .to_toml_string()
+    let config_path = root_dir()?.join("config.json");
+    let json_str = config
+        .to_json_string()
         .context("Failed to serialize config")?;
-    fs::write(&config_path, &toml_str)
+    fs::write(&config_path, &json_str)
         .with_context(|| format!("Failed to write {}", config_path.display()))?;
     Ok(())
 }
@@ -175,7 +175,7 @@ mod tests {
     #[test]
     fn test_config_file_exists_after_init() {
         init_workspace().unwrap();
-        let config_path = root_dir().unwrap().join("config.toml");
+        let config_path = root_dir().unwrap().join("config.json");
         assert!(config_path.is_file());
     }
 

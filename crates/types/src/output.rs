@@ -225,6 +225,42 @@ pub struct FundingRow {
     pub premium: String,
 }
 
+// ─── Spot Balance ───────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SpotBalanceOutput {
+    pub balances: Vec<SpotBalanceRow>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SpotBalanceRow {
+    pub coin: String,
+    pub total: String,
+    pub held: String,
+    pub available: String,
+}
+
+// ─── Spot Order ─────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SpotOrderOutput {
+    pub market: String,
+    pub side: String,
+    pub oid: u64,
+    pub status: String,
+    pub total_sz: Option<String>,
+    pub avg_px: Option<String>,
+}
+
+// ─── Spot Transfer ──────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SpotTransferOutput {
+    pub direction: String,
+    pub token: String,
+    pub amount: String,
+}
+
 // ─── Auth ───────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize)]
@@ -436,6 +472,49 @@ mod tests {
         let json = serde_json::to_string(&output).unwrap();
         assert!(json.contains("\"trades\":456"));
         assert!(json.contains("\"interval\":\"1h\""));
+    }
+
+    #[test]
+    fn test_spot_balance_output_serializes() {
+        let output = SpotBalanceOutput {
+            balances: vec![SpotBalanceRow {
+                coin: "USDC".into(),
+                total: "1000.00".into(),
+                held: "50.00".into(),
+                available: "950.00".into(),
+            }],
+        };
+        let json = serde_json::to_string(&output).unwrap();
+        assert!(json.contains("\"coin\":\"USDC\""));
+        assert!(json.contains("\"available\":\"950.00\""));
+    }
+
+    #[test]
+    fn test_spot_order_output_serializes() {
+        let output = SpotOrderOutput {
+            market: "PURR/USDC".into(),
+            side: "BUY".into(),
+            oid: 42,
+            status: "filled".into(),
+            total_sz: Some("100.0".into()),
+            avg_px: Some("0.50".into()),
+        };
+        let json = serde_json::to_string(&output).unwrap();
+        assert!(json.contains("\"market\":\"PURR/USDC\""));
+        assert!(json.contains("\"oid\":42"));
+        assert!(json.contains("\"status\":\"filled\""));
+    }
+
+    #[test]
+    fn test_spot_transfer_output_serializes() {
+        let output = SpotTransferOutput {
+            direction: "perps → spot".into(),
+            token: "USDC".into(),
+            amount: "500.00".into(),
+        };
+        let json = serde_json::to_string(&output).unwrap();
+        assert!(json.contains("\"direction\":\"perps → spot\""));
+        assert!(json.contains("\"token\":\"USDC\""));
     }
 
     #[test]
