@@ -1151,6 +1151,7 @@ dependencies = [
  "atlas-common",
  "atlas-core",
  "atlas-mod-hyperliquid",
+ "atlas-mod-morpho",
  "atlas-types",
  "atlas-utils",
  "chrono",

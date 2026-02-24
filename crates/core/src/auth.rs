@@ -20,6 +20,11 @@ pub struct AuthManager;
 impl AuthManager {
     // ── Wallet Store I/O ────────────────────────────────────────────
 
+    /// Load the wallet store from disk (public for CLI use).
+    pub fn load_store_pub() -> Result<WalletStore> {
+        Self::load_store()
+    }
+
     /// Load the wallet store from disk.
     fn load_store() -> Result<WalletStore> {
         let path = crate::workspace::resolve("keystore/wallets.json")?;

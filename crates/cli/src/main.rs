@@ -11,7 +11,7 @@ use tracing_subscriber::EnvFilter;
 #[derive(Parser)]
 #[command(
     name = "atlas",
-    about = "Atlas OS — Professional-grade CLI trading engine for Hyperliquid L1",
+    about = "Atlas OS — DeFi Operating System. Multi-protocol CLI trading engine.",
     version,
     propagate_version = true
 )]
@@ -251,6 +251,15 @@ enum Commands {
         #[command(subcommand)]
         action: ExportAction,
     },
+
+    /// Morpho lending protocol: markets, positions.
+    Morpho {
+        #[command(subcommand)]
+        action: MorphoAction,
+    },
+
+    /// Show enabled/disabled modules and their status.
+    Modules,
 }
 
 #[derive(Subcommand)]
@@ -434,6 +443,18 @@ enum AgentAction {
         #[arg(long)]
         name: Option<String>,
     },
+}
+
+#[derive(Subcommand)]
+enum MorphoAction {
+    /// List Morpho Blue lending markets.
+    Markets {
+        /// Chain: ethereum or base.
+        #[arg(long, default_value = "ethereum")]
+        chain: String,
+    },
+    /// Show your lending positions on Morpho Blue.
+    Positions,
 }
 
 #[derive(Subcommand)]
@@ -698,6 +719,27 @@ async fn main() -> Result<()> {
                     json, from.as_deref(), to.as_deref(), fmt,
                 )
             }
+        },
+
+        // ── Morpho (Lending) ────────────────────────────────────
+        Commands::Morpho { action } => {
+            let config = atlas_core::workspace::load_config()?;
+            if !config.modules.morpho.enabled {
+                anyhow::bail!("Morpho module is disabled. Enable it in ~/.atlas-os/atlas.json");
+            }
+            match action {
+                MorphoAction::Markets { chain } => {
+                    commands::morpho::markets(&chain, fmt).await
+                }
+                MorphoAction::Positions => {
+                    commands::morpho::positions(fmt).await
+                }
+            }
+        },
+
+        // ── Modules ─────────────────────────────────────────────
+        Commands::Modules => {
+            commands::modules::run(fmt)
         },
     }
 }

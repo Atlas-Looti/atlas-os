@@ -36,6 +36,16 @@ impl MorphoModule {
         Self { http, chain }
     }
 
+    /// Public method to list lending markets (for CLI use).
+    pub async fn markets_data(&self) -> AtlasResult<Vec<LendingMarket>> {
+        LendingModule::markets(self).await
+    }
+
+    /// Public method to get user positions (for CLI use).
+    pub async fn positions_data(&self, user: &str) -> AtlasResult<Vec<LendingPosition>> {
+        LendingModule::positions(self, user).await
+    }
+
     /// Query the Morpho Blue GraphQL API.
     async fn graphql_query(&self, query: &str) -> AtlasResult<serde_json::Value> {
         let body = serde_json::json!({ "query": query });
