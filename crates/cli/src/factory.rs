@@ -33,7 +33,7 @@ pub async fn from_config(
 
     // ── 0x (swap) ───────────────────────────────────────────
     if config.modules.zero_x.enabled {
-        let backend_url = "https://api.atlas-os.ai".to_string();
+        let backend_url = "https://atlas-os-backend-production.up.railway.app".to_string();
         let default_chain = atlas_zero_x::parse_chain(&config.modules.zero_x.config.default_chain);
         let default_slippage_bps = config.modules.zero_x.config.default_slippage_bps;
         let mut zero_x = atlas_zero_x::client::ZeroXModule::new(backend_url)
