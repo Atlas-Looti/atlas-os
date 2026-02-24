@@ -1,3 +1,21 @@
+// ── From atlas-common ──
+pub mod error;
+pub mod traits;
+pub mod constants;
+pub mod types;
+
+// ── From atlas-types ──
+pub mod config;
+pub mod output;
+pub mod profile;
+
+// ── From atlas-utils ──
+pub mod fmt;
+pub mod parse;
+pub mod prompt;
+pub mod risk;
+
+// ── Core modules ──
 pub mod workspace;
 pub mod auth;
 pub mod backend;

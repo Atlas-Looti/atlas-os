@@ -1,12 +1,11 @@
-//! Local SQLite database for caching trades, orders, and sync state.
-//!
-//! All Decimal values are stored as TEXT and parsed back with `rust_decimal` on read.
-//! Uses WAL mode for concurrent read safety.
+// Local SQLite database for caching trades, orders, and sync state.
+//
+// All Decimal values are stored as TEXT and parsed back with `rust_decimal` on read.
+// Uses WAL mode for concurrent read safety.
 
 use anyhow::{Context, Result};
 use rusqlite::{params, Connection};
 
-use atlas_types::db::{FillFilter, OrderFilter};
 
 /// A cached fill row read from the database.
 #[derive(Debug, Clone)]
@@ -362,6 +361,39 @@ impl AtlasDb {
     }
 }
 
+
+// Database filter types for querying cached data.
+
+/// Filter for querying cached fills from the local database.
+#[derive(Debug, Clone, Default)]
+pub struct FillFilter {
+    /// Filter by protocol (e.g. "hyperliquid", "0x"). None = all protocols.
+    pub protocol: Option<String>,
+    /// Filter by coin symbol (e.g. "ETH").
+    pub coin: Option<String>,
+    /// Start time (inclusive) in milliseconds since epoch.
+    pub from_ms: Option<i64>,
+    /// End time (inclusive) in milliseconds since epoch.
+    pub to_ms: Option<i64>,
+    /// Maximum number of results to return.
+    pub limit: Option<usize>,
+}
+
+/// Filter for querying cached orders from the local database.
+#[derive(Debug, Clone, Default)]
+pub struct OrderFilter {
+    /// Filter by protocol (e.g. "hyperliquid", "0x"). None = all protocols.
+    pub protocol: Option<String>,
+    /// Filter by coin symbol (e.g. "ETH").
+    pub coin: Option<String>,
+    /// Filter by order status (e.g. "open", "filled", "canceled").
+    pub status: Option<String>,
+    /// Maximum number of results to return.
+    pub limit: Option<usize>,
+}
+
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -603,5 +635,53 @@ mod tests {
         db.set_sync_state("last_fill_sync", "1700000001000").unwrap();
         let val = db.get_sync_state("last_fill_sync").unwrap();
         assert_eq!(val.as_deref(), Some("1700000001000"));
+    }
+
+    use super::*;
+
+    #[test]
+    fn test_fill_filter_default() {
+        let f = FillFilter::default();
+        assert!(f.coin.is_none());
+        assert!(f.from_ms.is_none());
+        assert!(f.to_ms.is_none());
+        assert!(f.limit.is_none());
+    }
+
+    #[test]
+    fn test_order_filter_default() {
+        let f = OrderFilter::default();
+        assert!(f.coin.is_none());
+        assert!(f.status.is_none());
+        assert!(f.limit.is_none());
+    }
+
+    #[test]
+    fn test_fill_filter_with_values() {
+        let f = FillFilter {
+            protocol: Some("hyperliquid".to_string()),
+            coin: Some("ETH".to_string()),
+            from_ms: Some(1000),
+            to_ms: Some(2000),
+            limit: Some(50),
+        };
+        assert_eq!(f.protocol.as_deref(), Some("hyperliquid"));
+        assert_eq!(f.coin.as_deref(), Some("ETH"));
+        assert_eq!(f.from_ms, Some(1000));
+        assert_eq!(f.to_ms, Some(2000));
+        assert_eq!(f.limit, Some(50));
+    }
+
+    #[test]
+    fn test_order_filter_with_values() {
+        let f = OrderFilter {
+            protocol: None,
+            coin: Some("BTC".to_string()),
+            status: Some("filled".to_string()),
+            limit: Some(100),
+        };
+        assert_eq!(f.coin.as_deref(), Some("BTC"));
+        assert_eq!(f.status.as_deref(), Some("filled"));
+        assert_eq!(f.limit, Some(100));
     }
 }

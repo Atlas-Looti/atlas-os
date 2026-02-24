@@ -1,8 +1,7 @@
 use anyhow::Result;
-use atlas_core::Orchestrator;
-use atlas_types::output::*;
-use atlas_utils::fmt::format_timestamp_ms;
-use atlas_utils::output::OutputFormat;
+use atlas_core::output::*;
+use atlas_core::fmt::format_timestamp_ms;
+use atlas_core::output::OutputFormat;
 use rust_decimal::prelude::*;
 
 /// Render a PriceOutput (table or JSON).
@@ -89,7 +88,7 @@ fn render_funding(output: &FundingOutput, fmt: OutputFormat) {
 
 /// `atlas price <COINS...>` or `atlas price --all`
 pub async fn price(coins: &[String], all: bool, fmt: OutputFormat) -> Result<()> {
-    let orch = Orchestrator::readonly().await?;
+    let orch = crate::factory::readonly().await?;
     let perp = orch.perp(None)?;
 
     let tickers = if all || coins.is_empty() {
@@ -122,7 +121,7 @@ pub async fn price(coins: &[String], all: bool, fmt: OutputFormat) -> Result<()>
 
 /// `atlas markets` or `atlas markets --spot`
 pub async fn markets(spot: bool, fmt: OutputFormat) -> Result<()> {
-    let orch = Orchestrator::readonly().await?;
+    let orch = crate::factory::readonly().await?;
     let perp = orch.perp(None)?;
 
     let market_list = perp.markets().await.map_err(|e| anyhow::anyhow!("{e}"))?;
@@ -150,7 +149,7 @@ pub async fn markets(spot: bool, fmt: OutputFormat) -> Result<()> {
 
 /// `atlas candles <COIN> <INTERVAL>` with optional --limit
 pub async fn candles(coin: &str, interval: &str, limit: usize, fmt: OutputFormat) -> Result<()> {
-    let orch = Orchestrator::readonly().await?;
+    let orch = crate::factory::readonly().await?;
     let perp = orch.perp(None)?;
     let coin_upper = coin.to_uppercase();
 
@@ -185,7 +184,7 @@ pub async fn candles(coin: &str, interval: &str, limit: usize, fmt: OutputFormat
 
 /// `atlas funding <COIN>`
 pub async fn funding(coin: &str, fmt: OutputFormat) -> Result<()> {
-    let orch = Orchestrator::readonly().await?;
+    let orch = crate::factory::readonly().await?;
     let perp = orch.perp(None)?;
     let coin_upper = coin.to_uppercase();
 
@@ -219,7 +218,7 @@ pub async fn funding(coin: &str, fmt: OutputFormat) -> Result<()> {
 
 /// `atlas market orderbook <TICKER> [--depth 10]`
 pub async fn orderbook(ticker: &str, depth: usize, fmt: OutputFormat) -> Result<()> {
-    let orch = Orchestrator::readonly().await?;
+    let orch = crate::factory::readonly().await?;
     let perp = orch.perp(None)?;
     let ticker_upper = ticker.to_uppercase();
 
@@ -285,7 +284,7 @@ pub async fn orderbook(ticker: &str, depth: usize, fmt: OutputFormat) -> Result<
 
 /// `atlas market info <COIN>` — detailed market info with OI, volume, spread.
 pub async fn info(coin: &str, fmt: OutputFormat) -> Result<()> {
-    let orch = Orchestrator::readonly().await?;
+    let orch = crate::factory::readonly().await?;
     let perp = orch.perp(None)?;
     let coin_upper = coin.to_uppercase();
 
@@ -403,7 +402,7 @@ pub async fn info(coin: &str, fmt: OutputFormat) -> Result<()> {
 
 /// `atlas market top [--sort volume|change|oi] [--limit 20] [--reverse]`
 pub async fn top(sort_by: &str, limit: usize, reverse: bool, fmt: OutputFormat) -> Result<()> {
-    let orch = Orchestrator::readonly().await?;
+    let orch = crate::factory::readonly().await?;
     let perp = orch.perp(None)?;
 
     let mut tickers = perp
@@ -518,7 +517,7 @@ pub async fn top(sort_by: &str, limit: usize, reverse: bool, fmt: OutputFormat) 
 
 /// `atlas market spread <COINS...>` — bid-ask spreads.
 pub async fn spread(coins: &[String], fmt: OutputFormat) -> Result<()> {
-    let orch = Orchestrator::readonly().await?;
+    let orch = crate::factory::readonly().await?;
     let perp = orch.perp(None)?;
 
     let tickers = if coins.is_empty() {
@@ -603,7 +602,7 @@ pub async fn spread(coins: &[String], fmt: OutputFormat) -> Result<()> {
 
 /// `atlas market search <query>` — search markets by name.
 pub async fn search(query: &str, fmt: OutputFormat) -> Result<()> {
-    let orch = Orchestrator::readonly().await?;
+    let orch = crate::factory::readonly().await?;
     let perp = orch.perp(None)?;
 
     let all_markets = perp.markets().await.map_err(|e| anyhow::anyhow!("{e}"))?;
@@ -674,7 +673,7 @@ pub async fn search(query: &str, fmt: OutputFormat) -> Result<()> {
 
 /// `atlas market summary` — quick market dashboard.
 pub async fn summary(fmt: OutputFormat) -> Result<()> {
-    let orch = Orchestrator::readonly().await?;
+    let orch = crate::factory::readonly().await?;
     let perp = orch.perp(None)?;
 
     let tickers = perp

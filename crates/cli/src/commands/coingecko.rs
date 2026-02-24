@@ -5,7 +5,7 @@
 
 use anyhow::Result;
 use atlas_core::BackendClient;
-use atlas_utils::output::OutputFormat;
+use atlas_core::output::OutputFormat;
 
 /// Helper: ensure backend is reachable, return client.
 async fn backend() -> Result<BackendClient> {

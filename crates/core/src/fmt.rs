@@ -26,8 +26,8 @@ pub fn format_timestamp_ms(ms: u64) -> String {
 }
 
 /// Convert universal OrderResult to CLI OrderResultOutput.
-pub fn order_result_to_output(r: &atlas_common::types::OrderResult) -> atlas_types::output::OrderResultOutput {
-    atlas_types::output::OrderResultOutput {
+pub fn order_result_to_output(r: &crate::types::OrderResult) -> crate::output::OrderResultOutput {
+    crate::output::OrderResultOutput {
         oid: r.order_id.parse().unwrap_or(0),
         status: format!("{:?}", r.status).to_lowercase(),
         total_sz: r.filled_size.map(|s| s.to_string()),

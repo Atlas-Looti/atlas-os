@@ -1,6 +1,6 @@
 //! Convert Hyperliquid SDK types → Atlas OS universal types.
 
-use atlas_common::types::*;
+use atlas_core::types::*;
 use hypersdk::hypercore::types::Side as HlSide;
 
 /// Convert HL Side to universal Side.

@@ -1,7 +1,6 @@
 use anyhow::Result;
-use atlas_core::Orchestrator;
-use atlas_types::output::{BalanceRow, StatusOutput, PositionRow};
-use atlas_utils::output::{render, OutputFormat};
+use atlas_core::output::{BalanceRow, StatusOutput, PositionRow};
+use atlas_core::output::{render, OutputFormat};
 
 /// `atlas status` — fast textual summary, no TUI.
 pub async fn run(fmt: OutputFormat) -> Result<()> {
@@ -22,7 +21,7 @@ pub async fn run(fmt: OutputFormat) -> Result<()> {
         "Mainnet".to_string()
     };
 
-    let orch_res = Orchestrator::from_active_profile().await;
+    let orch_res = crate::factory::from_active_profile().await;
     match orch_res {
         Ok(orch) => {
             let perp = orch.perp(None).map_err(|e| anyhow::anyhow!("{e}"))?;

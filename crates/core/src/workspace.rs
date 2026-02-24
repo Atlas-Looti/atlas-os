@@ -2,7 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
-use atlas_types::config::AppConfig;
+use crate::config::AppConfig;
 use tracing::info;
 
 /// Dotfolder name under `$HOME`.
@@ -68,7 +68,7 @@ pub fn init_workspace() -> Result<()> {
     // Seed empty wallets.json if absent.
     let wallets_path = root.join("keystore/wallets.json");
     if !wallets_path.exists() {
-        let empty_store = atlas_types::profile::WalletStore::default();
+        let empty_store = crate::profile::WalletStore::default();
         let json = serde_json::to_string_pretty(&empty_store)
             .context("Failed to serialize empty wallet store")?;
         fs::write(&wallets_path, &json)

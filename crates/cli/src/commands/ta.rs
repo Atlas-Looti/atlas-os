@@ -4,8 +4,7 @@
 //! EMA, SMA, OBV, CCI, Williams %R, and more.
 
 use anyhow::Result;
-use atlas_core::Orchestrator;
-use atlas_utils::output::OutputFormat;
+use atlas_core::output::OutputFormat;
 use rust_decimal::prelude::*;
 use ta::indicators::{
     RelativeStrengthIndex,
@@ -23,7 +22,7 @@ use ta::{Next, DataItem, Close, High, Low, Open};
 async fn fetch_data_items(ticker: &str, timeframe: &str, count: usize)
     -> Result<(Vec<DataItem>, Vec<f64>)>
 {
-    let orch = Orchestrator::readonly().await?;
+    let orch = crate::factory::readonly().await?;
     let perp = orch.perp(None)?;
     let ticker_upper = ticker.to_uppercase();
 

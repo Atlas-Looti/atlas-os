@@ -22,10 +22,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tracing::info;
 
-use atlas_common::constants::*;
-use atlas_common::error::*;
-use atlas_common::traits::PerpModule;
-use atlas_common::types::*;
+use atlas_core::constants::*;
+use atlas_core::error::*;
+use atlas_core::traits::PerpModule;
+use atlas_core::types::*;
 
 use crate::convert::*;
 use crate::signing::compute_agent_signing_hash;

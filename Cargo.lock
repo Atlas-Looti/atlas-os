@@ -1144,17 +1144,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "atlas-0x"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "atlas-core",
+ "reqwest 0.12.28",
+ "rust_decimal",
+ "serde",
+ "serde_json",
+ "tracing",
+]
+
+[[package]]
 name = "atlas-cli"
 version = "0.1.0"
 dependencies = [
  "alloy",
  "anyhow",
- "atlas-common",
+ "atlas-0x",
  "atlas-core",
- "atlas-mod-hyperliquid",
- "atlas-mod-zero-x",
- "atlas-types",
- "atlas-utils",
+ "atlas-hl",
  "chrono",
  "clap",
  "crossterm",
@@ -1171,27 +1181,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "atlas-common"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "rust_decimal",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
-]
-
-[[package]]
 name = "atlas-core"
 version = "0.1.0"
 dependencies = [
  "alloy",
  "anyhow",
  "async-trait",
- "atlas-common",
- "atlas-mod-hyperliquid",
- "atlas-mod-zero-x",
- "atlas-types",
  "chrono",
  "dirs",
  "futures",
@@ -1213,14 +1208,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "atlas-mod-hyperliquid"
+name = "atlas-hl"
 version = "0.1.0"
 dependencies = [
  "alloy",
  "anyhow",
  "async-trait",
- "atlas-common",
- "atlas-types",
+ "atlas-core",
  "futures",
  "hex",
  "hypersdk",
@@ -1233,39 +1227,6 @@ dependencies = [
  "tokio",
  "tracing",
  "uuid",
-]
-
-[[package]]
-name = "atlas-mod-zero-x"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "atlas-common",
- "reqwest 0.12.28",
- "rust_decimal",
- "serde",
- "serde_json",
- "tracing",
-]
-
-[[package]]
-name = "atlas-types"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "atlas-utils"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "atlas-common",
- "atlas-types",
- "serde",
- "serde_json",
 ]
 
 [[package]]

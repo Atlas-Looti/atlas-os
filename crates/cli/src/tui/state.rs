@@ -324,7 +324,7 @@ impl App {
     }
 
     async fn do_cancel(&self, coin: &str, oid: u64) -> anyhow::Result<()> {
-        let orch = atlas_core::Orchestrator::from_active_profile().await?;
+        let orch = crate::factory::from_active_profile().await?;
         let perp = orch.perp(None).map_err(|e| anyhow::anyhow!("{e}"))?;
         perp.cancel_order(coin, &oid.to_string()).await
             .map_err(|e| anyhow::anyhow!("{e}"))?;

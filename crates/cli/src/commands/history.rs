@@ -5,12 +5,12 @@ use std::collections::HashMap;
 use anyhow::Result;
 use atlas_core::db::AtlasDb;
 use atlas_core::Engine;
-use atlas_types::db::{FillFilter, OrderFilter};
-use atlas_types::output::{
+use atlas_core::db::{FillFilter, OrderFilter};
+use atlas_core::output::{
     OrderHistoryOutput, OrderHistoryRow, PnlByCoinRow, PnlSummaryOutput,
     SyncOutput, TradeHistoryOutput, TradeHistoryRow,
 };
-use atlas_utils::output::{render, OutputFormat};
+use atlas_core::output::{render, OutputFormat};
 use rust_decimal::Decimal;
 
 use super::helpers::{normalize_protocol, parse_date_to_ms, format_ms};

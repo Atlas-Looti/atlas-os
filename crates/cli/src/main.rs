@@ -1,9 +1,10 @@
 mod commands;
+mod factory;
 mod tui;
 
 use anyhow::Result;
-use atlas_common::error::AtlasError;
-use atlas_utils::output::OutputFormat;
+use atlas_core::error::AtlasError;
+use atlas_core::output::OutputFormat;
 use clap::{Parser, Subcommand, ValueEnum};
 use tracing_subscriber::EnvFilter;
 

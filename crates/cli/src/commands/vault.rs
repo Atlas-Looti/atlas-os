@@ -1,10 +1,9 @@
 use anyhow::Result;
-use atlas_core::Orchestrator;
-use atlas_utils::output::OutputFormat;
+use atlas_core::output::OutputFormat;
 
 /// `atlas vault details <VAULT_ADDRESS>`
 pub async fn vault_details(vault: &str, fmt: OutputFormat) -> Result<()> {
-    let orch = Orchestrator::from_active_profile().await?;
+    let orch = crate::factory::from_active_profile().await?;
     let perp = orch.perp(None)?;
 
     let details = perp.vault_details(vault).await
@@ -41,7 +40,7 @@ pub async fn vault_details(vault: &str, fmt: OutputFormat) -> Result<()> {
 
 /// `atlas vault deposits`
 pub async fn vault_deposits(fmt: OutputFormat) -> Result<()> {
-    let orch = Orchestrator::from_active_profile().await?;
+    let orch = crate::factory::from_active_profile().await?;
     let perp = orch.perp(None)?;
 
     let deposits = perp.vault_deposits().await

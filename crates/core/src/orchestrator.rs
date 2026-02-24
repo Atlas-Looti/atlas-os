@@ -9,12 +9,9 @@ use std::sync::Arc;
 use anyhow::Result;
 use tracing::info;
 
-use atlas_common::traits::{LendingModule, PerpModule, SwapModule};
-use atlas_common::types::*;
-use atlas_types::config::AppConfig;
+use crate::traits::{LendingModule, PerpModule, SwapModule};
+use crate::types::*;
 
-use crate::auth::AuthManager;
-use crate::workspace::load_config;
 
 /// The core orchestrator — holds all protocol modules.
 pub struct Orchestrator {
@@ -190,62 +187,6 @@ impl Orchestrator {
         Ok(balances)
     }
 
-    /// Build an Orchestrator from config — registers enabled modules.
-    ///
-    /// For perp modules that require signing (Hyperliquid), the signer
-    /// must be provided. For read-only usage, pass `None`.
-    pub async fn from_config(
-        config: &AppConfig,
-        signer: Option<alloy::signers::local::PrivateKeySigner>,
-    ) -> Result<Self> {
-        let mut orch = Self::new();
-
-        // ── Hyperliquid (perp) ──────────────────────────────────
-        if config.modules.hyperliquid.enabled {
-            let testnet = config.modules.hyperliquid.config.network == "testnet";
-            let hl = match signer {
-                Some(s) => atlas_mod_hyperliquid::client::HyperliquidModule::new(s, testnet).await,
-                None => {
-                    atlas_mod_hyperliquid::client::HyperliquidModule::new_readonly(testnet).await
-                }
-            }
-            .map_err(|e| anyhow::anyhow!("{e}"))?;
-            orch.add_perp(Arc::new(hl));
-            info!("Hyperliquid perp module loaded");
-        }
-
-        // ── 0x (swap) ───────────────────────────────────────────
-        if config.modules.zero_x.enabled {
-            let backend_url = "https://api.atlas-os.ai".to_string(); // Hardcoded default backend
-            let default_chain =
-                atlas_mod_zero_x::parse_chain(&config.modules.zero_x.config.default_chain);
-            let default_slippage_bps = config.modules.zero_x.config.default_slippage_bps;
-            let zero_x = atlas_mod_zero_x::client::ZeroXModule::new(backend_url)
-                .with_api_key(config.system.api_key.clone())
-                .with_defaults(default_chain, default_slippage_bps);
-            orch.add_swap(Arc::new(zero_x));
-            info!("0x swap module loaded");
-        }
-
-        Ok(orch)
-    }
-
-    /// Convenience: load config, load active wallet signer, and build Orchestrator.
-    ///
-    /// This is the main entry point for CLI commands that need trading access.
-    pub async fn from_active_profile() -> Result<Self> {
-        let config = load_config()?;
-        let signer = AuthManager::load_active_signer(&config)?;
-        Self::from_config(&config, Some(signer)).await
-    }
-
-    /// Convenience: build a read-only Orchestrator (no signer needed).
-    ///
-    /// For commands that only need market data (prices, markets, candles, funding).
-    pub async fn readonly() -> Result<Self> {
-        let config = load_config()?;
-        Self::from_config(&config, None).await
-    }
 }
 
 /// Protocol registration info.

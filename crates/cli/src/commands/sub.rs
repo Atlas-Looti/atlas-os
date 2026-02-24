@@ -1,10 +1,9 @@
 use anyhow::Result;
-use atlas_core::Orchestrator;
-use atlas_utils::output::OutputFormat;
+use atlas_core::output::OutputFormat;
 
 /// `atlas sub list`
 pub async fn sub_list(fmt: OutputFormat) -> Result<()> {
-    let orch = Orchestrator::from_active_profile().await?;
+    let orch = crate::factory::from_active_profile().await?;
     let perp = orch.perp(None)?;
 
     let subs = perp.subaccounts().await
@@ -40,7 +39,7 @@ pub async fn sub_list(fmt: OutputFormat) -> Result<()> {
 
 /// `atlas agent approve <ADDRESS> [--name NAME]`
 pub async fn agent_approve(address: &str, name: Option<&str>, fmt: OutputFormat) -> Result<()> {
-    let orch = Orchestrator::from_active_profile().await?;
+    let orch = crate::factory::from_active_profile().await?;
     let perp = orch.perp(None)?;
 
     let result = perp.approve_agent(address, name).await

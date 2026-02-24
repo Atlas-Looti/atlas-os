@@ -1,19 +1,18 @@
 use anyhow::Result;
-use atlas_core::Orchestrator;
-use atlas_types::output::{SpotBalanceOutput, SpotBalanceRow, SpotOrderOutput, SpotTransferOutput};
-use atlas_utils::output::{render, OutputFormat};
+use atlas_core::output::{SpotBalanceOutput, SpotBalanceRow, SpotOrderOutput, SpotTransferOutput};
+use atlas_core::output::{render, OutputFormat};
 use rust_decimal::prelude::*;
 
 /// `atlas spot buy <BASE> <SIZE> [--slippage N]`
 pub async fn spot_buy(base: &str, size: f64, slippage: Option<f64>, fmt: OutputFormat) -> Result<()> {
-    let orch = Orchestrator::from_active_profile().await?;
+    let orch = crate::factory::from_active_profile().await?;
     let perp = orch.perp(None)?;
     let base_upper = base.to_uppercase();
 
     let size_dec = Decimal::from_f64(size)
         .ok_or_else(|| anyhow::anyhow!("Invalid size: {size}"))?;
 
-    let result = perp.spot_market_order(&base_upper, atlas_common::types::Side::Buy, size_dec, slippage).await
+    let result = perp.spot_market_order(&base_upper, atlas_core::types::Side::Buy, size_dec, slippage).await
         .map_err(|e| anyhow::anyhow!("{e}"))?;
 
     let output = SpotOrderOutput {
@@ -30,14 +29,14 @@ pub async fn spot_buy(base: &str, size: f64, slippage: Option<f64>, fmt: OutputF
 
 /// `atlas spot sell <BASE> <SIZE> [--slippage N]`
 pub async fn spot_sell(base: &str, size: f64, slippage: Option<f64>, fmt: OutputFormat) -> Result<()> {
-    let orch = Orchestrator::from_active_profile().await?;
+    let orch = crate::factory::from_active_profile().await?;
     let perp = orch.perp(None)?;
     let base_upper = base.to_uppercase();
 
     let size_dec = Decimal::from_f64(size)
         .ok_or_else(|| anyhow::anyhow!("Invalid size: {size}"))?;
 
-    let result = perp.spot_market_order(&base_upper, atlas_common::types::Side::Sell, size_dec, slippage).await
+    let result = perp.spot_market_order(&base_upper, atlas_core::types::Side::Sell, size_dec, slippage).await
         .map_err(|e| anyhow::anyhow!("{e}"))?;
 
     let output = SpotOrderOutput {
@@ -54,7 +53,7 @@ pub async fn spot_sell(base: &str, size: f64, slippage: Option<f64>, fmt: Output
 
 /// `atlas spot balance`
 pub async fn spot_balance(fmt: OutputFormat) -> Result<()> {
-    let orch = Orchestrator::from_active_profile().await?;
+    let orch = crate::factory::from_active_profile().await?;
     let perp = orch.perp(None)?;
 
     let balances = perp.spot_balances().await
@@ -78,7 +77,7 @@ pub async fn spot_transfer(
     token: Option<&str>,
     fmt: OutputFormat,
 ) -> Result<()> {
-    let orch = Orchestrator::from_active_profile().await?;
+    let orch = crate::factory::from_active_profile().await?;
     let perp = orch.perp(None)?;
 
     let amount_dec: Decimal = amount.parse()

@@ -4,10 +4,10 @@
 //! Supports 19+ EVM chains via chainId parameter.
 
 use async_trait::async_trait;
-use atlas_common::constants::{ATLAS_FEE_WALLET, BUILDER_FEE_BPS};
-use atlas_common::error::{AtlasError, AtlasResult};
-use atlas_common::traits::SwapModule;
-use atlas_common::types::{Chain, Protocol, SwapQuote};
+use atlas_core::constants::{ATLAS_FEE_WALLET, BUILDER_FEE_BPS};
+use atlas_core::error::{AtlasError, AtlasResult};
+use atlas_core::traits::SwapModule;
+use atlas_core::types::{Chain, Protocol, SwapQuote};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use tracing::info;

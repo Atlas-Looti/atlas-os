@@ -1,7 +1,7 @@
 use anyhow::{bail, Result};
-use atlas_types::config::{SizeMode, TradingMode};
-use atlas_types::output::ConfigOutput;
-use atlas_utils::output::{render, OutputFormat};
+use atlas_core::config::{SizeMode, TradingMode};
+use atlas_core::output::ConfigOutput;
+use atlas_core::output::{render, OutputFormat};
 
 /// Helper: print JSON ack for write operations.
 fn json_ack(fmt: OutputFormat, action: &str, key: &str, value: &serde_json::Value) {

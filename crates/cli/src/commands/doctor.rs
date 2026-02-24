@@ -1,8 +1,8 @@
 //! `atlas doctor` — system health checks.
 
 use anyhow::Result;
-use atlas_types::output::{DoctorCheck, DoctorOutput};
-use atlas_utils::output::{render, OutputFormat};
+use atlas_core::output::{DoctorCheck, DoctorOutput};
+use atlas_core::output::{render, OutputFormat};
 
 /// `atlas doctor [--fix]` — system health checks.
 pub async fn run(fix: bool, fmt: OutputFormat) -> Result<()> {

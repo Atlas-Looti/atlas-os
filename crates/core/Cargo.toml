@@ -4,10 +4,6 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-atlas-common = { workspace = true }
-atlas-types = { workspace = true }
-atlas-mod-hyperliquid = { workspace = true }
-atlas-mod-zero-x = { workspace = true }
 tokio = { workspace = true }
 async-trait = { workspace = true }
 serde = { workspace = true }

@@ -1,12 +1,11 @@
 use anyhow::Result;
-use atlas_core::Orchestrator;
-use atlas_types::output::{LeverageOutput, MarginOutput, TransferOutput};
-use atlas_utils::output::{render, OutputFormat};
+use atlas_core::output::{LeverageOutput, MarginOutput, TransferOutput};
+use atlas_core::output::{render, OutputFormat};
 use rust_decimal::prelude::*;
 
 /// `atlas leverage <coin> <value> [--cross]`
 pub async fn set_leverage(coin: &str, value: u32, cross: bool, fmt: OutputFormat) -> Result<()> {
-    let orch = Orchestrator::from_active_profile().await?;
+    let orch = crate::factory::from_active_profile().await?;
     let perp = orch.perp(None)?;
     let coin_upper = coin.to_uppercase();
 
@@ -24,7 +23,7 @@ pub async fn set_leverage(coin: &str, value: u32, cross: bool, fmt: OutputFormat
 
 /// `atlas margin <coin> <amount>`
 pub async fn update_margin(coin: &str, amount: f64, fmt: OutputFormat) -> Result<()> {
-    let orch = Orchestrator::from_active_profile().await?;
+    let orch = crate::factory::from_active_profile().await?;
     let perp = orch.perp(None)?;
     let coin_upper = coin.to_uppercase();
 
@@ -45,7 +44,7 @@ pub async fn update_margin(coin: &str, amount: f64, fmt: OutputFormat) -> Result
 
 /// `atlas transfer <amount> <destination>`
 pub async fn transfer_usdc(amount: &str, destination: &str, fmt: OutputFormat) -> Result<()> {
-    let orch = Orchestrator::from_active_profile().await?;
+    let orch = crate::factory::from_active_profile().await?;
     let perp = orch.perp(None)?;
 
     let dec_amount: Decimal = amount.parse()

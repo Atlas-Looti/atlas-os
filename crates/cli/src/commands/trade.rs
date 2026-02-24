@@ -1,11 +1,10 @@
 use anyhow::Result;
-use atlas_core::Orchestrator;
 use atlas_core::workspace::load_config;
-use atlas_types::config::{SizeInput, SizeMode};
-use atlas_types::output::{OrdersOutput, OrderRow, FillsOutput, FillRow, CancelSingleOutput, CancelOutput, PositionRow};
-use atlas_utils::output::{render, OutputFormat};
-use atlas_utils::fmt::order_result_to_output;
-use atlas_utils::parse;
+use atlas_core::config::{SizeInput, SizeMode};
+use atlas_core::output::{OrdersOutput, OrderRow, FillsOutput, FillRow, CancelSingleOutput, CancelOutput, PositionRow};
+use atlas_core::output::{render, OutputFormat};
+use atlas_core::fmt::order_result_to_output;
+use atlas_core::parse;
 use rust_decimal::prelude::*;
 
 /// `atlas order <coin> <side> <size> <price> [--reduce-only] [--tif Gtc|Ioc|Alo]`
@@ -21,7 +20,7 @@ pub async fn limit_order(
     let is_buy = parse::parse_side(side)?;
     let size_input = parse::parse_size(size_str)?;
     let config = load_config()?;
-    let orch = Orchestrator::from_active_profile().await?;
+    let orch = crate::factory::from_active_profile().await?;
     let perp = orch.perp(None)?;
     let coin_upper = coin.to_uppercase();
     let hl_cfg = &config.modules.hyperliquid.config;
@@ -59,7 +58,7 @@ pub async fn limit_order(
 
     let size_dec = Decimal::from_f64(size)
         .ok_or_else(|| anyhow::anyhow!("Invalid size: {size}"))?;
-    let uni_side = if is_buy { atlas_common::types::Side::Buy } else { atlas_common::types::Side::Sell };
+    let uni_side = if is_buy { atlas_core::types::Side::Buy } else { atlas_core::types::Side::Sell };
 
     let result = perp.limit_order(&coin_upper, uni_side, size_dec, price_dec, reduce_only).await
         .map_err(|e| anyhow::anyhow!("{e}"))?;
@@ -78,7 +77,7 @@ pub async fn market_buy(
 ) -> Result<()> {
     let size_input = parse::parse_size(size_str)?;
     let config = load_config()?;
-    let orch = Orchestrator::from_active_profile().await?;
+    let orch = crate::factory::from_active_profile().await?;
     let perp = orch.perp(None)?;
     let coin_upper = coin.to_uppercase();
     let hl_cfg = &config.modules.hyperliquid.config;
@@ -98,7 +97,7 @@ pub async fn market_buy(
 
     let effective_slippage = slippage.or(Some(hl_cfg.default_slippage));
 
-    let result = perp.market_order(&coin_upper, atlas_common::types::Side::Buy, size_dec, effective_slippage).await
+    let result = perp.market_order(&coin_upper, atlas_core::types::Side::Buy, size_dec, effective_slippage).await
         .map_err(|e| anyhow::anyhow!("{e}"))?;
 
     render(fmt, &order_result_to_output(&result))?;
@@ -115,7 +114,7 @@ pub async fn market_sell(
 ) -> Result<()> {
     let size_input = parse::parse_size(size_str)?;
     let config = load_config()?;
-    let orch = Orchestrator::from_active_profile().await?;
+    let orch = crate::factory::from_active_profile().await?;
     let perp = orch.perp(None)?;
     let coin_upper = coin.to_uppercase();
     let hl_cfg = &config.modules.hyperliquid.config;
@@ -135,7 +134,7 @@ pub async fn market_sell(
 
     let effective_slippage = slippage.or(Some(hl_cfg.default_slippage));
 
-    let result = perp.market_order(&coin_upper, atlas_common::types::Side::Sell, size_dec, effective_slippage).await
+    let result = perp.market_order(&coin_upper, atlas_core::types::Side::Sell, size_dec, effective_slippage).await
         .map_err(|e| anyhow::anyhow!("{e}"))?;
 
     render(fmt, &order_result_to_output(&result))?;
@@ -150,7 +149,7 @@ pub async fn close_position(
     fmt: OutputFormat,
 ) -> Result<()> {
     let config = load_config()?;
-    let orch = Orchestrator::from_active_profile().await?;
+    let orch = crate::factory::from_active_profile().await?;
     let perp = orch.perp(None)?;
     let coin_upper = coin.to_uppercase();
 
@@ -166,7 +165,7 @@ pub async fn close_position(
 
 /// `atlas cancel <coin> [--oid 12345]`
 pub async fn cancel(coin: &str, oid: Option<u64>, fmt: OutputFormat) -> Result<()> {
-    let orch = Orchestrator::from_active_profile().await?;
+    let orch = crate::factory::from_active_profile().await?;
     let perp = orch.perp(None)?;
     let coin_upper = coin.to_uppercase();
 
@@ -187,7 +186,7 @@ pub async fn cancel(coin: &str, oid: Option<u64>, fmt: OutputFormat) -> Result<(
 
 /// `atlas orders`
 pub async fn list_orders(fmt: OutputFormat) -> Result<()> {
-    let orch = Orchestrator::from_active_profile().await?;
+    let orch = crate::factory::from_active_profile().await?;
     let perp = orch.perp(None)?;
     let orders = perp.open_orders().await.map_err(|e| anyhow::anyhow!("{e}"))?;
 
@@ -205,7 +204,7 @@ pub async fn list_orders(fmt: OutputFormat) -> Result<()> {
 
 /// `atlas fills`
 pub async fn list_fills(fmt: OutputFormat) -> Result<()> {
-    let orch = Orchestrator::from_active_profile().await?;
+    let orch = crate::factory::from_active_profile().await?;
     let perp = orch.perp(None)?;
     let fills = perp.fills().await.map_err(|e| anyhow::anyhow!("{e}"))?;
 
@@ -224,7 +223,7 @@ pub async fn list_fills(fmt: OutputFormat) -> Result<()> {
 
 /// `atlas hyperliquid perp positions` — dedicated positions view.
 pub async fn list_positions(fmt: OutputFormat) -> Result<()> {
-    let orch = Orchestrator::from_active_profile().await?;
+    let orch = crate::factory::from_active_profile().await?;
     let perp = orch.perp(None)?;
     let positions = perp.positions().await.map_err(|e| anyhow::anyhow!("{e}"))?;
 

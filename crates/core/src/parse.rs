@@ -1,5 +1,5 @@
 use anyhow::{bail, Result};
-use atlas_types::config::SizeInput;
+use crate::config::SizeInput;
 
 /// Parse "buy"/"sell"/"long"/"short" into a boolean (true = buy).
 pub fn parse_side(s: &str) -> Result<bool> {

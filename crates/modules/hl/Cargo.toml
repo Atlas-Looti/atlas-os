@@ -1,11 +1,10 @@
 [package]
-name = "atlas-mod-hyperliquid"
+name = "atlas-hl"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
-atlas-common = { workspace = true }
-atlas-types = { workspace = true }
+atlas-core = { workspace = true }
 
 # Async
 tokio = { workspace = true }

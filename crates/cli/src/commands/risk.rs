@@ -1,9 +1,8 @@
 use anyhow::Result;
-use atlas_core::Orchestrator;
-use atlas_types::output::RiskCalcOutput;
-use atlas_utils::output::{render, OutputFormat};
-use atlas_utils::parse;
-use atlas_utils::risk::{self, RiskInput};
+use atlas_core::output::RiskCalcOutput;
+use atlas_core::output::{render, OutputFormat};
+use atlas_core::parse;
+use atlas_core::risk::{self, RiskInput};
 use rust_decimal::prelude::*;
 
 /// `atlas risk calc <coin> <side> <entry_price> [--stop <price>] [--leverage <n>]`
@@ -17,7 +16,7 @@ pub async fn calculate(
 ) -> Result<()> {
     let is_buy = parse::parse_side(side)?;
     let config = atlas_core::workspace::load_config()?;
-    let orch = Orchestrator::from_active_profile().await?;
+    let orch = crate::factory::from_active_profile().await?;
     let perp = orch.perp(None)?;
     let coin_upper = coin.to_uppercase();
 

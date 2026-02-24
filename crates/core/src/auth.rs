@@ -6,7 +6,7 @@ use anyhow::{bail, Context, Result};
 use keyring::Entry;
 use tracing::info;
 
-use atlas_types::profile::{WalletProfile, WalletStore};
+use crate::profile::{WalletProfile, WalletStore};
 
 /// Keyring service name — all Atlas private keys are stored under this.
 const KEYRING_SERVICE: &str = "atlas_os";
@@ -146,7 +146,7 @@ impl AuthManager {
     }
 
     /// Load the signer for the active profile from the given config.
-    pub fn load_active_signer(config: &atlas_types::config::AppConfig) -> Result<PrivateKeySigner> {
+    pub fn load_active_signer(config: &crate::config::AppConfig) -> Result<PrivateKeySigner> {
         let profile_name = &config.system.active_profile;
         let hex_key = Self::retrieve_key(profile_name)?;
         let signer: PrivateKeySigner = hex_key

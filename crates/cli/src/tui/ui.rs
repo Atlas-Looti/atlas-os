@@ -6,7 +6,7 @@ use ratatui::{
     Frame,
 };
 
-use atlas_utils::fmt::{self, Sign};
+use atlas_core::fmt::{self, Sign};
 
 use super::state::App;
 

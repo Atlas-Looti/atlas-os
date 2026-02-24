@@ -1,7 +1,7 @@
 //! `atlas module` — Module management (list, enable, disable, config).
 
 use anyhow::Result;
-use atlas_utils::output::OutputFormat;
+use atlas_core::output::OutputFormat;
 
 fn json_ok(fmt: OutputFormat, action: &str, module: &str, extra: Option<(&str, &str)>) {
     if fmt != OutputFormat::Table {
