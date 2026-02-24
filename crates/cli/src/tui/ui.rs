@@ -421,11 +421,7 @@ fn render_orders(frame: &mut Frame, app: &App, area: Rect) {
         format!(" Open Orders ({}) — c: cancel selected ", app.open_orders.len())
     };
 
-    let title_color = if app.cancel_status.is_some() {
-        YELLOW
-    } else {
-        YELLOW
-    };
+    let title_color = YELLOW;
 
     let block = Block::default()
         .title(title)

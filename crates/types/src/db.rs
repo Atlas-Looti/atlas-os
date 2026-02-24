@@ -3,6 +3,8 @@
 /// Filter for querying cached fills from the local database.
 #[derive(Debug, Clone, Default)]
 pub struct FillFilter {
+    /// Filter by protocol (e.g. "hyperliquid", "0x"). None = all protocols.
+    pub protocol: Option<String>,
     /// Filter by coin symbol (e.g. "ETH").
     pub coin: Option<String>,
     /// Start time (inclusive) in milliseconds since epoch.
@@ -16,6 +18,8 @@ pub struct FillFilter {
 /// Filter for querying cached orders from the local database.
 #[derive(Debug, Clone, Default)]
 pub struct OrderFilter {
+    /// Filter by protocol (e.g. "hyperliquid", "0x"). None = all protocols.
+    pub protocol: Option<String>,
     /// Filter by coin symbol (e.g. "ETH").
     pub coin: Option<String>,
     /// Filter by order status (e.g. "open", "filled", "canceled").
@@ -48,11 +52,13 @@ mod tests {
     #[test]
     fn test_fill_filter_with_values() {
         let f = FillFilter {
+            protocol: Some("hyperliquid".to_string()),
             coin: Some("ETH".to_string()),
             from_ms: Some(1000),
             to_ms: Some(2000),
             limit: Some(50),
         };
+        assert_eq!(f.protocol.as_deref(), Some("hyperliquid"));
         assert_eq!(f.coin.as_deref(), Some("ETH"));
         assert_eq!(f.from_ms, Some(1000));
         assert_eq!(f.to_ms, Some(2000));
@@ -62,6 +68,7 @@ mod tests {
     #[test]
     fn test_order_filter_with_values() {
         let f = OrderFilter {
+            protocol: None,
             coin: Some("BTC".to_string()),
             status: Some("filled".to_string()),
             limit: Some(100),

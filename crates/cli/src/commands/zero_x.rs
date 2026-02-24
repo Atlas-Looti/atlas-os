@@ -4,8 +4,6 @@ use anyhow::Result;
 use atlas_core::Orchestrator;
 use atlas_common::types::Chain;
 use atlas_utils::output::OutputFormat;
-use rust_decimal::Decimal;
-use rust_decimal::prelude::*;
 
 /// Parse chain string to Chain enum.
 fn parse_chain(chain: &str) -> Result<Chain> {
@@ -139,7 +137,7 @@ pub async fn chains(fmt: OutputFormat) -> Result<()> {
             println!("{s}");
         }
         OutputFormat::Table => {
-            println!("{:<12} {}", "CHAIN ID", "NAME");
+            println!("{:<12} NAME", "CHAIN ID");
             println!("{}", "─".repeat(35));
             for c in &resp.chains {
                 println!("{:<12} {}", c.chain_id, c.chain_name);
@@ -212,7 +210,7 @@ pub async fn trades(
                 println!("No completed swap trades found.");
                 return Ok(());
             }
-            println!("{:<12} {:<10} {:<44} {:<15} {}", "CHAIN", "VOLUME", "TX HASH", "TAKER", "APP");
+            println!("{:<12} {:<10} {:<44} {:<15} APP", "CHAIN", "VOLUME", "TX HASH", "TAKER");
             println!("{}", "─".repeat(95));
             for t in &resp.trades {
                 let vol = t.volume_usd.as_deref().unwrap_or("—");

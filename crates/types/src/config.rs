@@ -56,6 +56,13 @@ pub struct SystemConfig {
     pub active_profile: String,
     /// Enable verbose tracing output.
     pub verbose: bool,
+    /// Atlas backend API URL (for CoinGecko, Alchemy, etc.).
+    #[serde(default = "default_api_url")]
+    pub api_url: String,
+}
+
+fn default_api_url() -> String {
+    "http://localhost:3001".to_string()
 }
 
 /// Per-module configuration — each protocol has its own config block.
@@ -282,6 +289,7 @@ impl Default for AppConfig {
             system: SystemConfig {
                 active_profile: String::from("default"),
                 verbose: false,
+                api_url: default_api_url(),
             },
             trading: TradingConfig {
                 mode: TradingMode::Futures,

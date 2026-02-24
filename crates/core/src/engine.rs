@@ -59,6 +59,7 @@ impl Engine {
                 Side::Ask => "Sell",
             };
             DbFill {
+                protocol: "hyperliquid".to_string(),
                 coin: f.coin.clone(),
                 px: f.px.to_string(),
                 sz: f.sz.to_string(),
@@ -92,6 +93,7 @@ impl Engine {
             };
             let order_type = format!("{:?}", o.order_type);
             DbOrder {
+                protocol: "hyperliquid".to_string(),
                 coin: o.coin.clone(),
                 side: side.to_string(),
                 limit_px: o.limit_px.to_string(),

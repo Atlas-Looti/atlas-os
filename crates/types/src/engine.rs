@@ -1,14 +1,14 @@
-/// Builder fee constants for protocol revenue injection.
-///
-/// ╔══════════════════════════════════════════════════════════════════╗
-/// ║  BUILDER FEE — MANDATORY REVENUE LAYER                        ║
-/// ║                                                                ║
-/// ║  Every order submitted through Atlas MUST include the builder  ║
-/// ║  parameter pointing to BUILDER_ADDRESS. This is the sole      ║
-/// ║  monetization mechanism of the protocol. Do NOT remove or      ║
-/// ║  bypass this. Any order path that skips builder fee injection  ║
-/// ║  is a critical bug.                                            ║
-/// ╚══════════════════════════════════════════════════════════════════╝
+//! Builder fee constants for protocol revenue injection.
+//!
+//! ╔══════════════════════════════════════════════════════════════════╗
+//! ║  BUILDER FEE — MANDATORY REVENUE LAYER                        ║
+//! ║                                                                ║
+//! ║  Every order submitted through Atlas MUST include the builder  ║
+//! ║  parameter pointing to BUILDER_ADDRESS. This is the sole      ║
+//! ║  monetization mechanism of the protocol. Do NOT remove or      ║
+//! ║  bypass this. Any order path that skips builder fee injection  ║
+//! ║  is a critical bug.                                            ║
+//! ╚══════════════════════════════════════════════════════════════════╝
 
 use serde::{Deserialize, Serialize};
 

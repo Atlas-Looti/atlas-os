@@ -11,6 +11,7 @@ use atlas_types::db::{FillFilter, OrderFilter};
 /// A cached fill row read from the database.
 #[derive(Debug, Clone)]
 pub struct DbFill {
+    pub protocol: String,
     pub coin: String,
     pub px: String,
     pub sz: String,
@@ -25,6 +26,7 @@ pub struct DbFill {
 /// A cached order row read from the database.
 #[derive(Debug, Clone)]
 pub struct DbOrder {
+    pub protocol: String,
     pub coin: String,
     pub side: String,
     pub limit_px: String,
@@ -79,6 +81,7 @@ impl AtlasDb {
             "
             CREATE TABLE IF NOT EXISTS fills (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                protocol TEXT NOT NULL DEFAULT 'hyperliquid',
                 coin TEXT NOT NULL,
                 px TEXT NOT NULL,
                 sz TEXT NOT NULL,
@@ -91,9 +94,11 @@ impl AtlasDb {
             );
             CREATE INDEX IF NOT EXISTS idx_fills_coin ON fills(coin);
             CREATE INDEX IF NOT EXISTS idx_fills_time ON fills(time_ms);
+            CREATE INDEX IF NOT EXISTS idx_fills_protocol ON fills(protocol);
 
             CREATE TABLE IF NOT EXISTS orders (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                protocol TEXT NOT NULL DEFAULT 'hyperliquid',
                 coin TEXT NOT NULL,
                 side TEXT NOT NULL,
                 limit_px TEXT NOT NULL,
@@ -105,6 +110,7 @@ impl AtlasDb {
             );
             CREATE INDEX IF NOT EXISTS idx_orders_coin ON orders(coin);
             CREATE INDEX IF NOT EXISTS idx_orders_time ON orders(timestamp_ms);
+            CREATE INDEX IF NOT EXISTS idx_orders_protocol ON orders(protocol);
 
             CREATE TABLE IF NOT EXISTS sync_state (
                 key TEXT PRIMARY KEY,
@@ -113,6 +119,30 @@ impl AtlasDb {
             );
             "
         ).context("Failed to initialize database tables")?;
+
+        // Migration: add protocol column to existing DBs
+        self.migrate_add_protocol()?;
+
+        Ok(())
+    }
+
+    /// Migration: add `protocol` column if missing (for DBs created before multi-protocol).
+    fn migrate_add_protocol(&self) -> Result<()> {
+        // Check if fills has protocol column
+        let has_protocol: bool = self.conn
+            .prepare("SELECT protocol FROM fills LIMIT 0")
+            .is_ok();
+
+        if !has_protocol {
+            self.conn.execute_batch(
+                "
+                ALTER TABLE fills ADD COLUMN protocol TEXT NOT NULL DEFAULT 'hyperliquid';
+                ALTER TABLE orders ADD COLUMN protocol TEXT NOT NULL DEFAULT 'hyperliquid';
+                CREATE INDEX IF NOT EXISTS idx_fills_protocol ON fills(protocol);
+                CREATE INDEX IF NOT EXISTS idx_orders_protocol ON orders(protocol);
+                "
+            ).context("Failed to migrate: add protocol column")?;
+        }
 
         Ok(())
     }
@@ -127,12 +157,13 @@ impl AtlasDb {
 
         {
             let mut stmt = tx.prepare_cached(
-                "INSERT OR IGNORE INTO fills (coin, px, sz, side, time_ms, fee, hash, oid, closed_pnl)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)"
+                "INSERT OR IGNORE INTO fills (protocol, coin, px, sz, side, time_ms, fee, hash, oid, closed_pnl)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)"
             )?;
 
             for fill in fills {
                 let rows = stmt.execute(params![
+                    fill.protocol,
                     fill.coin,
                     fill.px,
                     fill.sz,
@@ -154,10 +185,14 @@ impl AtlasDb {
     /// Query fills with optional filters.
     pub fn query_fills(&self, filter: &FillFilter) -> Result<Vec<DbFill>> {
         let mut sql = String::from(
-            "SELECT coin, px, sz, side, time_ms, fee, hash, oid, closed_pnl FROM fills WHERE 1=1"
+            "SELECT protocol, coin, px, sz, side, time_ms, fee, hash, oid, closed_pnl FROM fills WHERE 1=1"
         );
         let mut bind_values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
 
+        if let Some(ref protocol) = filter.protocol {
+            sql.push_str(" AND protocol = ?");
+            bind_values.push(Box::new(protocol.clone()));
+        }
         if let Some(ref coin) = filter.coin {
             sql.push_str(" AND coin = ?");
             bind_values.push(Box::new(coin.clone()));
@@ -183,15 +218,16 @@ impl AtlasDb {
         let mut stmt = self.conn.prepare(&sql)?;
         let rows = stmt.query_map(params_refs.as_slice(), |row| {
             Ok(DbFill {
-                coin: row.get(0)?,
-                px: row.get(1)?,
-                sz: row.get(2)?,
-                side: row.get(3)?,
-                time_ms: row.get(4)?,
-                fee: row.get(5)?,
-                hash: row.get(6)?,
-                oid: row.get(7)?,
-                closed_pnl: row.get(8)?,
+                protocol: row.get(0)?,
+                coin: row.get(1)?,
+                px: row.get(2)?,
+                sz: row.get(3)?,
+                side: row.get(4)?,
+                time_ms: row.get(5)?,
+                fee: row.get(6)?,
+                hash: row.get(7)?,
+                oid: row.get(8)?,
+                closed_pnl: row.get(9)?,
             })
         })?;
 
@@ -221,12 +257,13 @@ impl AtlasDb {
 
         {
             let mut stmt = tx.prepare_cached(
-                "INSERT OR REPLACE INTO orders (coin, side, limit_px, sz, oid, timestamp_ms, status, order_type)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
+                "INSERT OR REPLACE INTO orders (protocol, coin, side, limit_px, sz, oid, timestamp_ms, status, order_type)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)"
             )?;
 
             for order in orders {
                 let rows = stmt.execute(params![
+                    order.protocol,
                     order.coin,
                     order.side,
                     order.limit_px,
@@ -247,10 +284,14 @@ impl AtlasDb {
     /// Query orders with optional filters.
     pub fn query_orders(&self, filter: &OrderFilter) -> Result<Vec<DbOrder>> {
         let mut sql = String::from(
-            "SELECT coin, side, limit_px, sz, oid, timestamp_ms, status, order_type FROM orders WHERE 1=1"
+            "SELECT protocol, coin, side, limit_px, sz, oid, timestamp_ms, status, order_type FROM orders WHERE 1=1"
         );
         let mut bind_values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
 
+        if let Some(ref protocol) = filter.protocol {
+            sql.push_str(" AND protocol = ?");
+            bind_values.push(Box::new(protocol.clone()));
+        }
         if let Some(ref coin) = filter.coin {
             sql.push_str(" AND coin = ?");
             bind_values.push(Box::new(coin.clone()));
@@ -272,14 +313,15 @@ impl AtlasDb {
         let mut stmt = self.conn.prepare(&sql)?;
         let rows = stmt.query_map(params_refs.as_slice(), |row| {
             Ok(DbOrder {
-                coin: row.get(0)?,
-                side: row.get(1)?,
-                limit_px: row.get(2)?,
-                sz: row.get(3)?,
-                oid: row.get(4)?,
-                timestamp_ms: row.get(5)?,
-                status: row.get(6)?,
-                order_type: row.get(7)?,
+                protocol: row.get(0)?,
+                coin: row.get(1)?,
+                side: row.get(2)?,
+                limit_px: row.get(3)?,
+                sz: row.get(4)?,
+                oid: row.get(5)?,
+                timestamp_ms: row.get(6)?,
+                status: row.get(7)?,
+                order_type: row.get(8)?,
             })
         })?;
 
@@ -336,6 +378,7 @@ mod tests {
 
         let fills = vec![
             DbFill {
+                protocol: "hyperliquid".to_string(),
                 coin: "ETH".into(),
                 px: "3500.00".into(),
                 sz: "0.5".into(),
@@ -347,6 +390,7 @@ mod tests {
                 closed_pnl: "0".into(),
             },
             DbFill {
+                protocol: "hyperliquid".to_string(),
                 coin: "BTC".into(),
                 px: "105000.00".into(),
                 sz: "0.01".into(),
@@ -395,6 +439,7 @@ mod tests {
         let db = AtlasDb::open_in_memory().unwrap();
 
         let fill = DbFill {
+            protocol: "hyperliquid".to_string(),
             coin: "ETH".into(),
             px: "3500.00".into(),
             sz: "0.5".into(),
@@ -425,6 +470,7 @@ mod tests {
 
         let fills = vec![
             DbFill {
+                protocol: "hyperliquid".to_string(),
                 coin: "ETH".into(),
                 px: "3500".into(),
                 sz: "0.5".into(),
@@ -436,6 +482,7 @@ mod tests {
                 closed_pnl: "0".into(),
             },
             DbFill {
+                protocol: "hyperliquid".to_string(),
                 coin: "BTC".into(),
                 px: "50000".into(),
                 sz: "0.01".into(),
@@ -458,6 +505,7 @@ mod tests {
 
         let orders = vec![
             DbOrder {
+                protocol: "hyperliquid".to_string(),
                 coin: "ETH".into(),
                 side: "Buy".into(),
                 limit_px: "3500.00".into(),
@@ -468,6 +516,7 @@ mod tests {
                 order_type: "Limit".into(),
             },
             DbOrder {
+                protocol: "hyperliquid".to_string(),
                 coin: "BTC".into(),
                 side: "Sell".into(),
                 limit_px: "105000.00".into(),
@@ -507,6 +556,7 @@ mod tests {
         let db = AtlasDb::open_in_memory().unwrap();
 
         let order = DbOrder {
+            protocol: "hyperliquid".to_string(),
             coin: "ETH".into(),
             side: "Buy".into(),
             limit_px: "3500.00".into(),
@@ -521,6 +571,7 @@ mod tests {
 
         // Update status to filled
         let updated = DbOrder {
+            protocol: "hyperliquid".to_string(),
             coin: "ETH".into(),
             side: "Buy".into(),
             limit_px: "3500.00".into(),

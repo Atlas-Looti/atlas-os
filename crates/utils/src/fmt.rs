@@ -1,4 +1,4 @@
-/// Formatting utilities shared across CLI, TUI, and core.
+//! Formatting utilities shared across CLI, TUI, and core.
 
 /// Format a millisecond timestamp to human-readable UTC string.
 /// Uses the Howard Hinnant algorithm — no chrono dependency.

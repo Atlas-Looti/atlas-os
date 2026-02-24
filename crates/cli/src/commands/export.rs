@@ -10,26 +10,7 @@ use atlas_types::output::ExportOutput;
 use atlas_utils::output::{render, OutputFormat};
 use rust_decimal::Decimal;
 
-/// Parse an ISO date string to millisecond timestamp.
-fn parse_date_to_ms(s: &str) -> Result<i64> {
-    use chrono::NaiveDateTime;
-
-    if let Ok(dt) = chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S") {
-        return Ok(dt.and_utc().timestamp_millis());
-    }
-    if let Ok(d) = chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d") {
-        let dt = NaiveDateTime::new(d, chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap());
-        return Ok(dt.and_utc().timestamp_millis());
-    }
-    anyhow::bail!("Invalid date format: {s}. Use YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS")
-}
-
-/// Format a millisecond timestamp to human-readable UTC string.
-fn format_ms(ms: i64) -> String {
-    chrono::DateTime::from_timestamp(ms / 1000, 0)
-        .map(|d| d.format("%Y-%m-%d %H:%M:%S").to_string())
-        .unwrap_or_else(|| "N/A".to_string())
-}
+use super::helpers::{normalize_protocol, parse_date_to_ms, format_ms};
 
 /// Generate an export file path.
 fn export_path(kind: &str, ext: &str) -> Result<std::path::PathBuf> {
@@ -44,6 +25,7 @@ fn export_path(kind: &str, ext: &str) -> Result<std::path::PathBuf> {
 
 /// `atlas export trades [--csv|--json] [--coin COIN] [--from DATE] [--to DATE]`
 pub fn run_export_trades(
+    protocol: Option<&str>,
     use_json: bool,
     coin: Option<&str>,
     from: Option<&str>,
@@ -56,6 +38,7 @@ pub fn run_export_trades(
     let to_ms = to.map(parse_date_to_ms).transpose()?;
 
     let filter = FillFilter {
+        protocol: protocol.map(normalize_protocol),
         coin: coin.map(|c| c.to_uppercase()),
         from_ms,
         to_ms,
@@ -128,8 +111,9 @@ pub fn run_export_trades(
     Ok(())
 }
 
-/// `atlas export pnl [--csv|--json] [--from DATE] [--to DATE]`
+/// `atlas export pnl [--protocol hl] [--csv|--json] [--from DATE] [--to DATE]`
 pub fn run_export_pnl(
+    protocol: Option<&str>,
     use_json: bool,
     from: Option<&str>,
     to: Option<&str>,
@@ -141,6 +125,7 @@ pub fn run_export_pnl(
     let to_ms = to.map(parse_date_to_ms).transpose()?;
 
     let filter = FillFilter {
+        protocol: protocol.map(normalize_protocol),
         coin: None,
         from_ms,
         to_ms,

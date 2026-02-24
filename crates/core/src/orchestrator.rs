@@ -32,6 +32,12 @@ pub struct Orchestrator {
     pub default_swap: Option<String>,
 }
 
+impl Default for Orchestrator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Orchestrator {
     pub fn new() -> Self {
         Self {
@@ -110,19 +116,19 @@ impl Orchestrator {
     /// List all registered protocols.
     pub fn protocols(&self) -> Vec<ProtocolInfo> {
         let mut protos = Vec::new();
-        for (name, _) in &self.perp_modules {
+        for name in self.perp_modules.keys() {
             protos.push(ProtocolInfo {
                 name: name.clone(),
                 module_type: "perp".into(),
             });
         }
-        for (name, _) in &self.lending_modules {
+        for name in self.lending_modules.keys() {
             protos.push(ProtocolInfo {
                 name: name.clone(),
                 module_type: "lending".into(),
             });
         }
-        for (name, _) in &self.swap_modules {
+        for name in self.swap_modules.keys() {
             protos.push(ProtocolInfo {
                 name: name.clone(),
                 module_type: "swap".into(),

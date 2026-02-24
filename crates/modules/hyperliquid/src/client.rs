@@ -148,14 +148,14 @@ impl HyperliquidModule {
     /// Get signer, or error if read-only.
     fn require_signer(&self) -> Result<&PrivateKeySigner, AtlasError> {
         self.signer.as_ref().ok_or_else(|| AtlasError::Auth(
-            "No signer available — this command requires authentication. Run: atlas auth new <name>".into()
+            "No signer available — this command requires authentication. Run: atlas profile generate <name>".into()
         ))
     }
 
     /// Get address, or error if read-only.
     fn require_address(&self) -> Result<Address, AtlasError> {
         self.address.ok_or_else(|| AtlasError::Auth(
-            "No wallet address — authenticate first with: atlas auth new <name>".into()
+            "No wallet address — authenticate first with: atlas profile generate <name>".into()
         ))
     }
 
@@ -492,7 +492,7 @@ impl PerpModule for HyperliquidModule {
 
         let close_size = match size {
             Some(s) => self.round_size(symbol, s.min(pos_size.abs()))?,
-            None => pos_size.abs(),
+            None => self.round_size(symbol, pos_size.abs())?,
         };
 
         let mids = self.client.all_mids(None).await
@@ -698,13 +698,14 @@ impl PerpModule for HyperliquidModule {
         let dest: Address = destination.parse()
             .map_err(|_| AtlasError::Other(format!("Invalid address: {destination}")))?;
 
+        let nonce = self.nonce.next();
         let send = hypersdk::hypercore::types::UsdSend {
             destination: dest,
             amount,
-            time: self.nonce.next(),
+            time: nonce,
         };
 
-        self.client.send_usdc(self.require_signer()?, send, self.nonce.next()).await
+        self.client.send_usdc(self.require_signer()?, send, nonce).await
             .map_err(|e| AtlasError::Protocol {
                 protocol: "hyperliquid".into(),
                 message: format!("Transfer failed: {e}"),
@@ -813,7 +814,7 @@ impl PerpModule for HyperliquidModule {
             .ok_or_else(|| AtlasError::Other("Invalid slippage".into()))?;
         let mult = if is_buy { Decimal::ONE + slip_dec } else { Decimal::ONE - slip_dec };
         let px = market.round_price(*mid * mult)
-            .ok_or_else(|| AtlasError::Other(format!("Cannot round spot price")))?;
+            .ok_or_else(|| AtlasError::Other("Cannot round spot price".to_string()))?;
 
         let sz_dp = market.tokens[0].sz_decimals.max(0) as u32;
         let sz = size.round_dp(sz_dp);

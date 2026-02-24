@@ -52,7 +52,7 @@ pub fn init_workspace() -> Result<()> {
     if !config_path.exists() {
         if old_config_path.exists() {
             fs::rename(&old_config_path, &config_path)
-                .with_context(|| format!("Failed to rename config.json to atlas.json"))?;
+                .with_context(|| "Failed to rename config.json to atlas.json".to_string())?;
             info!("migrated config.json to atlas.json");
         } else {
             let default_config = AppConfig::default();

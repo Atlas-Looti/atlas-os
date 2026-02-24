@@ -41,24 +41,6 @@ pub struct JsonRpcError {
 // ── Token API Response Types ────────────────────────────────────────
 
 #[derive(Deserialize, Debug, Clone, Serialize)]
-#[allow(dead_code)]
-pub struct TokenBalance {
-    #[serde(rename = "contractAddress")]
-    pub contract_address: String,
-    #[serde(rename = "tokenBalance")]
-    pub token_balance: Option<String>,
-    pub error: Option<String>,
-}
-
-#[derive(Deserialize, Debug, Clone, Serialize)]
-#[allow(dead_code)]
-pub struct TokenBalancesResult {
-    pub address: String,
-    #[serde(rename = "tokenBalances")]
-    pub token_balances: Vec<TokenBalance>,
-}
-
-#[derive(Deserialize, Debug, Clone, Serialize)]
 pub struct TokenMetadata {
     pub name: Option<String>,
     pub symbol: Option<String>,
@@ -197,21 +179,6 @@ impl AlchemyClient {
     }
 
     // ── Token API ───────────────────────────────────────────────
-
-    /// Get ERC-20 token balances for an address on a specific network.
-    #[allow(dead_code)]
-    pub async fn get_token_balances(
-        &self,
-        network: &str,
-        address: &str,
-        token_addresses: Option<Vec<String>>,
-    ) -> anyhow::Result<TokenBalancesResult> {
-        let params: serde_json::Value = match token_addresses {
-            Some(tokens) => serde_json::json!([address, tokens]),
-            None => serde_json::json!([address, "erc20"]),
-        };
-        self.rpc_call(network, "alchemy_getTokenBalances", params).await
-    }
 
     /// Get token metadata (name, symbol, decimals, logo).
     pub async fn get_token_metadata(

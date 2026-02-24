@@ -166,7 +166,7 @@ impl AuthManager {
         let config = crate::workspace::load_config()?;
 
         if store.wallets.is_empty() {
-            println!("No profiles found. Create one with: atlas auth new <name>");
+            println!("No profiles found. Create one with: atlas profile generate <name>");
             return Ok(());
         }
 

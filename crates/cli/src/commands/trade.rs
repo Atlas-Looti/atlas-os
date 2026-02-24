@@ -2,7 +2,7 @@ use anyhow::Result;
 use atlas_core::Orchestrator;
 use atlas_core::workspace::load_config;
 use atlas_types::config::{SizeInput, SizeMode};
-use atlas_types::output::{OrdersOutput, OrderRow, FillsOutput, FillRow, CancelSingleOutput, CancelOutput};
+use atlas_types::output::{OrdersOutput, OrderRow, FillsOutput, FillRow, CancelSingleOutput, CancelOutput, PositionRow};
 use atlas_utils::output::{render, OutputFormat};
 use atlas_utils::fmt::order_result_to_output;
 use atlas_utils::parse;
@@ -91,7 +91,9 @@ pub async fn market_buy(
     let size_dec = Decimal::from_f64(size)
         .ok_or_else(|| anyhow::anyhow!("Invalid size: {size}"))?;
 
-    let result = perp.market_order(&coin_upper, atlas_common::types::Side::Buy, size_dec, slippage).await
+    let effective_slippage = slippage.or(Some(config.trading.default_slippage));
+
+    let result = perp.market_order(&coin_upper, atlas_common::types::Side::Buy, size_dec, effective_slippage).await
         .map_err(|e| anyhow::anyhow!("{e}"))?;
 
     render(fmt, &order_result_to_output(&result))?;
@@ -125,7 +127,9 @@ pub async fn market_sell(
     let size_dec = Decimal::from_f64(size)
         .ok_or_else(|| anyhow::anyhow!("Invalid size: {size}"))?;
 
-    let result = perp.market_order(&coin_upper, atlas_common::types::Side::Sell, size_dec, slippage).await
+    let effective_slippage = slippage.or(Some(config.trading.default_slippage));
+
+    let result = perp.market_order(&coin_upper, atlas_common::types::Side::Sell, size_dec, effective_slippage).await
         .map_err(|e| anyhow::anyhow!("{e}"))?;
 
     render(fmt, &order_result_to_output(&result))?;
@@ -139,13 +143,15 @@ pub async fn close_position(
     slippage: Option<f64>,
     fmt: OutputFormat,
 ) -> Result<()> {
+    let config = load_config()?;
     let orch = Orchestrator::from_active_profile().await?;
     let perp = orch.perp(None)?;
     let coin_upper = coin.to_uppercase();
 
-    let size_dec = size.and_then(|s| Decimal::from_f64(s));
+    let size_dec = size.and_then(Decimal::from_f64);
+    let effective_slippage = slippage.or(Some(config.trading.default_slippage));
 
-    let result = perp.close_position(&coin_upper, size_dec, slippage).await
+    let result = perp.close_position(&coin_upper, size_dec, effective_slippage).await
         .map_err(|e| anyhow::anyhow!("{e}"))?;
 
     render(fmt, &order_result_to_output(&result))?;
@@ -207,5 +213,42 @@ pub async fn list_fills(fmt: OutputFormat) -> Result<()> {
     }).collect();
 
     render(fmt, &FillsOutput { fills: rows })?;
+    Ok(())
+}
+
+/// `atlas hyperliquid perp positions` — dedicated positions view.
+pub async fn list_positions(fmt: OutputFormat) -> Result<()> {
+    let orch = Orchestrator::from_active_profile().await?;
+    let perp = orch.perp(None)?;
+    let positions = perp.positions().await.map_err(|e| anyhow::anyhow!("{e}"))?;
+
+    if positions.is_empty() {
+        if fmt == OutputFormat::Table {
+            println!("No open positions.");
+        } else {
+            println!("[]");
+        }
+        return Ok(());
+    }
+
+    let rows: Vec<PositionRow> = positions.iter().map(|p| PositionRow {
+        coin: p.symbol.clone(),
+        size: p.size.to_string(),
+        entry_price: p.entry_price.map(|e| e.to_string()).unwrap_or_else(|| "—".into()),
+        unrealized_pnl: p.unrealized_pnl.map(|u| u.to_string()).unwrap_or_else(|| "—".into()),
+    }).collect();
+
+    match fmt {
+        OutputFormat::Json => println!("{}", serde_json::to_string(&rows)?),
+        OutputFormat::JsonPretty => println!("{}", serde_json::to_string_pretty(&rows)?),
+        OutputFormat::Table => {
+            println!("{:<12} {:>14} {:>14} {:>14}", "COIN", "SIZE", "ENTRY", "uPnL");
+            println!("{}", "─".repeat(56));
+            for r in &rows {
+                println!("{:<12} {:>14} {:>14} {:>14}", r.coin, r.size, r.entry_price, r.unrealized_pnl);
+            }
+        }
+    }
+
     Ok(())
 }

@@ -1,6 +1,8 @@
 pub mod auth;
+pub mod coingecko;
 pub mod doctor;
 pub mod export;
+pub mod helpers;
 pub mod history;
 pub mod market;
 pub mod modules;

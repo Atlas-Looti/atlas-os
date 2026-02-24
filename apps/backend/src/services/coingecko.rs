@@ -1,4 +1,5 @@
 //! CoinGecko service — business logic with Redis caching.
+#![allow(clippy::too_many_arguments)]
 
 use std::time::Duration;
 

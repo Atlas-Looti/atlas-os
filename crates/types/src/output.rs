@@ -364,6 +364,7 @@ pub struct TradeHistoryOutput {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct TradeHistoryRow {
+    pub protocol: String,
     pub coin: String,
     pub side: String,
     pub size: String,
@@ -778,6 +779,7 @@ mod tests {
     fn test_trade_history_output_serializes() {
         let output = TradeHistoryOutput {
             trades: vec![TradeHistoryRow {
+                protocol: "hyperliquid".into(),
                 coin: "ETH".into(),
                 side: "Buy".into(),
                 size: "0.5".into(),

@@ -99,7 +99,7 @@ pub async fn run(fmt: OutputFormat) -> Result<()> {
             println!("│  Error          : {:<26}│", format!("{e:#}").chars().take(26).collect::<String>());
             println!("└─────────────────────────────────────────────┘");
             println!();
-            println!("Hint: Run `atlas auth list` to check profiles, or `atlas doctor` to diagnose.");
+            println!("Hint: Run `atlas profile list` to check profiles, or `atlas doctor` to diagnose.");
         }
     }
 

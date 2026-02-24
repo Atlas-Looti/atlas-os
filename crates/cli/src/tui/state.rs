@@ -68,7 +68,6 @@ pub struct PositionRow {
 }
 
 #[derive(Clone)]
-#[allow(dead_code)]
 pub struct OrderRow {
     pub coin: String,
     pub side: String,
@@ -76,7 +75,6 @@ pub struct OrderRow {
     pub price: String,
     pub oid: u64,
     pub order_type: String,
-    pub timestamp: u64,
 }
 
 impl App {
@@ -214,7 +212,6 @@ impl App {
                     price: format!("{}", o.limit_px),
                     oid: o.oid,
                     order_type: "Limit".to_string(),
-                    timestamp: o.timestamp,
                 }
             })
             .collect();
@@ -392,7 +389,7 @@ impl App {
 
     /// Check if it's time for auto-refresh (full REST refresh for account data).
     pub fn should_refresh(&self) -> bool {
-        self.tick_count % self.refresh_interval == 0 && self.tick_count > 0
+        self.tick_count.is_multiple_of(self.refresh_interval) && self.tick_count > 0
     }
 
 }

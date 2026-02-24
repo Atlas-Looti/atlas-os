@@ -13,33 +13,11 @@ use atlas_types::output::{
 use atlas_utils::output::{render, OutputFormat};
 use rust_decimal::Decimal;
 
-/// Parse an ISO date string to millisecond timestamp.
-/// Accepts "2025-01-01" or "2025-01-01T00:00:00".
-fn parse_date_to_ms(s: &str) -> Result<i64> {
-    use chrono::NaiveDateTime;
+use super::helpers::{normalize_protocol, parse_date_to_ms, format_ms};
 
-    // Try datetime first, then date-only
-    if let Ok(dt) = chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S") {
-        return Ok(dt.and_utc().timestamp_millis());
-    }
-    if let Ok(d) = chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d") {
-        let dt = NaiveDateTime::new(d, chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap());
-        return Ok(dt.and_utc().timestamp_millis());
-    }
-    anyhow::bail!("Invalid date format: {s}. Use YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS")
-}
-
-/// Format a millisecond timestamp to human-readable UTC string.
-fn format_ms(ms: i64) -> String {
-    let secs = ms / 1000;
-    let dt = chrono::DateTime::from_timestamp(secs, 0)
-        .map(|d| d.format("%Y-%m-%d %H:%M:%S").to_string())
-        .unwrap_or_else(|| "N/A".to_string());
-    dt
-}
-
-/// `atlas history trades [--coin COIN] [--from DATE] [--to DATE] [--limit N]`
+/// `atlas history trades [--protocol hl] [--coin COIN] [--from DATE] [--to DATE] [--limit N]`
 pub fn run_trades(
+    protocol: Option<&str>,
     coin: Option<&str>,
     from: Option<&str>,
     to: Option<&str>,
@@ -52,6 +30,7 @@ pub fn run_trades(
     let to_ms = to.map(parse_date_to_ms).transpose()?;
 
     let filter = FillFilter {
+        protocol: protocol.map(normalize_protocol),
         coin: coin.map(|c| c.to_uppercase()),
         from_ms,
         to_ms,
@@ -62,6 +41,7 @@ pub fn run_trades(
 
     let trades: Vec<TradeHistoryRow> = fills.iter().map(|f| {
         TradeHistoryRow {
+            protocol: f.protocol.clone(),
             coin: f.coin.clone(),
             side: f.side.clone(),
             size: f.sz.clone(),
@@ -78,8 +58,9 @@ pub fn run_trades(
     Ok(())
 }
 
-/// `atlas history orders [--coin COIN] [--status STATUS] [--limit N]`
+/// `atlas history orders [--protocol hl] [--coin COIN] [--status STATUS] [--limit N]`
 pub fn run_orders(
+    protocol: Option<&str>,
     coin: Option<&str>,
     status: Option<&str>,
     limit: usize,
@@ -88,6 +69,7 @@ pub fn run_orders(
     let db = AtlasDb::open()?;
 
     let filter = OrderFilter {
+        protocol: protocol.map(normalize_protocol),
         coin: coin.map(|c| c.to_uppercase()),
         status: status.map(|s| s.to_lowercase()),
         limit: Some(limit),
@@ -114,8 +96,9 @@ pub fn run_orders(
     Ok(())
 }
 
-/// `atlas history pnl [--coin COIN] [--from DATE] [--to DATE]`
+/// `atlas history pnl [--protocol hl] [--coin COIN] [--from DATE] [--to DATE]`
 pub fn run_pnl(
+    protocol: Option<&str>,
     coin: Option<&str>,
     from: Option<&str>,
     to: Option<&str>,
@@ -127,6 +110,7 @@ pub fn run_pnl(
     let to_ms = to.map(parse_date_to_ms).transpose()?;
 
     let filter = FillFilter {
+        protocol: protocol.map(normalize_protocol),
         coin: coin.map(|c| c.to_uppercase()),
         from_ms,
         to_ms,

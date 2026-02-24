@@ -39,8 +39,8 @@ pub fn parse_size(s: &str) -> Result<SizeInput> {
     }
 
     // ── USDC prefix: "$200" ──
-    if trimmed.starts_with('$') {
-        let num = trimmed[1..].trim();
+    if let Some(stripped) = trimmed.strip_prefix('$') {
+        let num = stripped.trim();
         let val: f64 = num.parse()
             .map_err(|_| anyhow::anyhow!("Invalid USDC amount: '{s}'"))?;
         return Ok(SizeInput::Usdc(val));

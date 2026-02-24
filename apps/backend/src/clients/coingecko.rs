@@ -2,6 +2,7 @@
 //!
 //! Supports both Pro API (x-cg-pro-api-key) and Demo API (x-cg-demo-api-key).
 //! Rate-limit aware with exponential backoff on 429 responses.
+#![allow(clippy::too_many_arguments)]
 
 use std::time::Duration;
 
@@ -31,28 +32,6 @@ pub struct CoinGeckoClient {
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct PingResponse {
     pub gecko_says: String,
-}
-
-/// Coin price data from /simple/price
-#[derive(Deserialize, Serialize, Debug, Clone)]
-#[allow(dead_code)]
-pub struct SimplePriceData {
-    #[serde(default)]
-    pub usd: Option<f64>,
-    #[serde(default)]
-    pub usd_market_cap: Option<f64>,
-    #[serde(default)]
-    pub usd_24h_vol: Option<f64>,
-    #[serde(default)]
-    pub usd_24h_change: Option<f64>,
-    #[serde(default)]
-    pub last_updated_at: Option<u64>,
-    #[serde(default)]
-    pub eur: Option<f64>,
-    #[serde(default)]
-    pub btc: Option<f64>,
-    #[serde(default)]
-    pub eth: Option<f64>,
 }
 
 /// Coin market data from /coins/markets
@@ -324,28 +303,6 @@ pub struct TopMovers {
 }
 
 // ── On-chain / GeckoTerminal Types ──────────────────────────────────
-
-/// On-chain token price from /onchain/simple/networks/{network}/token_price/{addresses}
-#[derive(Deserialize, Serialize, Debug, Clone)]
-#[allow(dead_code)]
-pub struct OnchainTokenPriceResponse {
-    pub data: OnchainTokenPriceData,
-}
-
-#[derive(Deserialize, Serialize, Debug, Clone)]
-#[allow(dead_code)]
-pub struct OnchainTokenPriceData {
-    pub id: String,
-    #[serde(rename = "type")]
-    pub kind: String,
-    pub attributes: OnchainTokenPriceAttributes,
-}
-
-#[derive(Deserialize, Serialize, Debug, Clone)]
-#[allow(dead_code)]
-pub struct OnchainTokenPriceAttributes {
-    pub token_prices: serde_json::Value,
-}
 
 /// Trending pools
 #[derive(Deserialize, Serialize, Debug, Clone)]

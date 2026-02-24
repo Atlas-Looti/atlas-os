@@ -123,11 +123,20 @@ enum Commands {
 #[derive(Subcommand)]
 enum ProfileAction {
     /// Generate a new random EVM wallet.
-    Generate { name: String },
+    Generate {
+        /// Profile name (e.g. main, trading, test).
+        name: String,
+    },
     /// Import an existing private key.
-    Import { name: String },
+    Import {
+        /// Profile name.
+        name: String,
+    },
     /// Switch active profile.
-    Use { name: String },
+    Use {
+        /// Profile name to activate.
+        name: String,
+    },
     /// List all profiles.
     List,
 }
@@ -166,6 +175,9 @@ enum SystemConfigAction {
     Profile { name: String },
     /// Toggle verbose mode.
     Verbose { enabled: bool },
+    /// Set Atlas backend API URL.
+    #[command(name = "api-url")]
+    ApiUrl { url: String },
 }
 
 #[derive(Subcommand)]
@@ -207,6 +219,45 @@ enum TradingConfigAction {
 
 #[derive(Subcommand)]
 enum MarketAction {
+    // ── Hyperliquid market data (direct) ───────────────────────
+    /// Hyperliquid perp/spot market data.
+    #[command(alias = "hl")]
+    Hyperliquid {
+        #[command(subcommand)]
+        action: MarketHlAction,
+    },
+
+    // ── DEX / onchain market data (via backend → CoinGecko) ───
+    /// Onchain DEX market data (pools, tokens, networks).
+    Dex {
+        #[command(subcommand)]
+        action: MarketDexAction,
+    },
+
+    // ── Cross-protocol / macro (via backend → CoinGecko) ──────
+    /// Global crypto market stats.
+    Global,
+    /// Trending coins.
+    Trending,
+    /// Detailed coin info (e.g. bitcoin, ethereum).
+    Coin { id: String },
+    /// Top gainers & losers across all crypto.
+    Movers {
+        #[arg(long, default_value_t = 10)]
+        limit: usize,
+    },
+    /// Global DeFi market stats.
+    Defi,
+}
+
+/// `atlas market hyperliquid <action>` — Hyperliquid-specific market data.
+#[derive(Subcommand)]
+enum MarketHlAction {
+    /// List available markets.
+    List {
+        #[arg(long, default_value_t = false)]
+        spot: bool,
+    },
     /// Get current mid price.
     Price {
         tickers: Vec<String>,
@@ -229,13 +280,25 @@ enum MarketAction {
         #[arg(long, default_value_t = 50)]
         limit: usize,
     },
-    /// List available markets.
-    List {
+    /// Detailed market info (price, spread, OI, volume).
+    Info { coin: String },
+    /// Top markets by volume, gainers, or losers.
+    Top {
+        #[arg(long, default_value = "volume")]
+        sort: String,
+        #[arg(long, default_value_t = 20)]
+        limit: usize,
         #[arg(long, default_value_t = false)]
-        spot: bool,
+        reverse: bool,
     },
+    /// Bid-ask spread for one or more coins.
+    Spread { coins: Vec<String> },
+    /// Search markets by symbol or name.
+    Search { query: String },
+    /// Quick market dashboard (gainers, losers, volume leaders).
+    Summary,
 
-    // ── Technical Analysis (under market) ───────────────────────
+    // ── Technical Analysis (TA-Lib) ──────────────────────────
     /// Calculate RSI.
     Rsi {
         ticker: String,
@@ -254,6 +317,133 @@ enum MarketAction {
     Vwap { ticker: String },
     /// Multi-indicator trend signal (bullish/bearish + score).
     Trend { ticker: String },
+    /// Bollinger Bands.
+    Bbands {
+        ticker: String,
+        #[arg(long, default_value = "1h")]
+        timeframe: String,
+        #[arg(long, default_value_t = 20)]
+        period: usize,
+    },
+    /// Stochastic oscillator.
+    Stoch {
+        ticker: String,
+        #[arg(long, default_value = "1h")]
+        timeframe: String,
+    },
+    /// Average Directional Index (trend strength).
+    Adx {
+        ticker: String,
+        #[arg(long, default_value = "1h")]
+        timeframe: String,
+        #[arg(long, default_value_t = 14)]
+        period: usize,
+    },
+    /// Average True Range (volatility).
+    Atr {
+        ticker: String,
+        #[arg(long, default_value = "1h")]
+        timeframe: String,
+        #[arg(long, default_value_t = 14)]
+        period: usize,
+    },
+    /// Exponential Moving Average.
+    Ema {
+        ticker: String,
+        #[arg(long, default_value = "1h")]
+        timeframe: String,
+        #[arg(long, default_value_t = 20)]
+        period: usize,
+    },
+    /// Simple Moving Average.
+    Sma {
+        ticker: String,
+        #[arg(long, default_value = "1h")]
+        timeframe: String,
+        #[arg(long, default_value_t = 20)]
+        period: usize,
+    },
+    /// On Balance Volume.
+    Obv {
+        ticker: String,
+        #[arg(long, default_value = "1h")]
+        timeframe: String,
+    },
+    /// Commodity Channel Index.
+    Cci {
+        ticker: String,
+        #[arg(long, default_value = "1h")]
+        timeframe: String,
+        #[arg(long, default_value_t = 20)]
+        period: usize,
+    },
+    /// Williams %R.
+    Willr {
+        ticker: String,
+        #[arg(long, default_value = "1h")]
+        timeframe: String,
+        #[arg(long, default_value_t = 14)]
+        period: usize,
+    },
+    /// Parabolic SAR.
+    Sar {
+        ticker: String,
+        #[arg(long, default_value = "1h")]
+        timeframe: String,
+    },
+    /// Candlestick pattern recognition.
+    Patterns {
+        ticker: String,
+        #[arg(long, default_value = "1h")]
+        timeframe: String,
+    },
+}
+
+/// `atlas market dex <action>` — Onchain DEX data (via CoinGecko).
+#[derive(Subcommand)]
+enum MarketDexAction {
+    /// Trending liquidity pools.
+    Trending {
+        /// Network filter (ethereum, base, arbitrum, solana...).
+        #[arg(long)]
+        network: Option<String>,
+        #[arg(long, default_value_t = 10)]
+        limit: usize,
+    },
+    /// Newly created pools.
+    New {
+        #[arg(long)]
+        network: Option<String>,
+        #[arg(long, default_value_t = 10)]
+        limit: usize,
+    },
+    /// Top pools on a network.
+    Pools {
+        /// Network (ethereum, base, arbitrum, solana...).
+        network: String,
+        #[arg(long, default_value_t = 10)]
+        limit: usize,
+    },
+    /// Pool details by address.
+    Pool {
+        /// Network (ethereum, base, ...).
+        network: String,
+        /// Pool contract address.
+        address: String,
+    },
+    /// Token info by address.
+    Token {
+        /// Network (ethereum, base, ...).
+        network: String,
+        /// Token contract address.
+        address: String,
+    },
+    /// List supported networks.
+    Networks,
+    /// List DEXes on a network.
+    Dexes { network: String },
+    /// Search onchain tokens/pools.
+    Search { query: String },
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -303,35 +493,53 @@ enum HyperliquidAction {
 enum HlPerpAction {
     /// Market buy.
     Buy {
+        /// Coin symbol (e.g. ETH, BTC, SOL).
         ticker: String,
+        /// Size: 200 (default mode), $200 (USDC margin), 0.5eth (units), 10lots.
         size: String,
+        /// Override leverage for size calculation.
         #[arg(long)] leverage: Option<u32>,
+        /// Slippage tolerance (e.g. 0.05 = 5%).
         #[arg(long)] slippage: Option<f64>,
     },
     /// Market sell / short.
     Sell {
+        /// Coin symbol (e.g. ETH, BTC, SOL).
         ticker: String,
+        /// Size: 200 (default mode), $200 (USDC margin), 0.5eth (units), 10lots.
         size: String,
+        /// Override leverage for size calculation.
         #[arg(long)] leverage: Option<u32>,
+        /// Slippage tolerance (e.g. 0.05 = 5%).
         #[arg(long)] slippage: Option<f64>,
     },
     /// Close position.
     Close {
+        /// Coin symbol.
         ticker: String,
+        /// Partial close size (omit to close full position).
         #[arg(long)] size: Option<f64>,
+        /// Slippage tolerance.
         #[arg(long)] slippage: Option<f64>,
     },
     /// Place limit order.
     Order {
+        /// Coin symbol.
         ticker: String,
+        /// Side: buy/sell (or long/short, b/s).
         side: String,
+        /// Size (same formats as buy/sell).
         size: String,
+        /// Limit price in USD.
         price: f64,
+        /// Close-only order (won't open new positions).
         #[arg(long, default_value_t = false)] reduce_only: bool,
     },
-    /// Cancel order(s).
+    /// Cancel order(s). Without --oid, cancels all orders for the coin.
     Cancel {
+        /// Coin symbol.
         ticker: String,
+        /// Specific order ID to cancel.
         #[arg(long)] oid: Option<u64>,
     },
     /// List open positions.
@@ -340,24 +548,62 @@ enum HlPerpAction {
     Orders,
     /// List recent fills.
     Fills,
-    /// Set leverage.
-    Leverage { ticker: String, value: u32, #[arg(long, default_value_t = false)] cross: bool },
-    /// Update isolated margin.
-    Margin { ticker: String, amount: f64 },
-    /// Transfer USDC.
-    Transfer { amount: String, destination: String },
+    /// Set leverage for a coin.
+    Leverage {
+        /// Coin symbol.
+        ticker: String,
+        /// Leverage multiplier (e.g. 10).
+        value: u32,
+        /// Use cross margin (default: isolated).
+        #[arg(long, default_value_t = false)] cross: bool,
+    },
+    /// Update isolated margin for a position.
+    Margin {
+        /// Coin symbol.
+        ticker: String,
+        /// Amount to add (positive) or remove (negative).
+        amount: f64,
+    },
+    /// Transfer USDC to another address.
+    Transfer {
+        /// Amount of USDC.
+        amount: String,
+        /// Destination EVM address (0x...).
+        destination: String,
+    },
 }
 
 #[derive(Subcommand)]
 enum HlSpotAction {
     /// Buy spot token.
-    Buy { base: String, size: f64, #[arg(long)] slippage: Option<f64> },
+    Buy {
+        /// Token symbol (e.g. PURR, HYPE).
+        base: String,
+        /// Amount to buy.
+        size: f64,
+        /// Slippage tolerance.
+        #[arg(long)] slippage: Option<f64>,
+    },
     /// Sell spot token.
-    Sell { base: String, size: f64, #[arg(long)] slippage: Option<f64> },
-    /// Show balances.
+    Sell {
+        /// Token symbol.
+        base: String,
+        /// Amount to sell.
+        size: f64,
+        /// Slippage tolerance.
+        #[arg(long)] slippage: Option<f64>,
+    },
+    /// Show spot token balances.
     Balance,
     /// Internal transfer (perps↔spot↔EVM).
-    Transfer { direction: String, amount: String, #[arg(long)] token: Option<String> },
+    Transfer {
+        /// Direction: to-spot, to-perps, or to-evm.
+        direction: String,
+        /// Amount to transfer.
+        amount: String,
+        /// Token (default: USDC).
+        #[arg(long)] token: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -461,17 +707,26 @@ enum RiskAction {
 #[derive(Subcommand)]
 enum HistoryAction {
     Trades {
+        /// Filter by protocol (hyperliquid, 0x, morpho). Default: all.
+        #[arg(long, alias = "proto")]
+        protocol: Option<String>,
         #[arg(long)] coin: Option<String>,
         #[arg(long)] from: Option<String>,
         #[arg(long)] to: Option<String>,
         #[arg(long, default_value_t = 50)] limit: usize,
     },
     Orders {
+        /// Filter by protocol (hyperliquid, 0x, morpho). Default: all.
+        #[arg(long, alias = "proto")]
+        protocol: Option<String>,
         #[arg(long)] coin: Option<String>,
         #[arg(long)] status: Option<String>,
         #[arg(long, default_value_t = 50)] limit: usize,
     },
     Pnl {
+        /// Filter by protocol (hyperliquid, 0x, morpho). Default: all.
+        #[arg(long, alias = "proto")]
+        protocol: Option<String>,
         #[arg(long)] coin: Option<String>,
         #[arg(long)] from: Option<String>,
         #[arg(long)] to: Option<String>,
@@ -481,11 +736,13 @@ enum HistoryAction {
 #[derive(Subcommand)]
 enum ExportAction {
     Trades {
+        #[arg(long, alias = "proto")] protocol: Option<String>,
         #[arg(long)] csv: bool, #[arg(long)] json: bool,
         #[arg(long)] coin: Option<String>,
         #[arg(long)] from: Option<String>, #[arg(long)] to: Option<String>,
     },
     Pnl {
+        #[arg(long, alias = "proto")] protocol: Option<String>,
         #[arg(long)] csv: bool, #[arg(long)] json: bool,
         #[arg(long)] from: Option<String>, #[arg(long)] to: Option<String>,
     },
@@ -527,6 +784,13 @@ async fn main() -> Result<()> {
                     println!("✓ verbose = {enabled}");
                     Ok(())
                 }
+                SystemConfigAction::ApiUrl { url } => {
+                    let mut config = atlas_core::workspace::load_config()?;
+                    config.system.api_url = url.clone();
+                    atlas_core::workspace::save_config(&config)?;
+                    println!("✓ api_url = {url}");
+                    Ok(())
+                }
             },
             ConfigureAction::Module { action } => match action {
                 ModuleConfigAction::List => commands::modules::run(fmt),
@@ -551,16 +815,48 @@ async fn main() -> Result<()> {
 
         // ── MARKET DATA & ANALYTICS ─────────────────────────────
         Commands::Market { action } => match action {
-            MarketAction::Price { tickers, all } => commands::market::price(&tickers, all, fmt).await,
-            MarketAction::Funding { ticker } => commands::market::funding(&ticker, fmt).await,
-            MarketAction::Orderbook { ticker, depth } => commands::market::orderbook(&ticker, depth, fmt).await,
-            MarketAction::Candles { ticker, timeframe, limit } => commands::market::candles(&ticker, &timeframe, limit, fmt).await,
-            MarketAction::List { spot } => commands::market::markets(spot, fmt).await,
-            // TA under market
-            MarketAction::Rsi { ticker, timeframe, period } => commands::ta::rsi(&ticker, &timeframe, period, fmt).await,
-            MarketAction::Macd { ticker, timeframe } => commands::ta::macd(&ticker, &timeframe, fmt).await,
-            MarketAction::Vwap { ticker } => commands::ta::vwap(&ticker, fmt).await,
-            MarketAction::Trend { ticker } => commands::ta::trend(&ticker, fmt).await,
+            MarketAction::Hyperliquid { action } => match action {
+                MarketHlAction::List { spot } => commands::market::markets(spot, fmt).await,
+                MarketHlAction::Price { tickers, all } => commands::market::price(&tickers, all, fmt).await,
+                MarketHlAction::Funding { ticker } => commands::market::funding(&ticker, fmt).await,
+                MarketHlAction::Orderbook { ticker, depth } => commands::market::orderbook(&ticker, depth, fmt).await,
+                MarketHlAction::Candles { ticker, timeframe, limit } => commands::market::candles(&ticker, &timeframe, limit, fmt).await,
+                MarketHlAction::Info { coin } => commands::market::info(&coin, fmt).await,
+                MarketHlAction::Top { sort, limit, reverse } => commands::market::top(&sort, limit, reverse, fmt).await,
+                MarketHlAction::Spread { coins } => commands::market::spread(&coins, fmt).await,
+                MarketHlAction::Search { query } => commands::market::search(&query, fmt).await,
+                MarketHlAction::Summary => commands::market::summary(fmt).await,
+                MarketHlAction::Rsi { ticker, timeframe, period } => commands::ta::rsi(&ticker, &timeframe, period, fmt).await,
+                MarketHlAction::Macd { ticker, timeframe } => commands::ta::macd(&ticker, &timeframe, fmt).await,
+                MarketHlAction::Vwap { ticker } => commands::ta::vwap(&ticker, fmt).await,
+                MarketHlAction::Trend { ticker } => commands::ta::trend(&ticker, fmt).await,
+                MarketHlAction::Bbands { ticker, timeframe, period } => commands::ta::bbands(&ticker, &timeframe, period, fmt).await,
+                MarketHlAction::Stoch { ticker, timeframe } => commands::ta::stoch(&ticker, &timeframe, fmt).await,
+                MarketHlAction::Adx { ticker, timeframe, period } => commands::ta::adx(&ticker, &timeframe, period, fmt).await,
+                MarketHlAction::Atr { ticker, timeframe, period } => commands::ta::atr(&ticker, &timeframe, period, fmt).await,
+                MarketHlAction::Ema { ticker, timeframe, period } => commands::ta::ema(&ticker, &timeframe, period, fmt).await,
+                MarketHlAction::Sma { ticker, timeframe, period } => commands::ta::sma(&ticker, &timeframe, period, fmt).await,
+                MarketHlAction::Obv { ticker, timeframe } => commands::ta::obv(&ticker, &timeframe, fmt).await,
+                MarketHlAction::Cci { ticker, timeframe, period } => commands::ta::cci(&ticker, &timeframe, period, fmt).await,
+                MarketHlAction::Willr { ticker, timeframe, period } => commands::ta::willr(&ticker, &timeframe, period, fmt).await,
+                MarketHlAction::Sar { ticker, timeframe } => commands::ta::sar(&ticker, &timeframe, fmt).await,
+                MarketHlAction::Patterns { ticker, timeframe } => commands::ta::patterns(&ticker, &timeframe, fmt).await,
+            },
+            MarketAction::Dex { action } => match action {
+                MarketDexAction::Trending { network, limit } => commands::coingecko::dex_trending(network.as_deref(), limit, fmt).await,
+                MarketDexAction::New { network, limit } => commands::coingecko::dex_new(network.as_deref(), limit, fmt).await,
+                MarketDexAction::Pools { network, limit } => commands::coingecko::dex_top_pools(&network, limit, fmt).await,
+                MarketDexAction::Pool { network, address } => commands::coingecko::dex_pool_detail(&network, &address, fmt).await,
+                MarketDexAction::Token { network, address } => commands::coingecko::dex_token_info(&network, &address, fmt).await,
+                MarketDexAction::Networks => commands::coingecko::dex_networks(fmt).await,
+                MarketDexAction::Dexes { network } => commands::coingecko::dex_dexes(&network, fmt).await,
+                MarketDexAction::Search { query } => commands::coingecko::dex_search(&query, fmt).await,
+            },
+            MarketAction::Global => commands::coingecko::global(fmt).await,
+            MarketAction::Trending => commands::coingecko::trending(fmt).await,
+            MarketAction::Coin { id } => commands::coingecko::coin(&id, fmt).await,
+            MarketAction::Movers { limit } => commands::coingecko::movers(limit, fmt).await,
+            MarketAction::Defi => commands::coingecko::defi(fmt).await,
         },
 
         Commands::Stream { action } => match action {
@@ -584,7 +880,7 @@ async fn main() -> Result<()> {
                     HlPerpAction::Close { ticker, size, slippage } => commands::trade::close_position(&ticker, size, slippage, fmt).await,
                     HlPerpAction::Order { ticker, side, size, price, reduce_only } => commands::trade::limit_order(&ticker, &side, &size, price, reduce_only, "Gtc", fmt).await,
                     HlPerpAction::Cancel { ticker, oid } => commands::trade::cancel(&ticker, oid, fmt).await,
-                    HlPerpAction::Positions => commands::status::run(fmt).await,
+                    HlPerpAction::Positions => commands::trade::list_positions(fmt).await,
                     HlPerpAction::Orders => commands::trade::list_orders(fmt).await,
                     HlPerpAction::Fills => commands::trade::list_fills(fmt).await,
                     HlPerpAction::Leverage { ticker, value, cross } => commands::account::set_leverage(&ticker, value, cross, fmt).await,
@@ -627,16 +923,35 @@ async fn main() -> Result<()> {
             }
         },
 
+        // ── 0x ─────────────────────────────────────────────────
+        Commands::ZeroX { action } => {
+            let config = atlas_core::workspace::load_config()?;
+            if !config.modules.zero_x.enabled {
+                anyhow::bail!("0x module is disabled. Run: atlas configure module enable zero_x");
+            }
+            if config.modules.zero_x.config.api_key.is_empty() {
+                anyhow::bail!("0x API key not set. Run: atlas configure module set zero_x api_key <key>");
+            }
+            match action {
+                ZeroXAction::Quote { sell_token, buy_token, amount, chain, slippage } => {
+                    commands::zero_x::quote(&sell_token, &buy_token, &amount, &chain, slippage, fmt).await
+                }
+                ZeroXAction::Chains => commands::zero_x::chains(fmt).await,
+                ZeroXAction::Sources { chain } => commands::zero_x::sources(&chain, fmt).await,
+                ZeroXAction::Trades { start, end } => commands::zero_x::trades(start, end, fmt).await,
+            }
+        },
+
         // ── UTILITIES ───────────────────────────────────────────
         Commands::History { action } => match action {
-            HistoryAction::Trades { coin, from, to, limit } => commands::history::run_trades(coin.as_deref(), from.as_deref(), to.as_deref(), limit, fmt),
-            HistoryAction::Orders { coin, status, limit } => commands::history::run_orders(coin.as_deref(), status.as_deref(), limit, fmt),
-            HistoryAction::Pnl { coin, from, to } => commands::history::run_pnl(coin.as_deref(), from.as_deref(), to.as_deref(), fmt),
+            HistoryAction::Trades { protocol, coin, from, to, limit } => commands::history::run_trades(protocol.as_deref(), coin.as_deref(), from.as_deref(), to.as_deref(), limit, fmt),
+            HistoryAction::Orders { protocol, coin, status, limit } => commands::history::run_orders(protocol.as_deref(), coin.as_deref(), status.as_deref(), limit, fmt),
+            HistoryAction::Pnl { protocol, coin, from, to } => commands::history::run_pnl(protocol.as_deref(), coin.as_deref(), from.as_deref(), to.as_deref(), fmt),
         },
 
         Commands::Export { action } => match action {
-            ExportAction::Trades { csv: _, json, coin, from, to } => commands::export::run_export_trades(json, coin.as_deref(), from.as_deref(), to.as_deref(), fmt),
-            ExportAction::Pnl { csv: _, json, from, to } => commands::export::run_export_pnl(json, from.as_deref(), to.as_deref(), fmt),
+            ExportAction::Trades { protocol, csv: _, json, coin, from, to } => commands::export::run_export_trades(protocol.as_deref(), json, coin.as_deref(), from.as_deref(), to.as_deref(), fmt),
+            ExportAction::Pnl { protocol, csv: _, json, from, to } => commands::export::run_export_pnl(protocol.as_deref(), json, from.as_deref(), to.as_deref(), fmt),
         },
     }
 }
