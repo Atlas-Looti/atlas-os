@@ -21,11 +21,14 @@ use uuid::Uuid;
 use atlas_types::config::{AppConfig, SizeInput};
 use atlas_types::engine::{BuilderFee, BUILDER_ADDRESS, BUILDER_FEE_BPS};
 use atlas_types::output::{
-    CancelOutput, CancelSingleOutput, CandleRow, CandlesOutput, FillRow,
-    FillsOutput, FundingOutput, FundingRow, LeverageOutput, MarginOutput,
-    MarketRow, MarketsOutput, OrderResultOutput, OrderRow, OrdersOutput,
-    PositionRow, PriceOutput, PriceRow, StatusOutput, TransferOutput,
-    SpotBalanceOutput, SpotBalanceRow, SpotOrderOutput, SpotTransferOutput,
+    AgentApproveOutput, CancelOutput, CancelSingleOutput, CandleRow,
+    CandlesOutput, FillRow, FillsOutput, FundingOutput, FundingRow,
+    LeverageOutput, MarginOutput, MarketRow, MarketsOutput,
+    OrderResultOutput, OrderRow, OrdersOutput, PositionRow, PriceOutput,
+    PriceRow, SpotBalanceOutput, SpotBalanceRow, SpotOrderOutput,
+    SpotTransferOutput, StatusOutput, SubAccountRow, SubAccountsOutput,
+    TransferOutput, VaultDepositRow, VaultDepositsOutput,
+    VaultDetailsOutput, VaultFollowerRow, VaultUserStateRow,
 };
 
 use crate::auth::AuthManager;
@@ -1429,6 +1432,154 @@ impl Engine {
             direction: "spot → EVM".to_string(),
             token: token_name.to_uppercase(),
             amount: amount.to_string(),
+        })
+    }
+    // ═══════════════════════════════════════════════════════════════════
+    //  VAULT & SUBACCOUNTS
+    // ═══════════════════════════════════════════════════════════════════
+
+    /// Get detailed information about a vault.
+    pub async fn get_vault_details(&self, vault: &str) -> Result<VaultDetailsOutput> {
+        let vault_addr: Address = vault.parse()
+            .context(format!("Invalid vault address: {vault}"))?;
+
+        info!(%vault_addr, "fetching vault details");
+
+        let details = self.client.vault_details(vault_addr, Some(self.address)).await
+            .context("Failed to fetch vault details")?;
+
+        // Sort followers by equity descending, take top 20
+        let mut followers = details.followers.clone();
+        followers.sort_by(|a, b| b.vault_equity.cmp(&a.vault_equity));
+
+        let follower_rows: Vec<VaultFollowerRow> = followers.iter().take(20).map(|f| {
+            VaultFollowerRow {
+                user: f.user.to_string(),
+                equity: f.vault_equity.to_string(),
+                pnl: f.pnl.to_string(),
+                days_following: f.days_following,
+            }
+        }).collect();
+
+        let user_state = details.follower_state.map(|s| {
+            VaultUserStateRow {
+                equity: s.vault_equity.to_string(),
+                pnl: s.pnl.to_string(),
+                all_time_pnl: s.all_time_pnl.to_string(),
+                days_following: s.days_following,
+                lockup_until: s.lockup_until.map(|ts| format_timestamp_ms(ts)),
+            }
+        });
+
+        Ok(VaultDetailsOutput {
+            name: details.name,
+            address: format!("{:?}", details.vault_address),
+            leader: format!("{:?}", details.leader),
+            description: details.description,
+            apr: (details.apr * Decimal::ONE_HUNDRED).to_string(),
+            leader_fraction: (details.leader_fraction * Decimal::ONE_HUNDRED).to_string(),
+            leader_commission: (details.leader_commission * Decimal::ONE_HUNDRED).to_string(),
+            max_distributable: details.max_distributable.to_string(),
+            max_withdrawable: details.max_withdrawable.to_string(),
+            follower_count: details.followers.len(),
+            is_closed: details.is_closed,
+            allow_deposits: details.allow_deposits,
+            followers: follower_rows,
+            user_state,
+        })
+    }
+
+    /// Get the user's vault deposits (equity in each vault).
+    pub async fn get_vault_deposits(&self) -> Result<VaultDepositsOutput> {
+        info!(address = %self.address, "fetching vault deposits");
+
+        let equities = self.client.user_vault_equities(self.address).await
+            .context("Failed to fetch user vault equities")?;
+
+        let mut total = Decimal::ZERO;
+        let deposits: Vec<VaultDepositRow> = equities.iter().map(|e| {
+            total += e.equity;
+            VaultDepositRow {
+                vault_address: format!("{:?}", e.vault_address),
+                equity: e.equity.to_string(),
+                locked_until: e.locked_until_timestamp.map(|ts| format_timestamp_ms(ts)),
+            }
+        }).collect();
+
+        Ok(VaultDepositsOutput {
+            deposits,
+            total_equity: total.to_string(),
+        })
+    }
+
+    /// List subaccounts for the active wallet.
+    pub async fn get_subaccounts(&self) -> Result<SubAccountsOutput> {
+        info!(address = %self.address, "fetching subaccounts");
+
+        let subs = self.client.subaccounts(self.address).await
+            .context("Failed to fetch subaccounts")?;
+
+        let subaccounts: Vec<SubAccountRow> = subs.iter().map(|sub| {
+            let positions: Vec<PositionRow> = sub.clearinghouse_state.asset_positions.iter().map(|pos| {
+                let p = &pos.position;
+                PositionRow {
+                    coin: p.coin.clone(),
+                    size: p.szi.to_string(),
+                    entry_price: p.entry_px.map(|e| e.to_string()).unwrap_or_else(|| "—".to_string()),
+                    unrealized_pnl: p.unrealized_pnl.to_string(),
+                }
+            }).collect();
+
+            let spot_balances: Vec<SpotBalanceRow> = sub.spot_state.balances.iter()
+                .filter(|b| !b.total.is_zero())
+                .map(|b| {
+                    SpotBalanceRow {
+                        coin: b.coin.clone(),
+                        total: b.total.to_string(),
+                        held: b.hold.to_string(),
+                        available: b.available().to_string(),
+                    }
+                }).collect();
+
+            SubAccountRow {
+                name: sub.name.clone(),
+                address: format!("{:?}", sub.sub_account_user),
+                account_value: sub.clearinghouse_state.margin_summary.account_value.to_string(),
+                total_position: sub.clearinghouse_state.margin_summary.total_ntl_pos.to_string(),
+                margin_used: sub.clearinghouse_state.margin_summary.total_margin_used.to_string(),
+                withdrawable: sub.clearinghouse_state.withdrawable.to_string(),
+                positions,
+                spot_balances,
+            }
+        }).collect();
+
+        Ok(SubAccountsOutput { subaccounts })
+    }
+
+    /// Approve an agent wallet for the active account.
+    pub async fn approve_agent(&self, agent: &str, name: Option<&str>) -> Result<AgentApproveOutput> {
+        let agent_addr: Address = agent.parse()
+            .context(format!("Invalid agent address: {agent}"))?;
+
+        let agent_name = name.unwrap_or("").to_string();
+
+        info!(%agent_addr, agent_name = %agent_name, "approving agent");
+
+        let nonce = self.nonce.next();
+
+        self.client
+            .approve_agent(&self.signer, agent_addr, agent_name.clone(), nonce)
+            .await
+            .context("Failed to approve agent")?;
+
+        Ok(AgentApproveOutput {
+            agent_address: format!("{:?}", agent_addr),
+            agent_name: if agent_name.is_empty() {
+                "(unnamed)".to_string()
+            } else {
+                agent_name
+            },
+            status: "approved".to_string(),
         })
     }
 }

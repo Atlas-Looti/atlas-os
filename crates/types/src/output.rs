@@ -261,6 +261,84 @@ pub struct SpotTransferOutput {
     pub amount: String,
 }
 
+// ─── Vault ──────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize)]
+pub struct VaultDetailsOutput {
+    pub name: String,
+    pub address: String,
+    pub leader: String,
+    pub description: String,
+    pub apr: String,
+    pub leader_fraction: String,
+    pub leader_commission: String,
+    pub max_distributable: String,
+    pub max_withdrawable: String,
+    pub follower_count: usize,
+    pub is_closed: bool,
+    pub allow_deposits: bool,
+    pub followers: Vec<VaultFollowerRow>,
+    pub user_state: Option<VaultUserStateRow>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct VaultFollowerRow {
+    pub user: String,
+    pub equity: String,
+    pub pnl: String,
+    pub days_following: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct VaultUserStateRow {
+    pub equity: String,
+    pub pnl: String,
+    pub all_time_pnl: String,
+    pub days_following: u64,
+    pub lockup_until: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct VaultDepositsOutput {
+    pub deposits: Vec<VaultDepositRow>,
+    pub total_equity: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct VaultDepositRow {
+    pub vault_address: String,
+    pub equity: String,
+    pub locked_until: Option<String>,
+}
+
+// ─── Subaccounts ────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SubAccountsOutput {
+    pub subaccounts: Vec<SubAccountRow>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SubAccountRow {
+    pub name: String,
+    pub address: String,
+    pub account_value: String,
+    pub total_position: String,
+    pub margin_used: String,
+    pub withdrawable: String,
+    pub positions: Vec<PositionRow>,
+    pub spot_balances: Vec<SpotBalanceRow>,
+}
+
+// ─── Agent ──────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AgentApproveOutput {
+    pub agent_address: String,
+    pub agent_name: String,
+    pub status: String,
+}
+
 // ─── Auth ───────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize)]
@@ -530,5 +608,98 @@ mod tests {
         };
         let json = serde_json::to_string(&output).unwrap();
         assert!(json.contains("\"rate\":\"0.00012\""));
+    }
+
+    #[test]
+    fn test_vault_details_output_serializes() {
+        let output = VaultDetailsOutput {
+            name: "Test Vault".into(),
+            address: "0xabc".into(),
+            leader: "0xdef".into(),
+            description: "A test vault".into(),
+            apr: "12.50".into(),
+            leader_fraction: "10.00".into(),
+            leader_commission: "5.00".into(),
+            max_distributable: "50000.00".into(),
+            max_withdrawable: "40000.00".into(),
+            follower_count: 42,
+            is_closed: false,
+            allow_deposits: true,
+            followers: vec![VaultFollowerRow {
+                user: "0x1234".into(),
+                equity: "10000.00".into(),
+                pnl: "500.00".into(),
+                days_following: 30,
+            }],
+            user_state: Some(VaultUserStateRow {
+                equity: "5000.00".into(),
+                pnl: "250.00".into(),
+                all_time_pnl: "1000.00".into(),
+                days_following: 60,
+                lockup_until: Some("2026-03-01".into()),
+            }),
+        };
+        let json = serde_json::to_string(&output).unwrap();
+        assert!(json.contains("\"name\":\"Test Vault\""));
+        assert!(json.contains("\"follower_count\":42"));
+        assert!(json.contains("\"allow_deposits\":true"));
+        assert!(json.contains("\"all_time_pnl\":\"1000.00\""));
+    }
+
+    #[test]
+    fn test_vault_deposits_output_serializes() {
+        let output = VaultDepositsOutput {
+            deposits: vec![VaultDepositRow {
+                vault_address: "0xabc".into(),
+                equity: "5000.00".into(),
+                locked_until: Some("2026-03-01".into()),
+            }],
+            total_equity: "5000.00".into(),
+        };
+        let json = serde_json::to_string(&output).unwrap();
+        assert!(json.contains("\"total_equity\":\"5000.00\""));
+        assert!(json.contains("\"vault_address\":\"0xabc\""));
+    }
+
+    #[test]
+    fn test_subaccounts_output_serializes() {
+        let output = SubAccountsOutput {
+            subaccounts: vec![SubAccountRow {
+                name: "bot-1".into(),
+                address: "0x5678".into(),
+                account_value: "10000.00".into(),
+                total_position: "5000.00".into(),
+                margin_used: "1000.00".into(),
+                withdrawable: "9000.00".into(),
+                positions: vec![PositionRow {
+                    coin: "ETH".into(),
+                    size: "1.5".into(),
+                    entry_price: "3500.00".into(),
+                    unrealized_pnl: "100.00".into(),
+                }],
+                spot_balances: vec![SpotBalanceRow {
+                    coin: "USDC".into(),
+                    total: "500.00".into(),
+                    held: "0.00".into(),
+                    available: "500.00".into(),
+                }],
+            }],
+        };
+        let json = serde_json::to_string(&output).unwrap();
+        assert!(json.contains("\"name\":\"bot-1\""));
+        assert!(json.contains("\"account_value\":\"10000.00\""));
+        assert!(json.contains("\"coin\":\"ETH\""));
+    }
+
+    #[test]
+    fn test_agent_approve_output_serializes() {
+        let output = AgentApproveOutput {
+            agent_address: "0xagent".into(),
+            agent_name: "my-bot".into(),
+            status: "approved".into(),
+        };
+        let json = serde_json::to_string(&output).unwrap();
+        assert!(json.contains("\"agent_address\":\"0xagent\""));
+        assert!(json.contains("\"status\":\"approved\""));
     }
 }

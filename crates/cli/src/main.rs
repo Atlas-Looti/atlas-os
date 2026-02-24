@@ -221,6 +221,24 @@ enum Commands {
         #[command(subcommand)]
         action: SpotAction,
     },
+
+    /// Vault inspection: view details and deposits.
+    Vault {
+        #[command(subcommand)]
+        action: VaultAction,
+    },
+
+    /// Subaccount management.
+    Sub {
+        #[command(subcommand)]
+        action: SubAction,
+    },
+
+    /// Agent wallet approval.
+    Agent {
+        #[command(subcommand)]
+        action: AgentAction,
+    },
 }
 
 #[derive(Subcommand)]
@@ -377,6 +395,35 @@ enum SpotAction {
     },
 }
 
+#[derive(Subcommand)]
+enum VaultAction {
+    /// Show vault details: performance, followers, configuration.
+    Details {
+        /// Vault address (0x...).
+        vault: String,
+    },
+    /// Show your vault deposits (equity in each vault).
+    Deposits,
+}
+
+#[derive(Subcommand)]
+enum SubAction {
+    /// List all subaccounts for the active wallet.
+    List,
+}
+
+#[derive(Subcommand)]
+enum AgentAction {
+    /// Approve an agent wallet for your account.
+    Approve {
+        /// Agent address (0x...).
+        address: String,
+        /// Optional agent name.
+        #[arg(long)]
+        name: Option<String>,
+    },
+}
+
 // ─── Entrypoint ─────────────────────────────────────────────────────
 
 #[tokio::main]
@@ -492,6 +539,30 @@ async fn main() -> Result<()> {
             }
             SpotAction::Transfer { direction, amount, token } => {
                 commands::spot::spot_transfer(&direction, &amount, token.as_deref(), fmt).await
+            }
+        },
+
+        // ── Vault ───────────────────────────────────────────────
+        Commands::Vault { action } => match action {
+            VaultAction::Details { vault } => {
+                commands::vault::vault_details(&vault, fmt).await
+            }
+            VaultAction::Deposits => {
+                commands::vault::vault_deposits(fmt).await
+            }
+        },
+
+        // ── Subaccounts ─────────────────────────────────────────
+        Commands::Sub { action } => match action {
+            SubAction::List => {
+                commands::sub::sub_list(fmt).await
+            }
+        },
+
+        // ── Agent ───────────────────────────────────────────────
+        Commands::Agent { action } => match action {
+            AgentAction::Approve { address, name } => {
+                commands::sub::agent_approve(&address, name.as_deref(), fmt).await
             }
         },
     }

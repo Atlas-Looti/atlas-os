@@ -8,3 +8,5 @@ pub mod account;
 pub mod configure;
 pub mod risk;
 pub mod spot;
+pub mod vault;
+pub mod sub;

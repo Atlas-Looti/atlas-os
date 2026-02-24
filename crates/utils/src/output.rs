@@ -330,6 +330,144 @@ impl TableDisplay for SpotTransferOutput {
     }
 }
 
+impl TableDisplay for VaultDetailsOutput {
+    fn print_table(&self) {
+        println!("╔══════════════════════════════════════════════════════════╗");
+        println!("║  VAULT DETAILS                                         ║");
+        println!("╠══════════════════════════════════════════════════════════╣");
+        println!("║  Name         : {:<41}║", self.name);
+        println!("║  Address      : {:<41}║", self.address);
+        println!("║  Leader       : {:<41}║", self.leader);
+        println!("║  APR          : {:<41}║", format!("{}%", self.apr));
+        println!("║  Leader Frac  : {:<41}║", format!("{}%", self.leader_fraction));
+        println!("║  Commission   : {:<41}║", format!("{}%", self.leader_commission));
+        println!("║  Distributable: ${:<40}║", self.max_distributable);
+        println!("║  Withdrawable : ${:<40}║", self.max_withdrawable);
+        println!("║  Followers    : {:<41}║", self.follower_count);
+        println!("║  Closed       : {:<41}║", if self.is_closed { "Yes" } else { "No" });
+        println!("║  Deposits     : {:<41}║", if self.allow_deposits { "Allowed" } else { "Closed" });
+        println!("╠══════════════════════════════════════════════════════════╣");
+
+        if !self.description.is_empty() {
+            println!("║  {:<55}║", self.description.chars().take(55).collect::<String>());
+            println!("╠══════════════════════════════════════════════════════════╣");
+        }
+
+        if let Some(state) = &self.user_state {
+            println!("║  YOUR POSITION                                         ║");
+            println!("║  Equity       : ${:<40}║", state.equity);
+            println!("║  PnL          : ${:<40}║", state.pnl);
+            println!("║  All-time PnL : ${:<40}║", state.all_time_pnl);
+            println!("║  Days         : {:<41}║", state.days_following);
+            if let Some(lockup) = &state.lockup_until {
+                println!("║  Locked Until : {:<41}║", lockup);
+            }
+            println!("╠══════════════════════════════════════════════════════════╣");
+        }
+
+        if !self.followers.is_empty() {
+            println!("║  TOP FOLLOWERS                                         ║");
+            println!("║  {:<20} │ {:>12} │ {:>12} │ {:>4} ║", "User", "Equity", "PnL", "Days");
+            println!("║  ────────────────────┼──────────────┼──────────────┼──────║");
+            for f in self.followers.iter().take(10) {
+                let user_short = if f.user.len() > 20 {
+                    format!("{}…", &f.user[..19])
+                } else {
+                    f.user.clone()
+                };
+                println!(
+                    "║  {:<20} │ {:>12} │ {:>12} │ {:>4} ║",
+                    user_short, f.equity, f.pnl, f.days_following,
+                );
+            }
+        }
+        println!("╚══════════════════════════════════════════════════════════╝");
+    }
+}
+
+impl TableDisplay for VaultDepositsOutput {
+    fn print_table(&self) {
+        if self.deposits.is_empty() {
+            println!("No vault deposits.");
+            return;
+        }
+
+        println!("┌──────────────────────────────────────────────┬──────────────┬──────────────────┐");
+        println!("│ Vault Address                                │ Equity       │ Locked Until      │");
+        println!("├──────────────────────────────────────────────┼──────────────┼──────────────────┤");
+        for d in &self.deposits {
+            let locked = d.locked_until.as_deref().unwrap_or("—");
+            println!(
+                "│ {:<44} │ {:>12} │ {:<16} │",
+                d.vault_address, d.equity, locked,
+            );
+        }
+        println!("├──────────────────────────────────────────────┼──────────────┼──────────────────┤");
+        println!(
+            "│ {:<44} │ {:>12} │ {:<16} │",
+            "TOTAL", self.total_equity, "",
+        );
+        println!("└──────────────────────────────────────────────┴──────────────┴──────────────────┘");
+    }
+}
+
+impl TableDisplay for SubAccountsOutput {
+    fn print_table(&self) {
+        if self.subaccounts.is_empty() {
+            println!("No subaccounts.");
+            return;
+        }
+
+        for sub in &self.subaccounts {
+            println!("╔══════════════════════════════════════════════════════════╗");
+            println!("║  SUBACCOUNT: {:<43}║", sub.name);
+            println!("╠══════════════════════════════════════════════════════════╣");
+            println!("║  Address      : {:<41}║", sub.address);
+            println!("║  Account Val  : ${:<40}║", sub.account_value);
+            println!("║  Total Pos    : ${:<40}║", sub.total_position);
+            println!("║  Margin Used  : ${:<40}║", sub.margin_used);
+            println!("║  Withdrawable : ${:<40}║", sub.withdrawable);
+            println!("╠══════════════════════════════════════════════════════════╣");
+
+            if sub.positions.is_empty() {
+                println!("║  No open positions.                                    ║");
+            } else {
+                println!("║  {:^6} │ {:^10} │ {:^10} │ {:^12} ║", "Coin", "Size", "Entry", "uPnL");
+                println!("║  ──────┼────────────┼────────────┼────────────── ║");
+                for pos in &sub.positions {
+                    println!(
+                        "║  {:^6} │ {:>10} │ {:>10} │ {:>12} ║",
+                        pos.coin, pos.size, pos.entry_price, pos.unrealized_pnl,
+                    );
+                }
+            }
+
+            if !sub.spot_balances.is_empty() {
+                println!("╠══════════════════════════════════════════════════════════╣");
+                println!("║  SPOT BALANCES                                         ║");
+                for b in &sub.spot_balances {
+                    println!("║    {:<6} : {:<46}║", b.coin, b.total);
+                }
+            }
+            println!("╚══════════════════════════════════════════════════════════╝");
+            println!();
+        }
+
+        println!("Total subaccounts: {}", self.subaccounts.len());
+    }
+}
+
+impl TableDisplay for AgentApproveOutput {
+    fn print_table(&self) {
+        let name_display = if self.agent_name.is_empty() {
+            "(unnamed)"
+        } else {
+            &self.agent_name
+        };
+        println!("✓ Agent {} approved (name: {}, status: {})", self.agent_address, name_display, self.status);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
