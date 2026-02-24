@@ -1,0 +1,29 @@
+# Rust build artifacts
+/target/
+**/target/
+/node_modules
+# IDE configuration files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Env files
+.env
+.env.*
+.env.local
+.env.*.local
+*.env
+!.env.example
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+
+# Atlas OS data
+.atlas-os/
+keystore/
+/crates/cli/target/
+/apps/backend/target/
+/apps/frontend/.next/
+/apps/frontend/node_modules/

@@ -9,7 +9,6 @@ members = [
     "crates/modules/hyperliquid",
     "crates/modules/morpho",
     "crates/modules/zero_x",
-    "apps/backend",
 ]
 
 [workspace.package]
@@ -71,6 +70,7 @@ uuid = { version = "1", features = ["v4"] }
 
 # Hyperliquid SDK (infinitefield — professional, rust_decimal-native)
 hypersdk = { path = "../hypersdk" }
+
 
 # Decimal precision (required by hypersdk)
 rust_decimal = { version = "1", features = ["serde-with-str"] }
