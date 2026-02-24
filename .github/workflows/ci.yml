@@ -8,7 +8,7 @@ on:
 
 jobs:
   build-test:
-    name: Build and Test (stable)
+    name: Build, Lint, and Test
     runs-on: ubuntu-latest
 
     env:
@@ -20,6 +20,8 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
 
       - name: Cache cargo registry
         uses: actions/cache@v4
@@ -35,5 +37,5 @@ jobs:
       - name: Show toolchain
         run: rustc -Vv && cargo -V
 
-      - name: Run tests
-        run: cargo test --lib -- --nocapture
+      - name: Run CI (fmt, clippy, test)
+        run: make ci

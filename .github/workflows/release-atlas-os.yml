@@ -1,15 +1,15 @@
-name: Release hypecli Binary
+name: Release Atlas CLI Binary
 
 on:
   push:
     tags:
-      - "hypecli-v*"
+      - "atlas-v*"
     branches:
       - main
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag (e.g., hypecli-v1.0.0)"
+        description: "Release tag (e.g., atlas-v1.0.0)"
         required: true
         type: string
 
@@ -33,13 +33,13 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             TAG="${{ github.event.inputs.tag }}"
-            VERSION=${TAG#hypecli-v}
+            VERSION=${TAG#atlas-v}
           elif [ "${{ github.ref_type }}" = "tag" ]; then
             TAG="${{ github.ref_name }}"
-            VERSION=${TAG#hypecli-v}
+            VERSION=${TAG#atlas-v}
           else
             # Push to main branch
-            TAG="hypecli-main-latest"
+            TAG="atlas-main-latest"
             VERSION="main-${{ github.sha }}"
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
@@ -53,7 +53,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ steps.extract_version.outputs.tag }}
-          name: hypecli ${{ steps.extract_version.outputs.version }}
+          name: atlas ${{ steps.extract_version.outputs.version }}
           draft: false
           prerelease: ${{ steps.extract_version.outputs.is_main_build == 'true' }}
           make_latest: ${{ steps.extract_version.outputs.is_main_build != 'true' }}
@@ -67,19 +67,19 @@ jobs:
         include:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
-            name: hypecli-linux-x86_64
+            name: atlas-linux-x86_64
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-latest
-            name: hypecli-linux-aarch64
+            name: atlas-linux-aarch64
           - target: x86_64-apple-darwin
             os: macos-latest
-            name: hypecli-macos-x86_64
+            name: atlas-macos-x86_64
           - target: aarch64-apple-darwin
             os: macos-latest
-            name: hypecli-macos-aarch64
+            name: atlas-macos-aarch64
           - target: x86_64-pc-windows-msvc
             os: windows-latest
-            name: hypecli-windows-x86_64.exe
+            name: atlas-windows-x86_64.exe
 
     runs-on: ${{ matrix.os }}
 
@@ -105,22 +105,21 @@ jobs:
 
       - name: Build binary
         run: |
-          cd hypecli
-          cargo build --release --target ${{ matrix.target }}
+          cargo build --release -p atlas-cli --target ${{ matrix.target }}
 
       - name: Package binary (Unix)
         if: matrix.os != 'windows-latest'
         run: |
-          cd hypecli/target/${{ matrix.target }}/release
-          tar czf ${{ matrix.name }}.tar.gz hypecli
-          mv ${{ matrix.name }}.tar.gz ../../../..
+          cd target/${{ matrix.target }}/release
+          tar czf ${{ matrix.name }}.tar.gz atlas
+          mv ${{ matrix.name }}.tar.gz ../../..
 
       - name: Package binary (Windows)
         if: matrix.os == 'windows-latest'
         run: |
-          cd hypecli/target/${{ matrix.target }}/release
-          7z a ${{ matrix.name }}.zip hypecli.exe
-          move ${{ matrix.name }}.zip ../../../..
+          cd target/${{ matrix.target }}/release
+          7z a ${{ matrix.name }}.zip atlas.exe
+          move ${{ matrix.name }}.zip ../../..
 
       - name: Upload Release Asset (Unix)
         if: matrix.os != 'windows-latest'

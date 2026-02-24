@@ -46,10 +46,11 @@ pub fn run(fmt: OutputFormat) -> Result<()> {
                     })
                 })
                 .collect();
+            let envelope = serde_json::json!({"ok": true, "data": json_modules});
             let json = if matches!(fmt, OutputFormat::JsonPretty) {
-                serde_json::to_string_pretty(&json_modules)?
+                serde_json::to_string_pretty(&envelope)?
             } else {
-                serde_json::to_string(&json_modules)?
+                serde_json::to_string(&envelope)?
             };
             println!("{json}");
         }
