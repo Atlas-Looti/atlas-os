@@ -383,12 +383,6 @@ enum MorphoAction {
     Markets { #[arg(long, default_value = "ethereum")] chain: String },
     /// Show lending positions.
     Positions,
-    /// Supply collateral.
-    Supply { asset: String, size: String },
-    /// Withdraw collateral.
-    Withdraw { asset: String, size: String },
-    /// Borrow.
-    Borrow { asset: String, size: String },
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -584,9 +578,6 @@ async fn main() -> Result<()> {
             match action {
                 MorphoAction::Markets { chain } => commands::morpho::markets(&chain, fmt).await,
                 MorphoAction::Positions => commands::morpho::positions(fmt).await,
-                MorphoAction::Supply { asset, size } => commands::morpho::supply(&asset, &size, fmt).await,
-                MorphoAction::Withdraw { asset, size } => commands::morpho::withdraw(&asset, &size, fmt).await,
-                MorphoAction::Borrow { asset, size } => commands::morpho::borrow(&asset, &size, fmt).await,
             }
         },
 

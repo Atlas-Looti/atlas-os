@@ -4,7 +4,7 @@ use atlas_core::workspace::load_config;
 use atlas_types::config::{SizeInput, SizeMode};
 use atlas_types::output::{OrdersOutput, OrderRow, FillsOutput, FillRow, CancelSingleOutput, CancelOutput};
 use atlas_utils::output::{render, OutputFormat};
-use atlas_utils::format::order_result_to_output;
+use atlas_utils::fmt::order_result_to_output;
 use atlas_utils::parse;
 use rust_decimal::prelude::*;
 

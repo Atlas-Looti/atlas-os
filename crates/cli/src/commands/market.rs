@@ -2,7 +2,7 @@ use anyhow::Result;
 use atlas_core::Orchestrator;
 use atlas_types::output::*;
 use atlas_utils::output::OutputFormat;
-use atlas_utils::format::format_timestamp_ms;
+use atlas_utils::fmt::format_timestamp_ms;
 
 /// Render a PriceOutput (table or JSON).
 fn render_prices(output: &PriceOutput, fmt: OutputFormat) {
