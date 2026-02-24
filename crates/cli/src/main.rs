@@ -11,7 +11,7 @@ use tracing_subscriber::EnvFilter;
 #[derive(Parser)]
 #[command(
     name = "atlas",
-    about = "Atlas — Professional-grade CLI trading engine for Hyperliquid L1",
+    about = "Atlas OS — Professional-grade CLI trading engine for Hyperliquid L1",
     version,
     propagate_version = true
 )]

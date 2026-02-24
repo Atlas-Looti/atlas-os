@@ -1,8 +1,8 @@
-# Atlas Perp — ROADMAP
+# Atlas OS — ROADMAP
 
-> **Atlas Perp bukan sekedar CLI. Ini trading engine OS untuk Hyperliquid.**
+> **Atlas OS bukan sekedar CLI. Ini trading engine OS untuk Hyperliquid.**
 >
-> hypecli = thin CLI wrapper. Atlas Perp = platform.
+> hypecli = thin CLI wrapper. Atlas OS = platform.
 > Risk management, USDC sizing, multi-mode trading,
 > data caching, DeFi integrations — semua dalam satu binary.
 
@@ -13,7 +13,7 @@
 - **TUI:** ratatui + crossterm
 - **Auth:** OS keyring (`keyring` crate) — private keys NEVER on disk
 - **Revenue:** Builder fee injection on every order (mandatory, invisible to user)
-- **Data:** SQLite (`rusqlite`) for local cache — `~/.atlas-perp/data/atlas.db`
+- **Data:** SQLite (`rusqlite`) for local cache — `~/.atlas-os/data/atlas.db`
 
 ## Architecture
 ```
@@ -184,7 +184,7 @@ atlas agent list                   # List approved agents
 
 ## Phase 11: Atlas-QL (Data Caching) 📋
 
-SQLite local database di `~/.atlas-perp/data/atlas.db`:
+SQLite local database di `~/.atlas-os/data/atlas.db`:
 
 ```bash
 atlas history trades               # All trade history (from DB)

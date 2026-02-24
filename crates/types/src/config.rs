@@ -24,7 +24,7 @@ pub enum SizeInput {
     Lots(f64),
 }
 
-/// Top-level configuration stored in `$HOME/.atlas-perp/config.toml`.
+/// Top-level configuration stored in `$HOME/.atlas-os/config.toml`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub general: GeneralConfig,

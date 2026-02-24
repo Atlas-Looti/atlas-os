@@ -6,12 +6,12 @@ use atlas_types::config::AppConfig;
 use tracing::info;
 
 /// Dotfolder name under `$HOME`.
-const DOTFOLDER: &str = ".atlas-perp";
+const DOTFOLDER: &str = ".atlas-os";
 
 /// Required subdirectories inside the dotfolder.
 const SUBDIRS: &[&str] = &["logs", "data", "keystore"];
 
-/// Resolve the root path: `$HOME/.atlas-perp/`.
+/// Resolve the root path: `$HOME/.atlas-os/`.
 pub fn root_dir() -> Result<PathBuf> {
     let home = dirs::home_dir().context("Could not determine home directory")?;
     Ok(home.join(DOTFOLDER))
@@ -26,7 +26,7 @@ pub fn resolve(relative: &str) -> Result<PathBuf> {
 /// default files as needed. This is idempotent — safe to call on every launch.
 ///
 /// ```text
-/// $HOME/.atlas-perp/
+/// $HOME/.atlas-os/
 /// ├── config.toml
 /// ├── logs/
 /// ├── data/
@@ -128,7 +128,7 @@ mod tests {
     fn test_root_dir_under_home() {
         let root = root_dir().unwrap();
         let home = dirs::home_dir().unwrap();
-        assert_eq!(root, home.join(".atlas-perp"));
+        assert_eq!(root, home.join(".atlas-os"));
     }
 
     #[test]

@@ -9,11 +9,11 @@ use tracing::info;
 use atlas_types::profile::{WalletProfile, WalletStore};
 
 /// Keyring service name — all Atlas private keys are stored under this.
-const KEYRING_SERVICE: &str = "atlas_perp";
+const KEYRING_SERVICE: &str = "atlas_os";
 
 /// Manages wallet profiles and their secrets.
 ///
-/// Public metadata lives in `$HOME/.atlas-perp/keystore/wallets.json`.
+/// Public metadata lives in `$HOME/.atlas-os/keystore/wallets.json`.
 /// Private keys live ONLY in the OS keyring (never on disk).
 pub struct AuthManager;
 
