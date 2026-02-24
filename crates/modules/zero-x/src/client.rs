@@ -42,7 +42,7 @@ pub fn chain_id(chain: &Chain) -> u64 {
         Chain::Ethereum => 1,
         Chain::Arbitrum => 42161,
         Chain::Base => 8453,
-        Chain::HyperliquidL1 => 999, // Not supported by 0x
+        Chain::HyperliquidL1 => 998, // HyperEVM mainnet (not supported by 0x)
         Chain::Solana => 0,          // Not supported by 0x (non-EVM)
     }
 }
@@ -310,6 +310,7 @@ impl ZeroXModule {
     }
 
     /// Build the RPC URL for a given chain via the Atlas backend proxy.
+    /// Uses Alchemy-style key-in-URL: /atlas-os/rpc/v2/{api_key}/{chain}
     fn rpc_url(&self, chain: &Chain) -> String {
         let chain_slug = match chain {
             Chain::Ethereum => "ethereum",
@@ -318,7 +319,8 @@ impl ZeroXModule {
             Chain::HyperliquidL1 => "hyperevm",
             Chain::Solana => "solana", // won't work, non-EVM
         };
-        format!("{}/atlas-os/rpc/{}", self.backend_url, chain_slug)
+        let key = self.api_key.as_deref().unwrap_or("none");
+        format!("{}/atlas-os/rpc/v2/{}/{}", self.backend_url, key, chain_slug)
     }
 
     /// Build an alloy provider pointing at the Atlas backend RPC proxy.
@@ -343,12 +345,13 @@ impl ZeroXModule {
     }
 
     /// Approve a spender (AllowanceHolder) to spend an ERC20 token.
-    /// Sends approve(spender, type(uint256).max) so we only need to do this once.
+    /// Approves the exact sell amount from the quote (not unlimited).
     async fn approve_token(
         &self,
         chain: &Chain,
         token: &str,
         spender: &str,
+        amount: &SwapQuote,
     ) -> AtlasResult<()> {
         let provider = self.build_provider(chain).await?;
 
@@ -362,13 +365,20 @@ impl ZeroXModule {
 
         // ERC20 approve(address spender, uint256 amount)
         // selector: 0x095ea7b3
+        // Approve exact sell amount (not unlimited — safer)
+        let approve_amount = U256::from_str_radix(
+            &amount.sell_amount.to_string(),
+            10,
+        )
+        .unwrap_or(U256::MAX);
+
         let mut calldata = Vec::with_capacity(68);
         calldata.extend_from_slice(&hex::decode("095ea7b3").unwrap());
         // spender address (padded to 32 bytes)
         calldata.extend_from_slice(&[0u8; 12]);
         calldata.extend_from_slice(spender_addr.as_slice());
-        // max uint256 (unlimited approval)
-        calldata.extend_from_slice(&[0xff; 32]);
+        // amount (32 bytes, big-endian)
+        calldata.extend_from_slice(&approve_amount.to_be_bytes::<32>());
 
         let tx_req = TransactionRequest::default()
             .to(token_addr)
@@ -667,7 +677,7 @@ impl SwapModule for ZeroXModule {
                         quote.sell_token, spender
                     );
 
-                    self.approve_token(&quote.chain, &quote.sell_token, spender)
+                    self.approve_token(&quote.chain, &quote.sell_token, spender, quote)
                         .await?;
                 }
             }

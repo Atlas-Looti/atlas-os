@@ -366,4 +366,67 @@ rpc.post("/:chain", async (ctx) => {
     return ctx.json(data);
 });
 
+// ── Alchemy-style key-in-URL route ──────────────────────────────────
+//
+// POST /atlas-os/rpc/v2/:apiKey/:chain
+//
+// For clients that can't inject custom auth headers (e.g. alloy's
+// default HTTP transport). The atl_xxx API key is embedded in the URL
+// path, just like Alchemy's https://eth-mainnet.g.alchemy.com/v2/KEY.
+//
+// This route does NOT go through apiKeyAuth middleware — it validates
+// the key inline from the path param.
+
+import { db } from "../../lib/db.ts";
+import { hashKey } from "../../lib/keygen.ts";
+
+rpc.post("/v2/:apiKey/:chain", async (ctx) => {
+    // ── Validate API key from path ──
+    const apiKey = ctx.req.param("apiKey");
+    if (!apiKey?.startsWith("atl_")) {
+        return ctx.json({ error: "Invalid API key format" }, 401);
+    }
+
+    const keyHash = hashKey(apiKey);
+    const { rows } = await db.query<{ id: string; user_id: string }>(
+        "SELECT id, user_id FROM api_keys WHERE key_hash = $1",
+        [keyHash]
+    );
+
+    if (rows.length === 0) {
+        return ctx.json({ error: "Invalid API key" }, 401);
+    }
+
+    // ── Resolve chain ──
+    const alias = ctx.req.param("chain").toLowerCase();
+    const chain = CHAINS[alias];
+
+    if (!chain) {
+        return ctx.json(
+            {
+                error: `Unknown chain: "${alias}". GET /atlas-os/rpc for full list.`,
+            },
+            400
+        );
+    }
+
+    // ── Proxy to Alchemy ──
+    const url = buildAlchemyUrl(chain);
+    const body = await ctx.req.text();
+
+    const upstream = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+    });
+
+    const data = await upstream.json();
+
+    if (!upstream.ok) {
+        ctx.status(upstream.status as Parameters<typeof ctx.status>[0]);
+    }
+
+    return ctx.json(data);
+});
+
 export { rpc };

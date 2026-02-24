@@ -26,7 +26,11 @@ pub async fn quote(
     fmt: OutputFormat,
 ) -> Result<()> {
     let chain_enum = parse_chain(chain)?;
-    let orch = crate::factory::readonly().await?;
+    // Try to load signer for taker address (better price simulation)
+    let orch = match crate::factory::from_active_profile().await {
+        Ok(o) => o,
+        Err(_) => crate::factory::readonly().await?,
+    };
     let swap = orch.swap(None).map_err(|e| anyhow::anyhow!("{e}"))?;
 
     // Use the 0x module directly for chain-aware price
@@ -35,8 +39,9 @@ pub async fn quote(
         .downcast_ref::<atlas_zero_x::ZeroXModule>()
         .ok_or_else(|| anyhow::anyhow!("0x module not available"))?;
 
+    let taker = zerox.taker_address();
     let resp = zerox
-        .price(&chain_enum, sell_token, buy_token, amount, None, slippage_bps)
+        .price(&chain_enum, sell_token, buy_token, amount, taker.as_deref(), slippage_bps)
         .await
         .map_err(|e| anyhow::anyhow!("{e}"))?;
 
@@ -55,20 +60,23 @@ pub async fn quote(
     match fmt {
         OutputFormat::Json | OutputFormat::JsonPretty => {
             let json = serde_json::json!({
-                "chain": chain,
-                "sell_token": sell_token,
-                "buy_token": buy_token,
-                "sell_amount": resp.sell_amount,
-                "buy_amount": resp.buy_amount,
-                "min_buy_amount": resp.min_buy_amount,
-                "gas_price": resp.gas_price,
-                "allowance_target": resp.allowance_target,
-                "allowance_required": allowance_required,
-                "allowance_spender": allowance_spender,
-                "route": resp.route,
-                "fees": resp.fees,
-                "issues": resp.issues,
-                "liquidity_available": resp.liquidity_available,
+                "ok": true,
+                "data": {
+                    "chain": chain,
+                    "sell_token": sell_token,
+                    "buy_token": buy_token,
+                    "sell_amount": resp.sell_amount,
+                    "buy_amount": resp.buy_amount,
+                    "min_buy_amount": resp.min_buy_amount,
+                    "gas_price": resp.gas_price,
+                    "allowance_target": resp.allowance_target,
+                    "allowance_required": allowance_required,
+                    "allowance_spender": allowance_spender,
+                    "route": resp.route,
+                    "fees": resp.fees,
+                    "issues": resp.issues,
+                    "liquidity_available": resp.liquidity_available,
+                }
             });
             let s = if matches!(fmt, OutputFormat::JsonPretty) {
                 serde_json::to_string_pretty(&json)?
