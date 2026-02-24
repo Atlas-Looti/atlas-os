@@ -1,6 +1,5 @@
 pub mod auth;
 pub mod doctor;
-pub mod evm;
 pub mod export;
 pub mod history;
 pub mod market;

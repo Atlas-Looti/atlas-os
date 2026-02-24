@@ -44,9 +44,7 @@ pub struct AppConfig {
     pub system: SystemConfig,
     /// Trading defaults (applies to all perp modules).
     pub trading: TradingConfig,
-    /// Risk management settings.
-    pub risk: RiskConfig,
-    /// Per-module configuration.
+    /// Per-module configuration (each module has its own risk settings).
     #[serde(default)]
     pub modules: ModulesConfig,
 }
@@ -85,6 +83,9 @@ pub struct HyperliquidConfig {
     /// Custom RPC URL (overrides network default).
     #[serde(default = "default_hl_rpc")]
     pub rpc_url: String,
+    /// Risk management settings for this module.
+    #[serde(default)]
+    pub risk: RiskConfig,
 }
 
 /// Morpho-specific configuration.
@@ -93,6 +94,9 @@ pub struct MorphoConfig {
     /// Chain: "ethereum" or "base".
     #[serde(default = "default_morpho_chain")]
     pub chain: String,
+    /// Risk management settings for this module.
+    #[serde(default)]
+    pub risk: RiskConfig,
 }
 
 fn default_hl_config() -> ModuleEntry<HyperliquidConfig> {
@@ -101,6 +105,7 @@ fn default_hl_config() -> ModuleEntry<HyperliquidConfig> {
         config: HyperliquidConfig {
             network: "mainnet".into(),
             rpc_url: "https://api.hyperliquid.xyz".into(),
+            risk: RiskConfig::default(),
         },
     }
 }
@@ -110,6 +115,7 @@ fn default_morpho_config() -> ModuleEntry<MorphoConfig> {
         enabled: true,
         config: MorphoConfig {
             chain: "ethereum".into(),
+            risk: RiskConfig::default(),
         },
     }
 }
@@ -263,7 +269,6 @@ impl Default for AppConfig {
                     assets: default_assets,
                 },
             },
-            risk: RiskConfig::default(),
             modules: ModulesConfig::default(),
         }
     }

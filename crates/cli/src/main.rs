@@ -80,14 +80,6 @@ enum Commands {
         action: StreamAction,
     },
 
-    // ── FINANCIAL PRIMITIVES (L1) ───────────────────────────────
-
-    /// EVM chain operations: balance, send.
-    Evm {
-        #[command(subcommand)]
-        action: EvmAction,
-    },
-
     // ── PROTOCOL MODULES (namespaced per protocol) ──────────────
 
     /// Hyperliquid DEX: perp trading, spot trading, vaults.
@@ -103,12 +95,6 @@ enum Commands {
     },
 
     // ── UTILITIES ───────────────────────────────────────────────
-
-    /// Risk calculator.
-    Risk {
-        #[command(subcommand)]
-        action: RiskAction,
-    },
 
     /// Query cached history and PnL.
     History {
@@ -264,31 +250,7 @@ enum MarketAction {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  EVM — L1 Primitives
-// ═══════════════════════════════════════════════════════════════════════
-
-#[derive(Subcommand)]
-enum EvmAction {
-    /// Get token balance.
-    Balance {
-        #[arg(long, default_value = "ethereum")]
-        chain: String,
-        #[arg(long)]
-        token: Option<String>,
-    },
-    /// Send tokens.
-    Send {
-        to: String,
-        amount: String,
-        #[arg(long, default_value = "ethereum")]
-        chain: String,
-        #[arg(long)]
-        token: Option<String>,
-    },
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-//  HYPERLIQUID — Protocol namespace (perp + spot + vault + sub)
+//  HYPERLIQUID — Protocol namespace (perp + spot + vault + sub + risk)
 // ═══════════════════════════════════════════════════════════════════════
 
 #[derive(Subcommand)]
@@ -322,6 +284,11 @@ enum HyperliquidAction {
     Sync {
         #[arg(long)]
         full: bool,
+    },
+    /// Risk calculator (uses this module's risk config).
+    Risk {
+        #[command(subcommand)]
+        action: RiskAction,
     },
 }
 
@@ -564,12 +531,6 @@ async fn main() -> Result<()> {
             StreamAction::User => commands::stream::stream_user(fmt).await,
         },
 
-        // ── EVM L1 ──────────────────────────────────────────────
-        Commands::Evm { action } => match action {
-            EvmAction::Balance { chain, token } => commands::evm::balance(&chain, token.as_deref(), fmt).await,
-            EvmAction::Send { to, amount, chain, token } => commands::evm::send(&to, &amount, &chain, token.as_deref(), fmt).await,
-        },
-
         // ── HYPERLIQUID ─────────────────────────────────────────
         Commands::Hyperliquid { action } => {
             let config = atlas_core::workspace::load_config()?;
@@ -607,6 +568,10 @@ async fn main() -> Result<()> {
                     HlAgentAction::Approve { address, name } => commands::sub::agent_approve(&address, name.as_deref(), fmt).await,
                 },
                 HyperliquidAction::Sync { full } => commands::history::run_sync(full, fmt).await,
+                HyperliquidAction::Risk { action } => match action {
+                    RiskAction::Calc { coin, side, entry, stop, leverage } => commands::risk::calculate(&coin, &side, entry, stop, leverage, fmt).await,
+                    RiskAction::Offline { coin, side, entry, account, stop, leverage } => commands::risk::calculate_offline(&coin, &side, entry, account, stop, leverage, fmt),
+                },
             }
         },
 
@@ -626,11 +591,6 @@ async fn main() -> Result<()> {
         },
 
         // ── UTILITIES ───────────────────────────────────────────
-        Commands::Risk { action } => match action {
-            RiskAction::Calc { coin, side, entry, stop, leverage } => commands::risk::calculate(&coin, &side, entry, stop, leverage, fmt).await,
-            RiskAction::Offline { coin, side, entry, account, stop, leverage } => commands::risk::calculate_offline(&coin, &side, entry, account, stop, leverage, fmt),
-        },
-
         Commands::History { action } => match action {
             HistoryAction::Trades { coin, from, to, limit } => commands::history::run_trades(coin.as_deref(), from.as_deref(), to.as_deref(), limit, fmt),
             HistoryAction::Orders { coin, status, limit } => commands::history::run_orders(coin.as_deref(), status.as_deref(), limit, fmt),

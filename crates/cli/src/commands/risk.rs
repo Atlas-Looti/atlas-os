@@ -39,14 +39,14 @@ pub async fn calculate(
         leverage,
     };
 
-    let output = risk::calculate_position(&config, &input);
+    let output = risk::calculate_position(&config, &config.modules.hyperliquid.config.risk, &input);
 
     let current_positions = positions.len();
     let total_exposure: f64 = positions.iter()
         .map(|p| (p.size * p.entry_price.unwrap_or(Decimal::ZERO)).to_f64().unwrap_or(0.0).abs())
         .sum();
 
-    let warnings = risk::validate_risk(&config, &input, &output, current_positions, total_exposure);
+    let warnings = risk::validate_risk(&config.modules.hyperliquid.config.risk, &input, &output, current_positions, total_exposure);
 
     let risk_output = RiskCalcOutput {
         coin: coin_upper,
@@ -94,8 +94,8 @@ pub fn calculate_offline(
         leverage,
     };
 
-    let output = risk::calculate_position(&config, &input);
-    let warnings = risk::validate_risk(&config, &input, &output, 0, 0.0);
+    let output = risk::calculate_position(&config, &config.modules.hyperliquid.config.risk, &input);
+    let warnings = risk::validate_risk(&config.modules.hyperliquid.config.risk, &input, &output, 0, 0.0);
 
     let risk_output = RiskCalcOutput {
         coin: coin_upper,

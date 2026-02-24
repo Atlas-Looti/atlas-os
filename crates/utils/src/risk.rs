@@ -1,4 +1,5 @@
 use atlas_types::config::{AppConfig, TradingMode};
+use atlas_types::risk::RiskConfig;
 
 /// Input for calculating a risk-managed position.
 #[derive(Debug, Clone)]
@@ -63,8 +64,7 @@ pub struct RiskWarnings {
 ///
 /// This works identically for both Futures and CFD modes — the only
 /// difference is how `size` is displayed (units vs lots).
-pub fn calculate_position(config: &AppConfig, input: &RiskInput) -> RiskOutput {
-    let risk_config = &config.risk;
+pub fn calculate_position(config: &AppConfig, risk_config: &RiskConfig, input: &RiskInput) -> RiskOutput {
     let leverage = input.leverage.unwrap_or(config.trading.default_leverage);
 
     // Dollar risk
@@ -152,13 +152,12 @@ pub fn calculate_position(config: &AppConfig, input: &RiskInput) -> RiskOutput {
 /// Validate a trade against risk rules. Returns warnings and whether
 /// the trade should be blocked.
 pub fn validate_risk(
-    config: &AppConfig,
+    risk_config: &RiskConfig,
     input: &RiskInput,
     output: &RiskOutput,
     current_positions: usize,
     total_exposure: f64,
 ) -> RiskWarnings {
-    let risk_config = &config.risk;
     let mut warnings = Vec::new();
     let mut blocked = false;
 
@@ -289,7 +288,7 @@ mod tests {
     fn test_basic_position_sizing() {
         let config = AppConfig::default();
         let input = default_input();
-        let output = calculate_position(&config, &input);
+        let output = calculate_position(&config, &RiskConfig::default(), &input);
 
         // 2% of $10,000 = $200 risk
         // Default stop = 2% below entry = $3430
@@ -306,7 +305,7 @@ mod tests {
         let mut input = default_input();
         input.stop_loss = Some(3400.0); // $100 distance
 
-        let output = calculate_position(&config, &input);
+        let output = calculate_position(&config, &RiskConfig::default(), &input);
 
         // Distance = $100
         // Size = $200 / $100 = 2.0 ETH
@@ -320,7 +319,7 @@ mod tests {
         let mut input = default_input();
         input.is_buy = false;
 
-        let output = calculate_position(&config, &input);
+        let output = calculate_position(&config, &RiskConfig::default(), &input);
 
         // Stop-loss should be above entry for short
         assert!(output.stop_loss > input.entry_price);
@@ -334,7 +333,7 @@ mod tests {
         let mut input = default_input();
         input.leverage = Some(10);
 
-        let output = calculate_position(&config, &input);
+        let output = calculate_position(&config, &RiskConfig::default(), &input);
 
         // With 10x leverage, margin = notional / 10
         let expected_margin = output.notional / 10.0;
@@ -348,7 +347,7 @@ mod tests {
         config.trading.mode = TradingMode::Cfd;
 
         let input = default_input();
-        let output = calculate_position(&config, &input);
+        let output = calculate_position(&config, &RiskConfig::default(), &input);
 
         // ETH lot size = 0.01
         // lots = size / 0.01
@@ -360,7 +359,7 @@ mod tests {
     fn test_futures_mode_lots_equals_size() {
         let config = AppConfig::default();
         let input = default_input();
-        let output = calculate_position(&config, &input);
+        let output = calculate_position(&config, &RiskConfig::default(), &input);
 
         // In futures mode, lots == size
         assert_eq!(output.lots, output.size);
@@ -372,7 +371,7 @@ mod tests {
         let mut input = default_input();
         input.stop_loss = Some(3400.0); // $100 below entry
 
-        let output = calculate_position(&config, &input);
+        let output = calculate_position(&config, &RiskConfig::default(), &input);
 
         // TP should be $200 above entry (2:1 R:R)
         assert!((output.take_profit - 3700.0).abs() < 0.01);
@@ -382,9 +381,9 @@ mod tests {
     fn test_validate_max_positions() {
         let config = AppConfig::default();
         let input = default_input();
-        let output = calculate_position(&config, &input);
+        let output = calculate_position(&config, &RiskConfig::default(), &input);
 
-        let warnings = validate_risk(&config, &input, &output, 10, 0.0);
+        let warnings = validate_risk(&RiskConfig::default(), &input, &output, 10, 0.0);
         assert!(warnings.blocked);
     }
 
@@ -392,9 +391,9 @@ mod tests {
     fn test_validate_within_limits() {
         let config = AppConfig::default();
         let input = default_input();
-        let output = calculate_position(&config, &input);
+        let output = calculate_position(&config, &RiskConfig::default(), &input);
 
-        let warnings = validate_risk(&config, &input, &output, 0, 0.0);
+        let warnings = validate_risk(&RiskConfig::default(), &input, &output, 0, 0.0);
         assert!(!warnings.blocked);
     }
 
@@ -403,18 +402,18 @@ mod tests {
         let config = AppConfig::default();
         let mut input = default_input();
         input.account_value = 1000.0;
-        let output = calculate_position(&config, &input);
+        let output = calculate_position(&config, &RiskConfig::default(), &input);
 
         // Already at high exposure
-        let warnings = validate_risk(&config, &input, &output, 0, 2500.0);
+        let warnings = validate_risk(&RiskConfig::default(), &input, &output, 0, 2500.0);
         let has_exposure_warning = warnings.warnings.iter().any(|w| w.contains("Exposure"));
         assert!(has_exposure_warning);
     }
 
     #[test]
     fn test_asset_override() {
-        let mut config = AppConfig::default();
-        config.risk.asset_overrides.insert(
+        let mut risk_cfg = RiskConfig::default();
+        risk_cfg.asset_overrides.insert(
             "BTC".to_string(),
             atlas_types::risk::AssetRiskOverride {
                 max_risk_pct: Some(0.01), // 1% for BTC
@@ -423,17 +422,18 @@ mod tests {
             },
         );
 
-        assert_eq!(config.risk.effective_risk_pct("BTC"), 0.01);
-        assert_eq!(config.risk.effective_risk_pct("ETH"), 0.02); // default
-        assert_eq!(config.risk.effective_stop_pct("BTC"), 0.03);
-        assert_eq!(config.risk.max_size("BTC"), Some(0.1));
-        assert_eq!(config.risk.max_size("ETH"), None);
+        assert_eq!(risk_cfg.effective_risk_pct("BTC"), 0.01);
+        assert_eq!(risk_cfg.effective_risk_pct("ETH"), 0.02); // default
+        assert_eq!(risk_cfg.effective_stop_pct("BTC"), 0.03);
+        assert_eq!(risk_cfg.max_size("BTC"), Some(0.1));
+        assert_eq!(risk_cfg.max_size("ETH"), None);
     }
 
     #[test]
     fn test_max_size_cap() {
-        let mut config = AppConfig::default();
-        config.risk.asset_overrides.insert(
+        let config = AppConfig::default();
+        let mut risk_cfg = RiskConfig::default();
+        risk_cfg.asset_overrides.insert(
             "ETH".to_string(),
             atlas_types::risk::AssetRiskOverride {
                 max_risk_pct: None,
@@ -443,7 +443,7 @@ mod tests {
         );
 
         let input = default_input();
-        let output = calculate_position(&config, &input);
+        let output = calculate_position(&config, &risk_cfg, &input);
 
         // Should be capped at 0.5 ETH
         assert!(output.size <= 0.5);
@@ -455,7 +455,7 @@ mod tests {
         let mut input = default_input();
         input.stop_loss = Some(input.entry_price); // 0 distance
 
-        let output = calculate_position(&config, &input);
+        let output = calculate_position(&config, &RiskConfig::default(), &input);
         assert_eq!(output.size, 0.0);
     }
 }
