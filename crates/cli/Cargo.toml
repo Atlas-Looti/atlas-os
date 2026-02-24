@@ -8,9 +8,11 @@ name = "atlas"
 path = "src/main.rs"
 
 [dependencies]
+atlas-common = { workspace = true }
 atlas-types = { workspace = true }
 atlas-utils = { workspace = true }
 atlas-core = { workspace = true }
+atlas-mod-hyperliquid = { workspace = true }
 tokio = { workspace = true }
 clap = { workspace = true }
 ratatui = { workspace = true }

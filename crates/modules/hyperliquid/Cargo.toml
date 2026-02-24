@@ -1,0 +1,39 @@
+[package]
+name = "atlas-mod-hyperliquid"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+atlas-common = { workspace = true }
+atlas-types = { workspace = true }
+
+# Async
+tokio = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Hyperliquid SDK
+hypersdk = { workspace = true }
+rust_decimal = { workspace = true }
+
+# EVM / Crypto
+alloy = { workspace = true }
+hex = { workspace = true }
+rand = { workspace = true }
+
+# HTTP (for builder fee injection)
+reqwest = { workspace = true }
+
+# Signing
+rmp-serde = { workspace = true }
+
+# Error handling
+anyhow = { workspace = true }
+tracing = { workspace = true }
+
+# UUID for client order IDs
+uuid = { workspace = true }
