@@ -303,9 +303,15 @@ pub async fn list_positions(fmt: OutputFormat) -> Result<()> {
         .iter()
         .map(|p| PositionRow {
             coin: p.symbol.clone(),
+            side: if p.size > rust_decimal::Decimal::ZERO { "long".into() } else { "short".into() },
             size: p.size.to_string(),
             entry_price: p.entry_price.map(|e| e.to_string()),
+            mark_price: p.mark_price.map(|m| m.to_string()),
             unrealized_pnl: p.unrealized_pnl.map(|u| u.to_string()),
+            liquidation_price: p.liquidation_price.map(|l| l.to_string()),
+            leverage: p.leverage,
+            margin_mode: p.margin_mode.clone(),
+            protocol: "hyperliquid".into(),
         })
         .collect();
 

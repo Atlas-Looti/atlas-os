@@ -16,9 +16,11 @@ help:
 	@echo "  make clippy     - Run linter on all targets and features"
 	@echo "  make ci         - Run CI tasks (fmt, clippy, test)"
 	@echo "  make install    - Install the 'atlas' CLI binary to your system (~/.cargo/bin)"
+	@echo "  make update     - Build and reinstall the CLI locally"
 	@echo "  make run        - Run the CLI locally for development"
 	@echo "  make clean      - Clean build artifacts"
 	@echo ""
+
 
 # Build the entire workspace
 build:

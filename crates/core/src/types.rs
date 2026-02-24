@@ -170,6 +170,7 @@ pub struct Position {
     pub leverage: Option<u32>,
     pub margin: Option<Decimal>,
     pub liquidation_price: Option<Decimal>,
+    pub margin_mode: Option<String>,
 }
 
 /// Universal order.
@@ -237,9 +238,13 @@ pub struct Balance {
 pub struct OrderResult {
     pub protocol: Protocol,
     pub order_id: String,
+    pub coin: Option<String>,
+    pub side: Option<Side>,
     pub status: OrderStatus,
     pub filled_size: Option<Decimal>,
     pub avg_price: Option<Decimal>,
+    pub fee: Option<Decimal>,
+    pub timestamp: Option<u64>,
     pub message: Option<String>,
 }
 

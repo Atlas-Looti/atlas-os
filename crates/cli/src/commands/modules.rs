@@ -109,35 +109,91 @@ pub fn disable(name: &str, fmt: OutputFormat) -> Result<()> {
     Ok(())
 }
 
-/// `atlas module config set <module> <key> <value>`
-pub fn config_set(module: &str, key: &str, value: &str, fmt: OutputFormat) -> Result<()> {
+/// `atlas configure module set <module> <key> <value> [<value2>]`
+///
+/// Handles all per-module config keys per PRD:
+///   hl: network, mode, default-size-mode, default-leverage, default-slippage, lot <COIN> <size>
+///   0x: default-chain, default-slippage-bps
+pub fn config_set(module: &str, values: &[String], fmt: OutputFormat) -> Result<()> {
+    if values.is_empty() {
+        anyhow::bail!("Usage: atlas configure module set <module> <key> <value>");
+    }
+    let key = values[0].as_str();
     let mut config = atlas_core::workspace::load_config()?;
     let resolved = resolve_module(module)?;
 
     match resolved {
-        "hyperliquid" => match key {
-            "network" => {
-                if value != "mainnet" && value != "testnet" {
-                    anyhow::bail!("Invalid network: {value}. Must be 'mainnet' or 'testnet'.");
+        "hyperliquid" => {
+            let hl = &mut config.modules.hyperliquid.config;
+            match key {
+                "network" => {
+                    let v = values.get(1).ok_or_else(|| anyhow::anyhow!("Usage: set hl network <mainnet|testnet>"))?;
+                    if v != "mainnet" && v != "testnet" {
+                        anyhow::bail!("Invalid network: {v}. Must be 'mainnet' or 'testnet'.");
+                    }
+                    hl.network = v.to_string();
                 }
-                config.modules.hyperliquid.config.network = value.to_string();
+                "mode" => {
+                    let v = values.get(1).ok_or_else(|| anyhow::anyhow!("Usage: set hl mode <futures|cfd>"))?;
+                    hl.mode = v.parse().map_err(|_| anyhow::anyhow!("Invalid mode: {v}. Must be 'futures' or 'cfd'."))?;
+                }
+                "default-size-mode" | "size-mode" | "size" => {
+                    let v = values.get(1).ok_or_else(|| anyhow::anyhow!("Usage: set hl default-size-mode <usdc|units|lots>"))?;
+                    hl.default_size_mode = v.parse().map_err(|_| anyhow::anyhow!("Invalid size mode: {v}. Must be 'usdc', 'units', or 'lots'."))?;
+                }
+                "default-leverage" | "leverage" => {
+                    let v = values.get(1).ok_or_else(|| anyhow::anyhow!("Usage: set hl leverage <n>"))?;
+                    hl.default_leverage = v.parse().map_err(|_| anyhow::anyhow!("Invalid leverage: {v}"))?;
+                }
+                "default-slippage" | "slippage" => {
+                    let v = values.get(1).ok_or_else(|| anyhow::anyhow!("Usage: set hl slippage <0.05>"))?;
+                    hl.default_slippage = v.parse().map_err(|_| anyhow::anyhow!("Invalid slippage: {v}"))?;
+                }
+                "lot" => {
+                    let coin = values.get(1).ok_or_else(|| anyhow::anyhow!("Usage: set hl lot <COIN> <size>"))?;
+                    let size: f64 = values.get(2)
+                        .ok_or_else(|| anyhow::anyhow!("Usage: set hl lot {coin} <size>"))?
+                        .parse()
+                        .map_err(|_| anyhow::anyhow!("Invalid lot size"))?;
+                    hl.lots.assets.insert(coin.to_uppercase(), size);
+                }
+                _ => anyhow::bail!(
+                    "Unknown key '{key}' for hyperliquid.\n\
+                    Available: network, mode, default-size-mode, leverage, slippage, lot"
+                ),
             }
-            _ => anyhow::bail!("Unknown key '{key}' for hyperliquid. Available: network"),
-        },
-        "zero_x" => anyhow::bail!("No configurable keys for zero_x yet."),
+        }
+        "zero_x" => {
+            let zx = &mut config.modules.zero_x.config;
+            match key {
+                "default-chain" | "chain" => {
+                    let v = values.get(1).ok_or_else(|| anyhow::anyhow!("Usage: set 0x default-chain <ethereum|arbitrum|base>"))?;
+                    zx.default_chain = v.to_string();
+                }
+                "default-slippage-bps" | "slippage-bps" | "slippage" => {
+                    let v = values.get(1).ok_or_else(|| anyhow::anyhow!("Usage: set 0x slippage-bps <100>"))?;
+                    zx.default_slippage_bps = v.parse().map_err(|_| anyhow::anyhow!("Invalid slippage bps: {v}"))?;
+                }
+                _ => anyhow::bail!(
+                    "Unknown key '{key}' for zero_x.\n\
+                    Available: default-chain, default-slippage-bps"
+                ),
+            }
+        }
         _ => unreachable!(),
     }
 
     atlas_core::workspace::save_config(&config)?;
 
+    let display_val = values[1..].join(" ");
     if fmt == OutputFormat::Table {
-        println!("✓ {resolved}.{key} = {value}");
+        println!("✓ {resolved}.{key} = {display_val}");
     } else {
         json_ok(
             fmt,
             "config_set",
             resolved,
-            Some(("key", &format!("{key}={value}"))),
+            Some(("key", &format!("{key}={display_val}"))),
         );
     }
     Ok(())

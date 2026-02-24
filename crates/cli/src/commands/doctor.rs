@@ -54,12 +54,16 @@ pub async fn run(fix: bool, fmt: OutputFormat) -> Result<()> {
     // ── Check 4: Backend/Network latency ────────────────────────────
     let (backend_check, hl_check) = match check_api_latency().await {
         Ok(ms) => {
-            let backend = DoctorCheck::ok("backend", format!("latency_ms:{ms}"));
+            let mut backend = DoctorCheck::ok("backend", format!("{ms}ms"));
+            backend.latency_ms = Some(ms);
 
             // ── Check 5: Hyperliquid module ──────────────────────────
             let hl = match atlas_core::workspace::load_config() {
                 Ok(cfg) if cfg.modules.hyperliquid.enabled => {
-                    DoctorCheck::ok("hyperliquid", &cfg.modules.hyperliquid.config.network)
+                    let net = cfg.modules.hyperliquid.config.network.clone();
+                    let mut check = DoctorCheck::ok("hyperliquid", &net);
+                    check.network = Some(net);
+                    check
                 }
                 _ => DoctorCheck::fail(
                     "hyperliquid",

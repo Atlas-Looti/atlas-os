@@ -163,12 +163,6 @@ enum ConfigureAction {
         #[command(subcommand)]
         action: ModuleConfigAction,
     },
-
-    /// Trading settings: mode, size, leverage, slippage, lots.
-    Trading {
-        #[command(subcommand)]
-        action: TradingConfigAction,
-    },
 }
 
 #[derive(Subcommand)]
@@ -194,28 +188,18 @@ enum ModuleConfigAction {
     /// Disable a module.
     Disable { name: String },
     /// Set a module config key.
+    ///
+    /// Examples:
+    ///   atlas configure module set hl network mainnet
+    ///   atlas configure module set hl leverage 5
+    ///   atlas configure module set hl lot ETH 0.01
+    ///   atlas configure module set 0x default-chain base
     Set {
-        /// Module name (e.g. hyperliquid).
+        /// Module name (hl, 0x, hyperliquid, zero_x).
         module: String,
-        /// Config key (e.g. network, chain).
-        key: String,
-        /// Config value.
-        value: String,
+        /// Config key and value(s).
+        values: Vec<String>,
     },
-}
-
-#[derive(Subcommand)]
-enum TradingConfigAction {
-    /// Set trading mode: futures or cfd.
-    Mode { value: String },
-    /// Set default size interpretation: usdc, units, or lots.
-    Size { value: String },
-    /// Set default leverage.
-    Leverage { value: u32 },
-    /// Set default slippage (e.g. 0.05 = 5%).
-    Slippage { value: f64 },
-    /// Set lot size for an asset (CFD mode).
-    Lot { coin: String, size: f64 },
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1000,23 +984,8 @@ async fn run(command: Commands, fmt: OutputFormat) -> Result<()> {
                 ModuleConfigAction::List => commands::modules::run(fmt),
                 ModuleConfigAction::Enable { name } => commands::modules::enable(&name, fmt),
                 ModuleConfigAction::Disable { name } => commands::modules::disable(&name, fmt),
-                ModuleConfigAction::Set { module, key, value } => {
-                    commands::modules::config_set(&module, &key, &value, fmt)
-                }
-            },
-            ConfigureAction::Trading { action } => match action {
-                TradingConfigAction::Mode { value } => commands::configure::set_mode(&value, fmt),
-                TradingConfigAction::Size { value } => {
-                    commands::configure::set_size_mode(&value, fmt)
-                }
-                TradingConfigAction::Leverage { value } => {
-                    commands::configure::set_leverage(value, fmt)
-                }
-                TradingConfigAction::Slippage { value } => {
-                    commands::configure::set_slippage(value, fmt)
-                }
-                TradingConfigAction::Lot { coin, size } => {
-                    commands::configure::set_lot_size(&coin, size, fmt)
+                ModuleConfigAction::Set { module, values } => {
+                    commands::modules::config_set(&module, &values, fmt)
                 }
             },
         },

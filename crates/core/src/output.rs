@@ -50,10 +50,17 @@ pub struct BalanceRow {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct PositionRow {
+    #[serde(rename = "symbol")]
     pub coin: String,
+    pub side: String,
     pub size: String,
     pub entry_price: Option<String>,
+    pub mark_price: Option<String>,
     pub unrealized_pnl: Option<String>,
+    pub liquidation_price: Option<String>,
+    pub leverage: Option<u32>,
+    pub margin_mode: Option<String>,
+    pub protocol: String,
 }
 
 // ─── Orders ─────────────────────────────────────────────────────────
@@ -65,10 +72,12 @@ pub struct OrdersOutput {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct OrderRow {
+    #[serde(rename = "symbol")]
     pub coin: String,
     pub side: String,
     pub size: String,
     pub price: String,
+    #[serde(rename = "order_id")]
     pub oid: u64,
 }
 
@@ -81,6 +90,7 @@ pub struct FillsOutput {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct FillRow {
+    #[serde(rename = "symbol")]
     pub coin: String,
     pub side: String,
     pub size: String,
@@ -93,26 +103,41 @@ pub struct FillRow {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct OrderResultOutput {
+    #[serde(rename = "order_id")]
     pub oid: u64,
+    #[serde(rename = "symbol")]
+    pub coin: String,
+    pub side: String,
+    #[serde(rename = "size")]
+    pub total_sz: Option<String>,
+    #[serde(rename = "price")]
+    pub avg_px: Option<String>,
+    pub filled: Option<String>,
     /// "filled", "resting", "accepted"
     pub status: String,
-    pub total_sz: Option<String>,
-    pub avg_px: Option<String>,
+    pub fee: Option<String>,
+    pub builder_fee_bps: u32,
+    pub protocol: String,
+    pub timestamp: Option<u64>,
 }
 
 // ─── Cancel ─────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CancelOutput {
+    #[serde(rename = "symbol")]
     pub coin: String,
     pub cancelled: u32,
     pub total: u32,
+    #[serde(rename = "order_ids")]
     pub oids: Vec<u64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CancelSingleOutput {
+    #[serde(rename = "symbol")]
     pub coin: String,
+    #[serde(rename = "order_id")]
     pub oid: u64,
     pub status: String,
 }
@@ -121,6 +146,7 @@ pub struct CancelSingleOutput {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct LeverageOutput {
+    #[serde(rename = "symbol")]
     pub coin: String,
     pub leverage: u32,
     pub mode: String,
@@ -130,6 +156,7 @@ pub struct LeverageOutput {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct MarginOutput {
+    #[serde(rename = "symbol")]
     pub coin: String,
     pub action: String,
     pub amount: String,
@@ -189,6 +216,10 @@ pub struct DoctorCheck {
     pub value: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fix: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub latency_ms: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub network: Option<String>,
 }
 
 impl DoctorCheck {
@@ -198,6 +229,8 @@ impl DoctorCheck {
             status: "ok".into(),
             value: Some(value.into()),
             fix: None,
+            latency_ms: None,
+            network: None,
         }
     }
 
@@ -207,6 +240,8 @@ impl DoctorCheck {
             status: "ok".into(),
             value: None,
             fix: None,
+            latency_ms: None,
+            network: None,
         }
     }
 
@@ -216,6 +251,8 @@ impl DoctorCheck {
             status: "fail".into(),
             value: None,
             fix: Some(fix.into()),
+            latency_ms: None,
+            network: None,
         }
     }
 }
@@ -235,8 +272,11 @@ pub struct PriceOutput {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct PriceRow {
+    #[serde(rename = "symbol")]
     pub coin: String,
+    #[serde(rename = "price")]
     pub mid_price: String,
+    pub protocol: String,
 }
 
 // ─── Market Data: Markets ───────────────────────────────────────────
@@ -1220,15 +1260,21 @@ mod tests {
             withdrawable: Some("9500.00".into()),
             positions: vec![PositionRow {
                 coin: "ETH".into(),
+                side: "long".into(),
                 size: "0.5".into(),
                 entry_price: Some("3500.00".into()),
+                mark_price: Some("3550.00".into()),
                 unrealized_pnl: Some("25.00".into()),
+                liquidation_price: Some("2800.00".into()),
+                leverage: Some(5),
+                margin_mode: Some("isolated".into()),
+                protocol: "hyperliquid".into(),
             }],
             open_orders: 2,
         };
         let json = serde_json::to_string(&output).unwrap();
         assert!(json.contains("\"profile\":\"default\""));
-        assert!(json.contains("\"coin\":\"ETH\""));
+        assert!(json.contains("\"symbol\":\"ETH\""));
         assert!(json.contains("\"modules\""));
         assert!(json.contains("\"open_orders\":2"));
         assert!(json.contains("\"balances\""));
@@ -1246,7 +1292,7 @@ mod tests {
             }],
         };
         let json = serde_json::to_string(&output).unwrap();
-        assert!(json.contains("\"oid\":12345"));
+        assert!(json.contains("\"order_id\":12345"));
     }
 
     #[test]
@@ -1269,9 +1315,16 @@ mod tests {
     fn test_order_result_output_serializes() {
         let output = OrderResultOutput {
             oid: 999,
-            status: "filled".into(),
+            coin: "BTC".into(),
+            side: "sell".into(),
             total_sz: Some("0.5".into()),
             avg_px: Some("3500.00".into()),
+            filled: Some("0.5".into()),
+            status: "filled".into(),
+            fee: Some("0.05".into()),
+            builder_fee_bps: 1,
+            protocol: "hyperliquid".into(),
+            timestamp: None,
         };
         let json = serde_json::to_string(&output).unwrap();
         assert!(json.contains("\"status\":\"filled\""));
@@ -1372,16 +1425,18 @@ mod tests {
                 PriceRow {
                     coin: "BTC".into(),
                     mid_price: "105234.50".into(),
+                    protocol: "hyperliquid".into(),
                 },
                 PriceRow {
                     coin: "ETH".into(),
                     mid_price: "3521.25".into(),
+                    protocol: "hyperliquid".into(),
                 },
             ],
         };
         let json = serde_json::to_string(&output).unwrap();
-        assert!(json.contains("\"coin\":\"BTC\""));
-        assert!(json.contains("\"mid_price\":\"105234.50\""));
+        assert!(json.contains("\"symbol\":\"BTC\""));
+        assert!(json.contains("\"price\":\"105234.50\""));
     }
 
     #[test]
@@ -1540,9 +1595,15 @@ mod tests {
                 withdrawable: "9000.00".into(),
                 positions: vec![PositionRow {
                     coin: "ETH".into(),
+                    side: "long".into(),
                     size: "1.5".into(),
                     entry_price: Some("3500.00".into()),
+                    mark_price: None,
                     unrealized_pnl: Some("100.00".into()),
+                    liquidation_price: None,
+                    leverage: None,
+                    margin_mode: None,
+                    protocol: "hyperliquid".into(),
                 }],
                 spot_balances: vec![SpotBalanceRow {
                     coin: "USDC".into(),
@@ -1555,7 +1616,7 @@ mod tests {
         let json = serde_json::to_string(&output).unwrap();
         assert!(json.contains("\"name\":\"bot-1\""));
         assert!(json.contains("\"account_value\":\"10000.00\""));
-        assert!(json.contains("\"coin\":\"ETH\""));
+        assert!(json.contains("\"symbol\":\"ETH\""));
     }
 
     #[test]

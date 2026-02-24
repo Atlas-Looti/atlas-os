@@ -112,6 +112,7 @@ pub async fn price(coins: &[String], all: bool, fmt: OutputFormat) -> Result<()>
         .map(|t| PriceRow {
             coin: t.symbol.clone(),
             mid_price: t.mid_price.to_string(),
+            protocol: "hyperliquid".into(),
         })
         .collect();
 

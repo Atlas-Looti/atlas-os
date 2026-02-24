@@ -429,10 +429,15 @@ impl HyperliquidModule {
     }
 
     /// Parse SDK order response to universal OrderResult.
-    fn parse_response(&self, statuses: &[OrderResponseStatus]) -> AtlasResult<OrderResult> {
+    fn parse_response(&self, statuses: &[OrderResponseStatus], symbol: &str, side: Side) -> AtlasResult<OrderResult> {
         if statuses.is_empty() {
             return Err(AtlasError::Other("Empty response".into()));
         }
+
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .ok();
 
         match &statuses[0] {
             OrderResponseStatus::Filled {
@@ -442,25 +447,37 @@ impl HyperliquidModule {
             } => Ok(OrderResult {
                 protocol: Protocol::Hyperliquid,
                 order_id: oid.to_string(),
+                coin: Some(symbol.to_string()),
+                side: Some(side),
                 status: OrderStatus::Filled,
                 filled_size: Some(*total_sz),
                 avg_price: Some(*avg_px),
+                fee: None,
+                timestamp: now_ms,
                 message: None,
             }),
             OrderResponseStatus::Resting { oid, .. } => Ok(OrderResult {
                 protocol: Protocol::Hyperliquid,
                 order_id: oid.to_string(),
+                coin: Some(symbol.to_string()),
+                side: Some(side),
                 status: OrderStatus::Open,
                 filled_size: None,
                 avg_price: None,
+                fee: None,
+                timestamp: now_ms,
                 message: None,
             }),
             OrderResponseStatus::Success => Ok(OrderResult {
                 protocol: Protocol::Hyperliquid,
                 order_id: "0".into(),
+                coin: Some(symbol.to_string()),
+                side: Some(side),
                 status: OrderStatus::Filled,
                 filled_size: None,
                 avg_price: None,
+                fee: None,
+                timestamp: now_ms,
                 message: Some("accepted".into()),
             }),
             OrderResponseStatus::Error(msg) => Err(AtlasError::OrderRejected(msg.clone())),
@@ -623,7 +640,7 @@ impl PerpModule for HyperliquidModule {
             grouping: OrderGrouping::Na,
         };
         let statuses = self.place_with_builder(batch).await?;
-        self.parse_response(&statuses)
+        self.parse_response(&statuses, symbol, side)
     }
 
     async fn limit_order(
@@ -668,7 +685,7 @@ impl PerpModule for HyperliquidModule {
             grouping: OrderGrouping::Na,
         };
         let statuses = self.place_with_builder(batch).await?;
-        self.parse_response(&statuses)
+        self.parse_response(&statuses, symbol, side)
     }
 
     async fn close_position(
@@ -742,7 +759,7 @@ impl PerpModule for HyperliquidModule {
             grouping: OrderGrouping::Na,
         };
         let statuses = self.place_with_builder(batch).await?;
-        self.parse_response(&statuses)
+        { let close_side = if is_buy { Side::Buy } else { Side::Sell }; self.parse_response(&statuses, symbol, close_side) }
     }
 
     async fn cancel_order(&self, symbol: &str, order_id: &str) -> AtlasResult<()> {
@@ -844,6 +861,7 @@ impl PerpModule for HyperliquidModule {
                     leverage: Some(p.leverage.value.to_u32().unwrap_or(1)),
                     margin: None,
                     liquidation_price: p.liquidation_px,
+                    margin_mode: Some(format!("{:?}", p.leverage.leverage_type).to_lowercase()),
                 }
             })
             .collect())
@@ -1159,7 +1177,7 @@ impl PerpModule for HyperliquidModule {
                 message: format!("Spot order failed: {}", e.message()),
             })?;
 
-        self.parse_response(&statuses)
+        self.parse_response(&statuses, base, side)
     }
 
     async fn internal_transfer(

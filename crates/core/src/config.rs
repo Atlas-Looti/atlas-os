@@ -288,6 +288,17 @@ impl std::fmt::Display for TradingMode {
     }
 }
 
+impl std::str::FromStr for TradingMode {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "futures" => Ok(TradingMode::Futures),
+            "cfd" => Ok(TradingMode::Cfd),
+            _ => Err(format!("Invalid mode: {s}")),
+        }
+    }
+}
+
 /// How bare numbers (without suffix) are interpreted in trade commands.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
@@ -307,6 +318,18 @@ impl std::fmt::Display for SizeMode {
             SizeMode::Usdc => write!(f, "usdc"),
             SizeMode::Units => write!(f, "units"),
             SizeMode::Lots => write!(f, "lots"),
+        }
+    }
+}
+
+impl std::str::FromStr for SizeMode {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "usdc" => Ok(SizeMode::Usdc),
+            "units" => Ok(SizeMode::Units),
+            "lots" => Ok(SizeMode::Lots),
+            _ => Err(format!("Invalid size mode: {s}")),
         }
     }
 }

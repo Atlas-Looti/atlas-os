@@ -23,16 +23,16 @@ pub fn generate_wallet(name: &str, fmt: OutputFormat) -> Result<()> {
         return Ok(());
     }
 
-    println!("╔══════════════════════════════════════════════════════════════╗");
-    println!("║  NEW WALLET CREATED                                          ║");
-    println!("╠══════════════════════════════════════════════════════════════╣");
-    println!("║  Profile : {:<49}║", profile_name);
-    println!("║  Address : {:<49}║", address);
-    println!("║  Private : {:<49}║", private_key);
-    println!("╠══════════════════════════════════════════════════════════════╣");
-    println!("║  ⚠  BACK UP YOUR PRIVATE KEY NOW. It will NOT be shown       ║");
-    println!("║     again. It is stored ONLY in your OS secure keyring.      ║");
-    println!("╚══════════════════════════════════════════════════════════════╝");
+    println!("╔═════════════════════════════════════════════════════════════════════════════╗");
+    println!("║  NEW WALLET CREATED                                                         ║");
+    println!("╠═════════════════════════════════════════════════════════════════════════════╣");
+    println!("║  Profile : {:<61}║", profile_name);
+    println!("║  Address : {:<61}║", address);
+    println!("║  Private : 0x{:<59}║", private_key);
+    println!("╠═════════════════════════════════════════════════════════════════════════════╣");
+    println!("║  ⚠  WARNING: Although you can export this key later, if your OS           ║");
+    println!("║     keyring is reset or format OS, YOU WILL LOSE ACCESS FOREVER.            ║");
+    println!("╚═════════════════════════════════════════════════════════════════════════════╝");
     Ok(())
 }
 
