@@ -31,7 +31,7 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::info!("Atlas OS Backend starting...");
 
-    let state = Arc::new(AppState::from_config(&config)?);
+    let state = Arc::new(AppState::from_config(&config).await?);
 
     let cors = CorsLayer::new()
         .allow_origin(Any)

@@ -1,26 +1,23 @@
-//! Morpho lending endpoints.
+//! Morpho lending endpoints — uses Orchestrator lending module.
 
 use std::sync::Arc;
 use axum::{Router, Json, routing::get, extract::State};
 use serde_json::{json, Value};
 
-use atlas_common::types::Chain;
-use atlas_mod_morpho::client::MorphoModule;
 use crate::state::AppState;
 
-/// GET /api/morpho/markets — list Morpho Blue lending markets.
+/// GET /api/morpho/markets — list Morpho Blue lending markets via Orchestrator.
 async fn morpho_markets(State(state): State<Arc<AppState>>) -> Json<Value> {
     if !state.morpho_enabled {
         return Json(json!({ "error": "Morpho module disabled" }));
     }
 
-    let chain = match state.config.modules.morpho.config.chain.as_str() {
-        "base" => Chain::Base,
-        _ => Chain::Ethereum,
+    let lending = match state.orchestrator.lending(None) {
+        Ok(m) => m,
+        Err(e) => return Json(json!({ "error": format!("{e}") })),
     };
 
-    let module = MorphoModule::new(chain);
-    match module.markets_data().await {
+    match lending.markets().await {
         Ok(markets) => {
             let rows: Vec<Value> = markets.iter().map(|m| {
                 json!({
