@@ -19,6 +19,7 @@ help:
 	@echo "  make update     - Build and reinstall the CLI locally"
 	@echo "  make run        - Run the CLI locally for development"
 	@echo "  make clean      - Clean build artifacts"
+	@echo "  make uninstall  - Uninstall the 'atlas-cli' binary from your system"
 	@echo ""
 
 
@@ -56,3 +57,7 @@ run:
 # Clean build artifacts
 clean:
 	cargo clean
+
+# Uninstall the CLI binary
+uninstall:
+	cargo uninstall atlas-cli
