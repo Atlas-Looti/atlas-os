@@ -103,3 +103,18 @@ pub async fn positions(fmt: OutputFormat) -> Result<()> {
 
     Ok(())
 }
+
+/// `atlas morpho supply <ASSET> <SIZE>`
+pub async fn supply(asset: &str, size: &str, _fmt: OutputFormat) -> Result<()> {
+    anyhow::bail!("Morpho supply not yet implemented. Asset: {asset}, Size: {size}. Coming in next release.")
+}
+
+/// `atlas morpho withdraw <ASSET> <SIZE>`
+pub async fn withdraw(asset: &str, size: &str, _fmt: OutputFormat) -> Result<()> {
+    anyhow::bail!("Morpho withdraw not yet implemented. Asset: {asset}, Size: {size}. Coming in next release.")
+}
+
+/// `atlas morpho borrow <ASSET> <SIZE>`
+pub async fn borrow(asset: &str, size: &str, _fmt: OutputFormat) -> Result<()> {
+    anyhow::bail!("Morpho borrow not yet implemented. Asset: {asset}, Size: {size}. Coming in next release.")
+}

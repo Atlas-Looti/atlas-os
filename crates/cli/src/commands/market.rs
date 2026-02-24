@@ -162,3 +162,51 @@ pub async fn funding(coin: &str, fmt: OutputFormat) -> Result<()> {
     render_funding(&FundingOutput { coin: coin_upper, rates: rows }, fmt);
     Ok(())
 }
+
+/// `atlas market orderbook <TICKER> [--depth 10]`
+pub async fn orderbook(ticker: &str, depth: usize, fmt: OutputFormat) -> Result<()> {
+    let orch = Orchestrator::from_active_profile().await?;
+    let perp = orch.perp(None)?;
+    let ticker_upper = ticker.to_uppercase();
+
+    match perp.orderbook(&ticker_upper, depth).await {
+        Ok(book) => {
+            match fmt {
+                OutputFormat::Json | OutputFormat::JsonPretty => {
+                    let json = serde_json::json!({
+                        "ticker": ticker_upper,
+                        "bids": book.bids.iter().map(|b| {
+                            serde_json::json!({"price": b.price.to_string(), "size": b.size.to_string()})
+                        }).collect::<Vec<_>>(),
+                        "asks": book.asks.iter().map(|a| {
+                            serde_json::json!({"price": a.price.to_string(), "size": a.size.to_string()})
+                        }).collect::<Vec<_>>(),
+                    });
+                    let s = if matches!(fmt, OutputFormat::JsonPretty) {
+                        serde_json::to_string_pretty(&json)?
+                    } else {
+                        serde_json::to_string(&json)?
+                    };
+                    println!("{s}");
+                }
+                OutputFormat::Table => {
+                    println!("📖 {} Order Book (depth={})\n", ticker_upper, depth);
+                    println!("{:>14} {:>14}  |  {:>14} {:>14}", "BID SIZE", "BID PRICE", "ASK PRICE", "ASK SIZE");
+                    println!("{}", "─".repeat(65));
+                    let show = depth.min(book.bids.len()).min(book.asks.len());
+                    for i in 0..show {
+                        println!("{:>14} {:>14}  |  {:>14} {:>14}",
+                            book.bids[i].size, book.bids[i].price, book.asks[i].price, book.asks[i].size);
+                    }
+                }
+            }
+            Ok(())
+        }
+        Err(e) => {
+            // Orderbook might be WebSocket-only on some protocols
+            println!("⚠️  Orderbook: {e}");
+            println!("   Use `atlas stream book {ticker_upper}` for live order book via WebSocket.");
+            Ok(())
+        }
+    }
+}

@@ -1,5 +1,6 @@
 pub mod auth;
 pub mod doctor;
+pub mod evm;
 pub mod export;
 pub mod history;
 pub mod market;
@@ -7,6 +8,7 @@ pub mod modules;
 pub mod morpho;
 pub mod status;
 pub mod stream;
+pub mod ta;
 pub mod trade;
 pub mod account;
 pub mod configure;
