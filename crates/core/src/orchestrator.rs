@@ -11,6 +11,7 @@ use tracing::info;
 
 use atlas_common::traits::{PerpModule, LendingModule};
 use atlas_common::types::*;
+use atlas_types::config::AppConfig;
 
 /// The core orchestrator — holds all protocol modules.
 pub struct Orchestrator {
@@ -143,6 +144,45 @@ impl Orchestrator {
             }
         }
         Ok(balances)
+    }
+
+    /// Build an Orchestrator from config — registers enabled modules.
+    ///
+    /// For perp modules that require signing (Hyperliquid), the signer
+    /// must be provided. For read-only usage, pass `None`.
+    pub async fn from_config(
+        config: &AppConfig,
+        signer: Option<alloy::signers::local::PrivateKeySigner>,
+    ) -> Result<Self> {
+        let mut orch = Self::new();
+
+        // ── Hyperliquid (perp) ──────────────────────────────────
+        if config.modules.hyperliquid.enabled {
+            if let Some(signer) = signer {
+                let testnet = config.modules.hyperliquid.config.network == "testnet";
+                let hl = atlas_mod_hyperliquid::client::HyperliquidModule::new(
+                    signer, testnet,
+                ).await
+                    .map_err(|e| anyhow::anyhow!("{e}"))?;
+                orch.add_perp(Arc::new(hl));
+                info!("Hyperliquid perp module loaded");
+            } else {
+                info!("Hyperliquid enabled but no signer — skipping (read-only mode)");
+            }
+        }
+
+        // ── Morpho (lending) ────────────────────────────────────
+        if config.modules.morpho.enabled {
+            let chain = match config.modules.morpho.config.chain.as_str() {
+                "base" => Chain::Base,
+                _ => Chain::Ethereum,
+            };
+            let morpho = atlas_mod_morpho::client::MorphoModule::new(chain);
+            orch.add_lending(Arc::new(morpho));
+            info!("Morpho lending module loaded");
+        }
+
+        Ok(orch)
     }
 }
 

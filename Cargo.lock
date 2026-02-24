@@ -1211,6 +1211,7 @@ dependencies = [
  "async-trait",
  "atlas-common",
  "atlas-mod-hyperliquid",
+ "atlas-mod-morpho",
  "atlas-types",
  "chrono",
  "dirs",
