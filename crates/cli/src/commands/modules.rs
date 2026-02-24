@@ -54,15 +54,21 @@ pub fn run(fmt: OutputFormat) -> Result<()> {
             println!("{json}");
         }
         OutputFormat::Table => {
-            println!("╔══════════════════════════════════════════════════════════════╗");
-            println!("║  ATLAS OS — MODULES                                        ║");
-            println!("╠══════════════════════════════════════════════════════════════╣");
+            println!(
+                "╔═══════════════════════════════════════════════════════════════════════════════╗"
+            );
+            println!("║ {:<77} ║", "ATLAS OS — MODULES");
+            println!(
+                "╠═══════════════════════════════════════════════════════════════════════════════╣"
+            );
             for (name, desc, enabled, cfg) in &modules {
                 let status = if *enabled { "✓ ON " } else { "✗ OFF" };
-                println!("║  {} │ {:<14} │ {:<24} ║", status, name, desc);
-                println!("║        │ {:<49} ║", cfg);
+                println!("║ {} │ {:<14} │ {:<52} ║", status, name, desc);
+                println!("║       │ {:<68} ║", cfg);
             }
-            println!("╚══════════════════════════════════════════════════════════════╝");
+            println!(
+                "╚═══════════════════════════════════════════════════════════════════════════════╝"
+            );
         }
     }
 
@@ -127,31 +133,54 @@ pub fn config_set(module: &str, values: &[String], fmt: OutputFormat) -> Result<
             let hl = &mut config.modules.hyperliquid.config;
             match key {
                 "network" => {
-                    let v = values.get(1).ok_or_else(|| anyhow::anyhow!("Usage: set hl network <mainnet|testnet>"))?;
+                    let v = values.get(1).ok_or_else(|| {
+                        anyhow::anyhow!("Usage: set hl network <mainnet|testnet>")
+                    })?;
                     if v != "mainnet" && v != "testnet" {
                         anyhow::bail!("Invalid network: {v}. Must be 'mainnet' or 'testnet'.");
                     }
                     hl.network = v.to_string();
                 }
                 "mode" => {
-                    let v = values.get(1).ok_or_else(|| anyhow::anyhow!("Usage: set hl mode <futures|cfd>"))?;
-                    hl.mode = v.parse().map_err(|_| anyhow::anyhow!("Invalid mode: {v}. Must be 'futures' or 'cfd'."))?;
+                    let v = values
+                        .get(1)
+                        .ok_or_else(|| anyhow::anyhow!("Usage: set hl mode <futures|cfd>"))?;
+                    hl.mode = v.parse().map_err(|_| {
+                        anyhow::anyhow!("Invalid mode: {v}. Must be 'futures' or 'cfd'.")
+                    })?;
                 }
                 "default-size-mode" | "size-mode" | "size" => {
-                    let v = values.get(1).ok_or_else(|| anyhow::anyhow!("Usage: set hl default-size-mode <usdc|units|lots>"))?;
-                    hl.default_size_mode = v.parse().map_err(|_| anyhow::anyhow!("Invalid size mode: {v}. Must be 'usdc', 'units', or 'lots'."))?;
+                    let v = values.get(1).ok_or_else(|| {
+                        anyhow::anyhow!("Usage: set hl default-size-mode <usdc|units|lots>")
+                    })?;
+                    hl.default_size_mode = v.parse().map_err(|_| {
+                        anyhow::anyhow!(
+                            "Invalid size mode: {v}. Must be 'usdc', 'units', or 'lots'."
+                        )
+                    })?;
                 }
                 "default-leverage" | "leverage" => {
-                    let v = values.get(1).ok_or_else(|| anyhow::anyhow!("Usage: set hl leverage <n>"))?;
-                    hl.default_leverage = v.parse().map_err(|_| anyhow::anyhow!("Invalid leverage: {v}"))?;
+                    let v = values
+                        .get(1)
+                        .ok_or_else(|| anyhow::anyhow!("Usage: set hl leverage <n>"))?;
+                    hl.default_leverage = v
+                        .parse()
+                        .map_err(|_| anyhow::anyhow!("Invalid leverage: {v}"))?;
                 }
                 "default-slippage" | "slippage" => {
-                    let v = values.get(1).ok_or_else(|| anyhow::anyhow!("Usage: set hl slippage <0.05>"))?;
-                    hl.default_slippage = v.parse().map_err(|_| anyhow::anyhow!("Invalid slippage: {v}"))?;
+                    let v = values
+                        .get(1)
+                        .ok_or_else(|| anyhow::anyhow!("Usage: set hl slippage <0.05>"))?;
+                    hl.default_slippage = v
+                        .parse()
+                        .map_err(|_| anyhow::anyhow!("Invalid slippage: {v}"))?;
                 }
                 "lot" => {
-                    let coin = values.get(1).ok_or_else(|| anyhow::anyhow!("Usage: set hl lot <COIN> <size>"))?;
-                    let size: f64 = values.get(2)
+                    let coin = values
+                        .get(1)
+                        .ok_or_else(|| anyhow::anyhow!("Usage: set hl lot <COIN> <size>"))?;
+                    let size: f64 = values
+                        .get(2)
                         .ok_or_else(|| anyhow::anyhow!("Usage: set hl lot {coin} <size>"))?
                         .parse()
                         .map_err(|_| anyhow::anyhow!("Invalid lot size"))?;
@@ -167,12 +196,18 @@ pub fn config_set(module: &str, values: &[String], fmt: OutputFormat) -> Result<
             let zx = &mut config.modules.zero_x.config;
             match key {
                 "default-chain" | "chain" => {
-                    let v = values.get(1).ok_or_else(|| anyhow::anyhow!("Usage: set 0x default-chain <ethereum|arbitrum|base>"))?;
+                    let v = values.get(1).ok_or_else(|| {
+                        anyhow::anyhow!("Usage: set 0x default-chain <ethereum|arbitrum|base>")
+                    })?;
                     zx.default_chain = v.to_string();
                 }
                 "default-slippage-bps" | "slippage-bps" | "slippage" => {
-                    let v = values.get(1).ok_or_else(|| anyhow::anyhow!("Usage: set 0x slippage-bps <100>"))?;
-                    zx.default_slippage_bps = v.parse().map_err(|_| anyhow::anyhow!("Invalid slippage bps: {v}"))?;
+                    let v = values
+                        .get(1)
+                        .ok_or_else(|| anyhow::anyhow!("Usage: set 0x slippage-bps <100>"))?;
+                    zx.default_slippage_bps = v
+                        .parse()
+                        .map_err(|_| anyhow::anyhow!("Invalid slippage bps: {v}"))?;
                 }
                 _ => anyhow::bail!(
                     "Unknown key '{key}' for zero_x.\n\

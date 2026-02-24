@@ -26,3 +26,4 @@ hypersdk = { workspace = true }
 rust_decimal = { workspace = true }
 alloy = { workspace = true }
 ta = "0.5.0"
+tui-input = "0.10"

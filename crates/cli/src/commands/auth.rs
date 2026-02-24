@@ -23,16 +23,23 @@ pub fn generate_wallet(name: &str, fmt: OutputFormat) -> Result<()> {
         return Ok(());
     }
 
-    println!("╔═════════════════════════════════════════════════════════════════════════════╗");
-    println!("║  NEW WALLET CREATED                                                         ║");
-    println!("╠═════════════════════════════════════════════════════════════════════════════╣");
-    println!("║  Profile : {:<61}║", profile_name);
-    println!("║  Address : {:<61}║", address);
-    println!("║  Private : 0x{:<59}║", private_key);
-    println!("╠═════════════════════════════════════════════════════════════════════════════╣");
-    println!("║  ⚠  WARNING: Although you can export this key later, if your OS           ║");
-    println!("║     keyring is reset or format OS, YOU WILL LOSE ACCESS FOREVER.            ║");
-    println!("╚═════════════════════════════════════════════════════════════════════════════╝");
+    println!("╔═══════════════════════════════════════════════════════════════════════════════╗");
+    println!("║ {:<77} ║", "NEW WALLET CREATED");
+    println!("╠═══════════════════════════════════════════════════════════════════════════════╣");
+    println!("║ Profile : {:<67} ║", profile_name);
+    println!("║ Address : {:<67} ║", address);
+    let pk_str = format!("0x{}", private_key.trim_start_matches("0x"));
+    println!("║ Private : {:<67} ║", pk_str);
+    println!("╠═══════════════════════════════════════════════════════════════════════════════╣");
+    println!(
+        "║ ⚠  {:<74} ║",
+        "WARNING: Although you can export this key later, if your OS"
+    );
+    println!(
+        "║    {:<74} ║",
+        "keyring is reset or format OS, YOU WILL LOSE ACCESS FOREVER."
+    );
+    println!("╚═══════════════════════════════════════════════════════════════════════════════╝");
     Ok(())
 }
 
@@ -107,16 +114,23 @@ pub fn export_wallet(name: &str, fmt: OutputFormat) -> Result<()> {
         return Ok(());
     }
 
-    println!("╔══════════════════════════════════════════════════════════════╗");
-    println!("║  WALLET EXPORT                                             ║");
-    println!("╠══════════════════════════════════════════════════════════════╣");
-    println!("║  Profile : {:<49}║", profile_name);
-    println!("║  Address : {:<49}║", address);
-    println!("║  Private : {:<49}║", private_key);
-    println!("╠══════════════════════════════════════════════════════════════╣");
-    println!("║  ⚠  WARNING: ANYONE WITH THIS KEY CAN STEAL YOUR FUNDS.     ║");
-    println!("║     DO NOT SHARE IT WITH ANYONE SECURE IT IMMEDIATELY.      ║");
-    println!("╚══════════════════════════════════════════════════════════════╝");
+    println!("╔═══════════════════════════════════════════════════════════════════════════════╗");
+    println!("║ {:<77} ║", "WALLET EXPORT");
+    println!("╠═══════════════════════════════════════════════════════════════════════════════╣");
+    println!("║ Profile : {:<67} ║", profile_name);
+    println!("║ Address : {:<67} ║", address);
+    let pk_str = format!("0x{}", private_key.trim_start_matches("0x"));
+    println!("║ Private : {:<67} ║", pk_str);
+    println!("╠═══════════════════════════════════════════════════════════════════════════════╣");
+    println!(
+        "║ ⚠  {:<74} ║",
+        "WARNING: ANYONE WITH THIS KEY CAN STEAL YOUR FUNDS."
+    );
+    println!(
+        "║    {:<74} ║",
+        "DO NOT SHARE IT WITH ANYONE SECURE IT IMMEDIATELY."
+    );
+    println!("╚═══════════════════════════════════════════════════════════════════════════════╝");
     Ok(())
 }
 
@@ -151,17 +165,17 @@ pub fn list_profiles(fmt: OutputFormat) -> Result<()> {
         return Ok(());
     }
 
-    println!("┌──────────────────┬────────────────────────────────────────────┬──────────┐");
-    println!("│ Profile          │ Address                                    │ Active   │");
-    println!("├──────────────────┼────────────────────────────────────────────┼──────────┤");
+    println!("┌──────────────────┬─────────────────────────────────────────────────┬──────────┐");
+    println!("│ Profile          │ Address                                         │ Active   │");
+    println!("├──────────────────┼─────────────────────────────────────────────────┼──────────┤");
     for w in &store.wallets {
         let active = if w.name == config.system.active_profile {
             "  ●"
         } else {
             ""
         };
-        println!("│ {:<16} │ {:<42} │ {:<8} │", w.name, w.address, active);
+        println!("│ {:<16} │ {:<47} │ {:<8} │", w.name, w.address, active);
     }
-    println!("└──────────────────┴────────────────────────────────────────────┴──────────┘");
+    println!("└──────────────────┴─────────────────────────────────────────────────┴──────────┘");
     Ok(())
 }

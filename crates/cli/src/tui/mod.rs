@@ -82,7 +82,7 @@ async fn run_loop(
                         continue;
                     }
 
-                    let action = app::handle_key(app, key.code, key.modifiers);
+                    let action = app::handle_event(app, Event::Key(key));
                     match action {
                         Action::None => {}
                         Action::Quit => return Ok(()),
@@ -94,6 +94,16 @@ async fn run_loop(
                         Action::ScrollDown => app.scroll_down(),
                         Action::ToggleHelp => app.toggle_help(),
                         Action::CancelOrder => app.cancel_selected_order().await,
+                        Action::ToggleTrade => {
+                            app.trade_popup.visible = !app.trade_popup.visible;
+                            app.swap_popup.visible = false;
+                        }
+                        Action::ToggleSwap => {
+                            app.swap_popup.visible = !app.swap_popup.visible;
+                            app.trade_popup.visible = false;
+                        }
+                        Action::SubmitTrade => app.execute_trade().await,
+                        Action::SubmitSwap => app.execute_swap().await,
                     }
                 }
 

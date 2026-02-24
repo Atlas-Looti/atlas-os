@@ -102,6 +102,11 @@ pub trait PerpModule: Send + Sync {
         Ok(vec![])
     }
 
+    /// Get mapping of spot token index to token name (e.g. 1 -> PURR).
+    async fn spot_tokens_map(&self) -> AtlasResult<std::collections::HashMap<usize, String>> {
+        Ok(std::collections::HashMap::new())
+    }
+
     /// Place a spot market order. Returns error if not supported.
     async fn spot_market_order(
         &self,

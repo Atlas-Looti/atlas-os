@@ -54,6 +54,15 @@ pub fn render(frame: &mut Frame, app: &App) {
     if app.show_help {
         render_help(frame, area);
     }
+
+    // Trade & Swap modals
+    if app.trade_popup.visible {
+        render_trade_popup(frame, app, area);
+    }
+
+    if app.swap_popup.visible {
+        render_swap_popup(frame, app, area);
+    }
 }
 
 // ─── Header ─────────────────────────────────────────────────────────
@@ -644,6 +653,116 @@ fn render_help(frame: &mut Frame, area: Rect) {
         .style(Style::default().bg(Color::Rgb(15, 15, 30)));
 
     frame.render_widget(help, popup);
+}
+
+// ─── Trade & Swap Popups ──────────────────────────────────────────
+
+fn render_trade_popup(frame: &mut Frame, app: &App, area: Rect) {
+    let popup = centered_rect(40, 40, area);
+    frame.render_widget(Clear, popup);
+
+    let block = Block::default()
+        .title(" Trade (Limit Order) ")
+        .title_style(Style::default().fg(ACCENT).bold())
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(ACCENT))
+        .style(Style::default().bg(BG_HEADER));
+
+    let inner = block.inner(popup);
+    frame.render_widget(block, popup);
+
+    use super::state::TradeFocus;
+
+    let layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(2), // Coin
+            Constraint::Length(2), // Size
+            Constraint::Length(2), // Price
+            Constraint::Length(2), // Side
+            Constraint::Length(2), // Status / Hint
+        ])
+        .margin(1)
+        .split(inner);
+
+    let mk_line = |label: &str, input: &str, focused: bool| {
+        let style = if focused {
+            Style::default().fg(Color::Black).bg(ACCENT)
+        } else {
+            Style::default().fg(WHITE)
+        };
+        Line::from(vec![
+            Span::styled(format!("{label:<8}"), Style::default().fg(DIM)),
+            Span::styled(format!("{input:^12}"), style),
+        ])
+    };
+
+    let tp = &app.trade_popup;
+    frame.render_widget(Paragraph::new(mk_line("Coin", tp.coin.value(), matches!(tp.focus, TradeFocus::Coin))), layout[0]);
+    frame.render_widget(Paragraph::new(mk_line("Size", tp.size.value(), matches!(tp.focus, TradeFocus::Size))), layout[1]);
+    frame.render_widget(Paragraph::new(mk_line("Price", tp.price.value(), matches!(tp.focus, TradeFocus::Price))), layout[2]);
+    frame.render_widget(Paragraph::new(mk_line("Side", tp.side.value(), matches!(tp.focus, TradeFocus::Side))), layout[3]);
+
+    let status_txt = if let Some(ref s) = tp.status {
+        Span::styled(format!(" {s} "), Style::default().fg(YELLOW))
+    } else {
+        Span::styled(" Esc: Cancel | Enter: Submit ", Style::default().fg(DIM))
+    };
+    frame.render_widget(Paragraph::new(Line::from(vec![status_txt])), layout[4]);
+}
+
+fn render_swap_popup(frame: &mut Frame, app: &App, area: Rect) {
+    let popup = centered_rect(45, 35, area);
+    frame.render_widget(Clear, popup);
+
+    let block = Block::default()
+        .title(" Swap (Arbitrum 0x) ")
+        .title_style(Style::default().fg(ACCENT).bold())
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(ACCENT))
+        .style(Style::default().bg(BG_HEADER));
+
+    let inner = block.inner(popup);
+    frame.render_widget(block, popup);
+
+    use super::state::SwapFocus;
+
+    let layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(2), // Sell
+            Constraint::Length(2), // Buy
+            Constraint::Length(2), // Amount
+            Constraint::Length(2), // Status
+        ])
+        .margin(1)
+        .split(inner);
+
+    let mk_line = |label: &str, input: &str, focused: bool| {
+        let style = if focused {
+            Style::default().fg(Color::Black).bg(ACCENT)
+        } else {
+            Style::default().fg(WHITE)
+        };
+        Line::from(vec![
+            Span::styled(format!("{label:<8}"), Style::default().fg(DIM)),
+            Span::styled(format!("{input:^15}"), style),
+        ])
+    };
+
+    let sp = &app.swap_popup;
+    frame.render_widget(Paragraph::new(mk_line("Sell", sp.sell_token.value(), matches!(sp.focus, SwapFocus::SellToken))), layout[0]);
+    frame.render_widget(Paragraph::new(mk_line("Buy", sp.buy_token.value(), matches!(sp.focus, SwapFocus::BuyToken))), layout[1]);
+    frame.render_widget(Paragraph::new(mk_line("Amount", sp.sell_amount.value(), matches!(sp.focus, SwapFocus::SellAmount))), layout[2]);
+
+    let status_txt = if let Some(ref s) = sp.status {
+        Span::styled(format!(" {s} "), Style::default().fg(YELLOW))
+    } else {
+        Span::styled(" Esc: Cancel | Enter: Execute ", Style::default().fg(DIM))
+    };
+    frame.render_widget(Paragraph::new(Line::from(vec![status_txt])), layout[3]);
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────

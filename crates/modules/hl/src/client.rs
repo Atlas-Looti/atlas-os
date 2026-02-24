@@ -429,7 +429,12 @@ impl HyperliquidModule {
     }
 
     /// Parse SDK order response to universal OrderResult.
-    fn parse_response(&self, statuses: &[OrderResponseStatus], symbol: &str, side: Side) -> AtlasResult<OrderResult> {
+    fn parse_response(
+        &self,
+        statuses: &[OrderResponseStatus],
+        symbol: &str,
+        side: Side,
+    ) -> AtlasResult<OrderResult> {
         if statuses.is_empty() {
             return Err(AtlasError::Other("Empty response".into()));
         }
@@ -759,7 +764,10 @@ impl PerpModule for HyperliquidModule {
             grouping: OrderGrouping::Na,
         };
         let statuses = self.place_with_builder(batch).await?;
-        { let close_side = if is_buy { Side::Buy } else { Side::Sell }; self.parse_response(&statuses, symbol, close_side) }
+        {
+            let close_side = if is_buy { Side::Buy } else { Side::Sell };
+            self.parse_response(&statuses, symbol, close_side)
+        }
     }
 
     async fn cancel_order(&self, symbol: &str, order_id: &str) -> AtlasResult<()> {
@@ -1094,6 +1102,41 @@ impl PerpModule for HyperliquidModule {
                 held: b.hold,
             })
             .collect())
+    }
+
+    async fn spot_tokens_map(&self) -> AtlasResult<std::collections::HashMap<usize, String>> {
+        let url = if self.testnet {
+            "https://api.hyperliquid-testnet.xyz/info"
+        } else {
+            "https://api.hyperliquid.xyz/info"
+        };
+        let http = reqwest::Client::new();
+        let resp: Value = http
+            .post(url)
+            .json(&serde_json::json!({"type": "spotMetaAndAssetCtxs"}))
+            .send()
+            .await
+            .map_err(|e| AtlasError::Network(format!("spotMetaAndAssetCtxs request: {e}")))?
+            .json()
+            .await
+            .map_err(|e| AtlasError::Network(format!("spotMetaAndAssetCtxs parse: {e}")))?;
+
+        let tokens = resp
+            .get(0)
+            .and_then(|v| v.get("tokens"))
+            .and_then(|v| v.as_array())
+            .ok_or_else(|| AtlasError::Network("missing tokens in spot meta".into()))?;
+
+        let mut map = std::collections::HashMap::new();
+        for t in tokens {
+            if let (Some(index), Some(name)) = (
+                t.get("index").and_then(|i| i.as_u64()),
+                t.get("name").and_then(|n| n.as_str()),
+            ) {
+                map.insert(index as usize, name.to_string());
+            }
+        }
+        Ok(map)
     }
 
     async fn spot_market_order(

@@ -67,13 +67,18 @@ pub async fn stream_trades(coin: &str, fmt: OutputFormat) -> Result<()> {
         if let Event::Message(Incoming::Trades(trades)) = event {
             for trade in &trades {
                 match fmt {
-                    OutputFormat::Json => {
-                        println!("{}", serde_json::to_string(trade).unwrap_or_default())
+                    OutputFormat::Json | OutputFormat::JsonPretty => {
+                        // PRD canonical NDJSON: symbol, price, size, side, timestamp
+                        let canonical = serde_json::json!({
+                            "event": "trade",
+                            "symbol": trade.coin,
+                            "price": trade.px.to_string(),
+                            "size": trade.sz.to_string(),
+                            "side": format!("{:?}", trade.side).to_lowercase(),
+                            "timestamp": trade.time,
+                        });
+                        println!("{}", serde_json::to_string(&canonical).unwrap_or_default());
                     }
-                    OutputFormat::JsonPretty => println!(
-                        "{}",
-                        serde_json::to_string_pretty(trade).unwrap_or_default()
-                    ),
                     OutputFormat::Table => {
                         let time = format_timestamp_ms(trade.time);
                         println!(
@@ -109,13 +114,20 @@ pub async fn stream_book(coin: &str, depth: usize, fmt: OutputFormat) -> Result<
     while let Some(event) = ws.next().await {
         if let Event::Message(Incoming::L2Book(book)) = event {
             match fmt {
-                OutputFormat::Json => {
-                    println!("{}", serde_json::to_string(&book).unwrap_or_default())
+                OutputFormat::Json | OutputFormat::JsonPretty => {
+                    let canonical = serde_json::json!({
+                        "event": "book",
+                        "symbol": book.coin,
+                        "bids": book.levels[0].iter().map(|l| {
+                            serde_json::json!({"price": l.px.to_string(), "size": l.sz.to_string()})
+                        }).collect::<Vec<_>>(),
+                        "asks": book.levels[1].iter().map(|l| {
+                            serde_json::json!({"price": l.px.to_string(), "size": l.sz.to_string()})
+                        }).collect::<Vec<_>>(),
+                        "timestamp": book.time,
+                    });
+                    println!("{}", serde_json::to_string(&canonical).unwrap_or_default());
                 }
-                OutputFormat::JsonPretty => println!(
-                    "{}",
-                    serde_json::to_string_pretty(&book).unwrap_or_default()
-                ),
                 OutputFormat::Table => {
                     print!("\x1B[2J\x1B[H");
                     println!("📖 {} Order Book\n", book.coin);
@@ -166,13 +178,20 @@ pub async fn stream_candles(coin: &str, interval: &str, fmt: OutputFormat) -> Re
     while let Some(event) = ws.next().await {
         if let Event::Message(Incoming::Candle(candle)) = event {
             match fmt {
-                OutputFormat::Json => {
-                    println!("{}", serde_json::to_string(&candle).unwrap_or_default())
+                OutputFormat::Json | OutputFormat::JsonPretty => {
+                    let canonical = serde_json::json!({
+                        "event": "candle",
+                        "symbol": candle.coin,
+                        "interval": candle.interval,
+                        "open": candle.open.to_string(),
+                        "high": candle.high.to_string(),
+                        "low": candle.low.to_string(),
+                        "close": candle.close.to_string(),
+                        "volume": candle.volume.to_string(),
+                        "timestamp": candle.open_time,
+                    });
+                    println!("{}", serde_json::to_string(&canonical).unwrap_or_default());
                 }
-                OutputFormat::JsonPretty => println!(
-                    "{}",
-                    serde_json::to_string_pretty(&candle).unwrap_or_default()
-                ),
                 OutputFormat::Table => {
                     let time = format_timestamp_ms(candle.open_time);
                     println!(
@@ -278,9 +297,17 @@ pub async fn stream_user(fmt: OutputFormat) -> Result<()> {
 
 fn render_mids_update(mids: &HashMap<String, Decimal>, fmt: OutputFormat) {
     match fmt {
-        OutputFormat::Json => println!("{}", serde_json::to_string(mids).unwrap_or_default()),
-        OutputFormat::JsonPretty => {
-            println!("{}", serde_json::to_string_pretty(mids).unwrap_or_default())
+        OutputFormat::Json | OutputFormat::JsonPretty => {
+            // PRD NDJSON: one event per symbol per tick
+            for (symbol, price) in mids {
+                let canonical = serde_json::json!({
+                    "event": "price",
+                    "symbol": symbol,
+                    "price": price.to_string(),
+                    "protocol": "hyperliquid",
+                });
+                println!("{}", serde_json::to_string(&canonical).unwrap_or_default());
+            }
         }
         OutputFormat::Table => {
             print!("\x1B[2J\x1B[H");
