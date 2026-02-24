@@ -1,9 +1,10 @@
 //! API routes for Atlas OS backend.
 
 pub mod health;
-pub mod modules;
 pub mod markets;
+pub mod modules;
 pub mod morpho;
+pub mod portfolio;
 
 use std::sync::Arc;
 use axum::Router;
@@ -16,4 +17,5 @@ pub fn api_router() -> Router<Arc<AppState>> {
         .merge(modules::router())
         .merge(markets::router())
         .merge(morpho::router())
+        .merge(portfolio::router())
 }
