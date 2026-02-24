@@ -1170,6 +1170,7 @@ dependencies = [
 name = "atlas-cli"
 version = "0.1.0"
 dependencies = [
+ "alloy",
  "anyhow",
  "atlas-common",
  "atlas-core",

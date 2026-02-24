@@ -2,7 +2,6 @@ use anyhow::Result;
 use atlas_core::Orchestrator;
 use atlas_types::output::{SpotBalanceOutput, SpotBalanceRow, SpotOrderOutput, SpotTransferOutput};
 use atlas_utils::output::{render, OutputFormat};
-use atlas_utils::format::order_result_to_output;
 use rust_decimal::prelude::*;
 
 /// `atlas spot buy <BASE> <SIZE> [--slippage N]`
@@ -88,7 +87,7 @@ pub async fn spot_transfer(
     let dir = direction.to_lowercase();
     let tk = token.unwrap_or("USDC");
 
-    let result = perp.internal_transfer(&dir, amount_dec, Some(tk)).await
+    let _result = perp.internal_transfer(&dir, amount_dec, Some(tk)).await
         .map_err(|e| anyhow::anyhow!("{e}"))?;
 
     let display_dir = match dir.as_str() {

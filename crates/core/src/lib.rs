@@ -6,5 +6,5 @@ pub mod orchestrator;
 
 pub use workspace::init_workspace;
 pub use auth::AuthManager;
-pub use engine::{Engine, OrderResult, OrderFillStatus};
+pub use engine::Engine;
 pub use orchestrator::Orchestrator;

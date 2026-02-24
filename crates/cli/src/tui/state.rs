@@ -143,16 +143,21 @@ impl App {
     }
 
     async fn fetch_data(&mut self) -> anyhow::Result<()> {
-        use atlas_core::Engine;
-        use hypersdk::hypercore::types::Side;
+        use atlas_core::AuthManager;
+        use atlas_core::workspace::load_config;
+        use hypersdk::hypercore::{self as hypercore, types::Side};
 
-        let engine = Engine::from_active_profile().await?;
-        self.address = format!("{}", engine.address);
+        let config = load_config()?;
+        let signer = AuthManager::get_active_signer()?;
+        let address = alloy::signers::local::PrivateKeySigner::address(&signer);
+        let testnet = config.modules.hyperliquid.config.network == "testnet";
+        let client = if testnet { hypercore::testnet() } else { hypercore::mainnet() };
+
+        self.address = format!("{}", address);
 
         // User state (positions + margins) — hypersdk uses clearinghouse_state
-        let state = engine
-            .client
-            .clearinghouse_state(engine.address, None)
+        let state = client
+            .clearinghouse_state(address, None)
             .await
             .map_err(|e| anyhow::anyhow!("{e:?}"))?;
 
@@ -190,9 +195,8 @@ impl App {
             .collect();
 
         // Open orders — hypersdk returns BasicOrder with Decimal fields
-        let orders = engine
-            .client
-            .open_orders(engine.address, None)
+        let orders = client
+            .open_orders(address, None)
             .await
             .map_err(|e| anyhow::anyhow!("{e:?}"))?;
 
@@ -221,8 +225,7 @@ impl App {
         }
 
         // All mids (market prices) — hypersdk returns HashMap<String, Decimal>
-        let mids = engine
-            .client
+        let mids = client
             .all_mids(None)
             .await
             .map_err(|e| anyhow::anyhow!("{e:?}"))?;
@@ -324,9 +327,10 @@ impl App {
     }
 
     async fn do_cancel(&self, coin: &str, oid: u64) -> anyhow::Result<()> {
-        use atlas_core::Engine;
-        let engine = Engine::from_active_profile().await?;
-        engine.cancel_order(coin, oid).await?;
+        let orch = atlas_core::Orchestrator::from_active_profile().await?;
+        let perp = orch.perp(None).map_err(|e| anyhow::anyhow!("{e}"))?;
+        perp.cancel_order(coin, &oid.to_string()).await
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
         Ok(())
     }
 

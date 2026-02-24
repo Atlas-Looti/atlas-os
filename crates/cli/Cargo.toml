@@ -27,3 +27,4 @@ tracing-subscriber = { workspace = true }
 chrono = { workspace = true }
 hypersdk = { workspace = true }
 rust_decimal = { workspace = true }
+alloy = { workspace = true }
