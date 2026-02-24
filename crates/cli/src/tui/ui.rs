@@ -1,6 +1,6 @@
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
-    style::{Color, Style, Stylize},
+    style::{Color, Modifier, Style, Stylize},
     text::{Line, Span},
     widgets::{Block, BorderType, Borders, Cell, Clear, Paragraph, Row, Table, Tabs},
     Frame,
@@ -19,6 +19,7 @@ const DIM: Color = Color::DarkGray;
 const YELLOW: Color = Color::Yellow;
 const WHITE: Color = Color::White;
 const BG_HEADER: Color = Color::Rgb(20, 20, 40);
+const BG_SELECTED: Color = Color::Rgb(40, 40, 70);
 
 // ─── Main render ────────────────────────────────────────────────────
 
@@ -69,17 +70,36 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect) {
         Span::styled(" ● ", Style::default().fg(RED).bold())
     };
 
+    let ws_indicator = if app.ws_connected {
+        Span::styled("WS", Style::default().fg(GREEN))
+    } else {
+        Span::styled("WS", Style::default().fg(RED))
+    };
+
     let header = Paragraph::new(Line::from(vec![
-        Span::styled(" ATLAS ", Style::default().fg(Color::Black).bg(ACCENT).bold()),
+        Span::styled(
+            " ATLAS ",
+            Style::default().fg(Color::Black).bg(ACCENT).bold(),
+        ),
         Span::raw("  "),
         conn_indicator,
         Span::styled(&app.network, Style::default().fg(DIM)),
+        Span::raw(" "),
+        ws_indicator,
         Span::raw("  │  "),
-        Span::styled(&app.profile_name, Style::default().fg(YELLOW).bold()),
+        Span::styled(
+            &app.profile_name,
+            Style::default().fg(YELLOW).bold(),
+        ),
         Span::raw("  │  "),
         Span::styled(
             fmt::truncate_address(&app.address),
             Style::default().fg(DIM),
+        ),
+        Span::raw("  │  "),
+        Span::styled(
+            fmt::format_usd(&app.account_value),
+            Style::default().fg(WHITE).bold(),
         ),
     ]))
     .block(block);
@@ -94,9 +114,7 @@ fn render_tabs(frame: &mut Frame, app: &App, area: Rect) {
         .tabs
         .iter()
         .enumerate()
-        .map(|(i, t)| {
-            Line::from(format!(" {} {} ", i + 1, t))
-        })
+        .map(|(i, t)| Line::from(format!(" {} {} ", i + 1, t)))
         .collect();
 
     let tabs = Tabs::new(tab_titles)
@@ -118,18 +136,15 @@ fn render_tabs(frame: &mut Frame, app: &App, area: Rect) {
 fn render_dashboard(frame: &mut Frame, app: &App, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage(50),
-            Constraint::Percentage(50),
-        ])
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
         .split(area);
 
-    // Left: Account overview
+    // Left: Account overview + Quick positions
     let left = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(9), // Account card
-            Constraint::Min(4),   // Quick positions
+            Constraint::Length(11), // Account card
+            Constraint::Min(4),    // Quick positions with live PnL
         ])
         .split(chunks[0]);
 
@@ -148,6 +163,15 @@ fn render_account_card(frame: &mut Frame, app: &App, area: Rect) {
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(DIM));
 
+    // Calculate total uPnL from positions
+    let total_upnl: f64 = app
+        .positions
+        .iter()
+        .filter_map(|p| p.upnl.parse::<f64>().ok())
+        .sum();
+    let upnl_str = format!("{:.2}", total_upnl);
+    let upnl_color = color_for_value(&upnl_str);
+
     let pnl_color = color_for_value(&app.total_ntl_pos);
 
     let text = vec![
@@ -159,20 +183,39 @@ fn render_account_card(frame: &mut Frame, app: &App, area: Rect) {
             ),
         ]),
         Line::from(vec![
+            Span::styled(" Unrealized PnL ", Style::default().fg(DIM)),
+            Span::styled(
+                fmt::format_usd_full(&upnl_str),
+                Style::default().fg(upnl_color).bold(),
+            ),
+        ]),
+        Line::from(vec![
             Span::styled(" Margin Used    ", Style::default().fg(DIM)),
-            Span::styled(fmt::format_usd(&app.total_margin_used), Style::default().fg(YELLOW)),
+            Span::styled(
+                fmt::format_usd(&app.total_margin_used),
+                Style::default().fg(YELLOW),
+            ),
         ]),
         Line::from(vec![
             Span::styled(" Net Position   ", Style::default().fg(DIM)),
-            Span::styled(fmt::format_usd(&app.total_ntl_pos), Style::default().fg(pnl_color)),
+            Span::styled(
+                fmt::format_usd(&app.total_ntl_pos),
+                Style::default().fg(pnl_color),
+            ),
         ]),
         Line::from(vec![
             Span::styled(" Raw USD        ", Style::default().fg(DIM)),
-            Span::styled(fmt::format_usd(&app.total_raw_usd), Style::default().fg(WHITE)),
+            Span::styled(
+                fmt::format_usd(&app.total_raw_usd),
+                Style::default().fg(WHITE),
+            ),
         ]),
         Line::from(vec![
             Span::styled(" Withdrawable   ", Style::default().fg(DIM)),
-            Span::styled(fmt::format_usd(&app.withdrawable), Style::default().fg(GREEN)),
+            Span::styled(
+                fmt::format_usd(&app.withdrawable),
+                Style::default().fg(GREEN),
+            ),
         ]),
         Line::raw(""),
         Line::from(vec![
@@ -186,6 +229,11 @@ fn render_account_card(frame: &mut Frame, app: &App, area: Rect) {
                 format!("{}", app.open_orders.len()),
                 Style::default().fg(WHITE).bold(),
             ),
+            Span::styled("  │  Markets: ", Style::default().fg(DIM)),
+            Span::styled(
+                format!("{}", app.all_mids.len()),
+                Style::default().fg(WHITE).bold(),
+            ),
         ]),
     ];
 
@@ -195,7 +243,7 @@ fn render_account_card(frame: &mut Frame, app: &App, area: Rect) {
 
 fn render_quick_positions(frame: &mut Frame, app: &App, area: Rect) {
     let block = Block::default()
-        .title(" Positions ")
+        .title(" Open Positions (Live) ")
         .title_style(Style::default().fg(GREEN).bold())
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
@@ -209,7 +257,7 @@ fn render_quick_positions(frame: &mut Frame, app: &App, area: Rect) {
         return;
     }
 
-    let header = Row::new(vec!["Coin", "Size", "Entry", "uPnL", "Lev"])
+    let header = Row::new(vec!["Coin", "Size", "Entry", "Mark", "uPnL", "ROE%"])
         .style(Style::default().fg(ACCENT).bold())
         .bottom_margin(0);
 
@@ -218,13 +266,17 @@ fn render_quick_positions(frame: &mut Frame, app: &App, area: Rect) {
         .iter()
         .map(|p| {
             let pnl_color = color_for_value(&p.upnl);
+            let roe_color = color_for_value(&p.roe);
             let side_color = if p.size.starts_with('-') { RED } else { GREEN };
             Row::new(vec![
                 Cell::from(p.coin.clone()).style(Style::default().fg(WHITE).bold()),
                 Cell::from(p.size.clone()).style(Style::default().fg(side_color)),
                 Cell::from(fmt::truncate_number(&p.entry_px)),
-                Cell::from(fmt::truncate_number(&p.upnl)).style(Style::default().fg(pnl_color)),
-                Cell::from(p.leverage.clone()).style(Style::default().fg(YELLOW)),
+                Cell::from(fmt::truncate_number(&p.mark_px))
+                    .style(Style::default().fg(YELLOW)),
+                Cell::from(fmt::truncate_number(&p.upnl))
+                    .style(Style::default().fg(pnl_color).bold()),
+                Cell::from(fmt::format_pct(&p.roe)).style(Style::default().fg(roe_color)),
             ])
         })
         .collect();
@@ -234,9 +286,10 @@ fn render_quick_positions(frame: &mut Frame, app: &App, area: Rect) {
         [
             Constraint::Length(8),
             Constraint::Length(12),
+            Constraint::Length(10),
+            Constraint::Length(10),
             Constraint::Length(12),
-            Constraint::Length(12),
-            Constraint::Length(6),
+            Constraint::Length(9),
         ],
     )
     .header(header)
@@ -247,7 +300,7 @@ fn render_quick_positions(frame: &mut Frame, app: &App, area: Rect) {
 
 fn render_top_markets(frame: &mut Frame, app: &App, area: Rect) {
     let block = Block::default()
-        .title(" Markets ")
+        .title(format!(" Markets ({}) ", app.all_mids.len()))
         .title_style(Style::default().fg(YELLOW).bold())
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
@@ -288,20 +341,22 @@ fn render_top_markets(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(table, area);
 }
 
-// ─── Tab 2: Positions (full detail) ─────────────────────────────────
+// ─── Tab 2: Positions (full detail with live PnL) ───────────────────
 
 fn render_positions(frame: &mut Frame, app: &App, area: Rect) {
     let block = Block::default()
-        .title(" Positions ")
+        .title(" Positions — Live PnL ")
         .title_style(Style::default().fg(GREEN).bold())
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(DIM));
 
     if app.positions.is_empty() {
-        let p = Paragraph::new("\n  No open positions.\n\n  Open a position on Hyperliquid to see it here.")
-            .style(Style::default().fg(DIM))
-            .block(block);
+        let p = Paragraph::new(
+            "\n  No open positions.\n\n  Open a position on Hyperliquid to see it here.",
+        )
+        .style(Style::default().fg(DIM))
+        .block(block);
         frame.render_widget(p, area);
         return;
     }
@@ -324,10 +379,13 @@ fn render_positions(frame: &mut Frame, app: &App, area: Rect) {
                 Cell::from(p.coin.clone()).style(Style::default().fg(WHITE).bold()),
                 Cell::from(p.size.clone()).style(Style::default().fg(side_color)),
                 Cell::from(fmt::truncate_number(&p.entry_px)),
-                Cell::from(fmt::truncate_number(&p.mark_px)),
+                Cell::from(fmt::truncate_number(&p.mark_px))
+                    .style(Style::default().fg(YELLOW)),
                 Cell::from(fmt::truncate_number(&p.liq_px)).style(Style::default().fg(RED)),
-                Cell::from(fmt::truncate_number(&p.upnl)).style(Style::default().fg(pnl_color)),
-                Cell::from(fmt::format_pct(&p.roe)).style(Style::default().fg(roe_color)),
+                Cell::from(fmt::truncate_number(&p.upnl))
+                    .style(Style::default().fg(pnl_color).bold()),
+                Cell::from(fmt::format_pct(&p.roe))
+                    .style(Style::default().fg(roe_color).bold()),
                 Cell::from(p.leverage.clone()).style(Style::default().fg(YELLOW)),
                 Cell::from(fmt::truncate_number(&p.margin_used)),
             ])
@@ -354,12 +412,24 @@ fn render_positions(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(table, area);
 }
 
-// ─── Tab 3: Open orders ─────────────────────────────────────────────
+// ─── Tab 3: Open orders (with selection and cancel) ─────────────────
 
 fn render_orders(frame: &mut Frame, app: &App, area: Rect) {
+    let title = if let Some(ref status) = app.cancel_status {
+        format!(" Orders — {} ", status)
+    } else {
+        format!(" Open Orders ({}) — c: cancel selected ", app.open_orders.len())
+    };
+
+    let title_color = if app.cancel_status.is_some() {
+        YELLOW
+    } else {
+        YELLOW
+    };
+
     let block = Block::default()
-        .title(" Open Orders ")
-        .title_style(Style::default().fg(YELLOW).bold())
+        .title(title)
+        .title_style(Style::default().fg(title_color).bold())
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(DIM));
@@ -372,29 +442,40 @@ fn render_orders(frame: &mut Frame, app: &App, area: Rect) {
         return;
     }
 
-    let header = Row::new(vec!["Coin", "Side", "Size", "Price", "Type", "OID"])
+    let header = Row::new(vec!["", "Coin", "Side", "Size", "Price", "Type", "OID"])
         .style(Style::default().fg(ACCENT).bold());
 
     let rows: Vec<Row> = app
         .open_orders
         .iter()
-        .map(|o| {
-            let side_color = if o.side == "B" { GREEN } else { RED };
-            let side_label = if o.side == "B" { "BUY" } else { "SELL" };
+        .enumerate()
+        .map(|(i, o)| {
+            let is_selected = i == app.selected_order;
+            let side_color = if o.side == "BUY" { GREEN } else { RED };
+            let indicator = if is_selected { "►" } else { " " };
+            let bg = if is_selected {
+                Style::default().bg(BG_SELECTED)
+            } else {
+                Style::default()
+            };
+
             Row::new(vec![
+                Cell::from(indicator).style(Style::default().fg(ACCENT).bold()),
                 Cell::from(o.coin.clone()).style(Style::default().fg(WHITE).bold()),
-                Cell::from(side_label).style(Style::default().fg(side_color).bold()),
+                Cell::from(o.side.clone()).style(Style::default().fg(side_color).bold()),
                 Cell::from(o.size.clone()),
                 Cell::from(fmt::truncate_number(&o.price)),
                 Cell::from(o.order_type.clone()).style(Style::default().fg(DIM)),
                 Cell::from(format!("{}", o.oid)).style(Style::default().fg(DIM)),
             ])
+            .style(bg)
         })
         .collect();
 
     let table = Table::new(
         rows,
         [
+            Constraint::Length(2),  // Indicator
             Constraint::Length(8),  // Coin
             Constraint::Length(6),  // Side
             Constraint::Length(12), // Size
@@ -409,11 +490,12 @@ fn render_orders(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(table, area);
 }
 
-// ─── Tab 4: All markets ─────────────────────────────────────────────
+// ─── Tab 4: All markets (live prices from WebSocket) ────────────────
 
 fn render_markets(frame: &mut Frame, app: &App, area: Rect) {
+    let ws_tag = if app.ws_connected { " 🔴 LIVE" } else { "" };
     let block = Block::default()
-        .title(format!(" Markets ({}) ", app.all_mids.len()))
+        .title(format!(" Markets ({}) {}", app.all_mids.len(), ws_tag))
         .title_style(Style::default().fg(YELLOW).bold())
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
@@ -463,14 +545,20 @@ fn render_markets(frame: &mut Frame, app: &App, area: Rect) {
 
 fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
     let conn = if app.connected {
-        Span::styled("CONNECTED", Style::default().fg(GREEN).bold())
+        Span::styled("REST:OK", Style::default().fg(GREEN).bold())
     } else {
-        Span::styled("DISCONNECTED", Style::default().fg(RED).bold())
+        Span::styled("REST:ERR", Style::default().fg(RED).bold())
+    };
+
+    let ws = if app.ws_connected {
+        Span::styled(" WS:LIVE", Style::default().fg(GREEN).bold())
+    } else {
+        Span::styled(" WS:OFF", Style::default().fg(RED).bold())
     };
 
     let error_span = if let Some(ref err) = app.last_error {
         Span::styled(
-            format!("  │  {}", fmt::truncate_str(err, 40)),
+            format!("  │  {}", fmt::truncate_str(err, 30)),
             Style::default().fg(RED),
         )
     } else {
@@ -480,14 +568,27 @@ fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
     let line = Line::from(vec![
         Span::styled(" ", Style::default()),
         conn,
+        ws,
         error_span,
         Span::styled(
-            format!("  │  Last: {}  ", app.last_refresh),
+            format!("  │  REST: {}  WS: {}  ", app.last_refresh, app.last_ws_update),
             Style::default().fg(DIM),
         ),
-        Span::styled("?", Style::default().fg(Color::Black).bg(ACCENT).bold()),
+        Span::styled(
+            "?",
+            Style::default()
+                .fg(Color::Black)
+                .bg(ACCENT)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::styled(" Help ", Style::default().fg(DIM)),
-        Span::styled("q", Style::default().fg(Color::Black).bg(RED).bold()),
+        Span::styled(
+            "q",
+            Style::default()
+                .fg(Color::Black)
+                .bg(RED)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::styled(" Quit", Style::default().fg(DIM)),
     ]);
 
@@ -498,25 +599,41 @@ fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
 // ─── Help overlay ───────────────────────────────────────────────────
 
 fn render_help(frame: &mut Frame, area: Rect) {
-    let popup = centered_rect(50, 60, area);
+    let popup = centered_rect(55, 70, area);
 
     frame.render_widget(Clear, popup);
 
     let help_text = vec![
         Line::from(""),
-        Line::from(Span::styled("  Navigation", Style::default().fg(ACCENT).bold())),
+        Line::from(Span::styled(
+            "  Navigation",
+            Style::default().fg(ACCENT).bold(),
+        )),
         Line::from(""),
         Line::from("  1-4           Switch tab"),
         Line::from("  Tab / l / →   Next tab"),
         Line::from("  S-Tab / h / ← Previous tab"),
-        Line::from("  j / ↓         Scroll down"),
-        Line::from("  k / ↑         Scroll up"),
+        Line::from("  j / ↓         Scroll down / select next"),
+        Line::from("  k / ↑         Scroll up / select prev"),
         Line::from(""),
-        Line::from(Span::styled("  Actions", Style::default().fg(ACCENT).bold())),
+        Line::from(Span::styled(
+            "  Actions",
+            Style::default().fg(ACCENT).bold(),
+        )),
         Line::from(""),
-        Line::from("  r             Refresh data"),
+        Line::from("  r             Force refresh (REST)"),
+        Line::from("  c             Cancel selected order (Orders tab)"),
         Line::from("  ?             Toggle help"),
         Line::from("  q / Ctrl+C    Quit"),
+        Line::from(""),
+        Line::from(Span::styled(
+            "  Live Data",
+            Style::default().fg(ACCENT).bold(),
+        )),
+        Line::from(""),
+        Line::from("  Prices update via WebSocket (AllMids)"),
+        Line::from("  Positions PnL recalculated on each tick"),
+        Line::from("  Account data refreshes via REST every ~10s"),
         Line::from(""),
         Line::from(Span::styled(
             "  Press ? or Esc to close",

@@ -3,8 +3,8 @@
 > **Atlas Perp bukan sekedar CLI. Ini trading engine OS untuk Hyperliquid.**
 >
 > hypecli = thin CLI wrapper. Atlas Perp = platform.
-> Risk management, USDC sizing, multi-mode trading, scripting engine,
-> backtesting, data caching, DeFi integrations — semua dalam satu binary.
+> Risk management, USDC sizing, multi-mode trading,
+> data caching, DeFi integrations — semua dalam satu binary.
 
 ## Tech Stack
 - **Language:** Rust (2024 edition)
@@ -14,7 +14,6 @@
 - **Auth:** OS keyring (`keyring` crate) — private keys NEVER on disk
 - **Revenue:** Builder fee injection on every order (mandatory, invisible to user)
 - **Data:** SQLite (`rusqlite`) for local cache — `~/.atlas-perp/data/atlas.db`
-- **Scripting:** YAML-based strategy files — `atlas run signal-btc.yaml`
 
 ## Architecture
 ```
@@ -238,139 +237,7 @@ atlas evm transfer ETH 0.1 --from-evm  # HyperEVM → HyperCore
 
 ---
 
-## Phase 13: Script Engine (AtlasScript) 📋
-
-**Ini yang bikin Atlas Perp beda dari semua CLI lain.**
-
-YAML-based strategy execution:
-
-```bash
-atlas run signal-btc.yaml          # Execute a strategy file
-atlas run dca-eth.yaml --dry-run   # Dry run (simulate only)
-atlas run grid-sol.yaml --once     # Run once, don't loop
-atlas scripts list                 # List saved scripts
-atlas scripts validate my-bot.yaml # Validate syntax
-```
-
-### Script Format (YAML)
-```yaml
-# ~/.atlas-perp/agents/signal-btc.yaml
-name: "BTC Signal Bot"
-version: 1
-trigger:
-  type: interval
-  every: 5m              # atau: on_price, on_fill, on_funding, cron
-
-conditions:
-  - price_above: { coin: BTC, value: 100000 }
-  - funding_negative: { coin: BTC }
-
-actions:
-  - buy:
-      coin: BTC
-      size: $200
-      leverage: 10
-      stop_loss: -2%
-      take_profit: 4%
-
-  - notify: "BTC signal triggered at {{price}}"
-
-risk:
-  max_daily_loss: $500
-  max_trades_per_day: 10
-  cooldown: 30m
-```
-
-### Script Types
-
-**1. Signal Bot** — Execute on conditions
-```yaml
-trigger: { type: on_price, coin: ETH, crosses_above: 4000 }
-actions: [{ buy: { coin: ETH, size: $100 } }]
-```
-
-**2. DCA Bot** — Dollar cost averaging
-```yaml
-trigger: { type: cron, schedule: "0 9 * * *" }  # Daily 9am
-actions: [{ buy: { coin: BTC, size: $50 } }]
-```
-
-**3. Grid Bot** — Grid trading
-```yaml
-trigger: { type: continuous }
-strategy: grid
-grid:
-  coin: ETH
-  lower: 3000
-  upper: 4000
-  levels: 10
-  size_per_level: $100
-```
-
-**4. Data Script** — Query and analyze
-```yaml
-trigger: { type: manual }
-actions:
-  - query: { type: funding_rates, coins: [BTC, ETH, SOL] }
-  - filter: { funding_below: -0.01 }
-  - notify: "Negative funding: {{results}}"
-```
-
-**5. Arbitrage / Custom**
-```yaml
-trigger: { type: on_price }
-conditions:
-  - spread_above: { pair: [BTC, BTC-PERP], threshold: 0.5% }
-actions:
-  - buy: { coin: BTC, size: $500 }
-  - sell: { coin: BTC-PERP, size: $500 }
-```
-
-### Script Runtime
-- YAML parsed → validated → executed by Atlas runtime
-- Access to all Engine methods (orders, queries, risk)
-- Atlas-QL for data queries (local DB first, API fallback)
-- Risk limits enforced per-script
-- Logging to `~/.atlas-perp/logs/scripts/`
-- `--dry-run` mode for testing
-- Template variables: `{{price}}`, `{{account_value}}`, `{{pnl}}`
-
----
-
-## Phase 14: Backtesting Engine 📋
-
-Test strategies against historical data:
-
-```bash
-atlas backtest signal-btc.yaml --from 2025-01-01 --to 2026-01-01
-atlas backtest dca-eth.yaml --period 6m
-atlas backtest grid-sol.yaml --capital 10000 --leverage 5
-```
-
-### Output
-```
-╔══════════════════════════════════════════════════╗
-║  BACKTEST RESULTS — signal-btc.yaml             ║
-╠══════════════════════════════════════════════════╣
-║  Period     : 2025-01-01 → 2026-01-01           ║
-║  Trades     : 142                                ║
-║  Win Rate   : 63.4%                              ║
-║  Total PnL  : +$4,231.50                         ║
-║  Max DD     : -$812.00 (8.1%)                    ║
-║  Sharpe     : 1.82                               ║
-║  R:R Avg    : 2.14                               ║
-╚══════════════════════════════════════════════════╝
-```
-
-- Uses Atlas-QL cached candle/trade data
-- Downloads missing historical data automatically
-- Simulates order execution with slippage model
-- Risk rules applied same as live trading
-- Export results to JSON/CSV
-
----
-
-## Phase 15: Multi-Sig & Advanced 📋
+## Phase 13: Multi-Sig & Advanced 📋
 
 ```bash
 # Multi-signature
@@ -461,13 +328,6 @@ atlas export pnl --monthly --csv  # Monthly PnL export
 | `atlas defi morpho` | Lending APY/vaults |
 | `atlas defi uniswap` | Pool prices/info |
 | `atlas evm transfer` | EVM bridging |
-
-### Scripting
-| Command | Description |
-|---|---|
-| `atlas run` | Execute strategy YAML |
-| `atlas scripts` | Manage scripts |
-| `atlas backtest` | Test strategy on history |
 
 ### System
 | Command | Description |

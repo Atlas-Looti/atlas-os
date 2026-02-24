@@ -13,6 +13,7 @@ pub enum Action {
     ScrollUp,
     ScrollDown,
     ToggleHelp,
+    CancelOrder,
 }
 
 /// Map a key press to an Action.
@@ -33,6 +34,15 @@ pub fn handle_key(app: &App, code: KeyCode, modifiers: KeyModifiers) -> Action {
         // ── Refresh ─────────────────────────────────────────
         KeyCode::Char('r') => Action::Refresh,
 
+        // ── Cancel order (on Orders tab) ────────────────────
+        KeyCode::Char('c') => {
+            if app.tab == 2 {
+                Action::CancelOrder
+            } else {
+                Action::None
+            }
+        }
+
         // ── Tab switching (number keys) ─────────────────────
         KeyCode::Char('1') => Action::Tab(0),
         KeyCode::Char('2') => Action::Tab(1),
@@ -45,7 +55,7 @@ pub fn handle_key(app: &App, code: KeyCode, modifiers: KeyModifiers) -> Action {
         KeyCode::Char('l') | KeyCode::Right => Action::NextTab,
         KeyCode::Char('h') | KeyCode::Left => Action::PrevTab,
 
-        // ── Scroll ──────────────────────────────────────────
+        // ── Scroll / Selection ──────────────────────────────
         KeyCode::Char('j') | KeyCode::Down => Action::ScrollDown,
         KeyCode::Char('k') | KeyCode::Up => Action::ScrollUp,
 

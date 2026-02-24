@@ -9,7 +9,7 @@ use tracing::info;
 const DOTFOLDER: &str = ".atlas-perp";
 
 /// Required subdirectories inside the dotfolder.
-const SUBDIRS: &[&str] = &["logs", "data", "keystore", "agents"];
+const SUBDIRS: &[&str] = &["logs", "data", "keystore"];
 
 /// Resolve the root path: `$HOME/.atlas-perp/`.
 pub fn root_dir() -> Result<PathBuf> {
@@ -30,9 +30,8 @@ pub fn resolve(relative: &str) -> Result<PathBuf> {
 /// ├── config.toml
 /// ├── logs/
 /// ├── data/
-/// ├── keystore/
-/// │   └── wallets.json  (created empty if missing)
-/// └── agents/
+/// └── keystore/
+///     └── wallets.json  (created empty if missing)
 /// ```
 pub fn init_workspace() -> Result<()> {
     let root = root_dir()?;
