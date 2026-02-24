@@ -12,8 +12,8 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
-/// 0x API v2 base URL.
-const ZEROX_API_BASE: &str = "https://api.0x.org";
+/// Atlas backend API sub-route for 0x proxy.
+const ZEROX_API_BASE: &str = "/api/zerox";
 
 /// AllowanceHolder address for Cancun hardfork chains (Ethereum, Arbitrum, Base, etc.)
 pub const ALLOWANCE_HOLDER_CANCUN: &str = "0x0000000000001fF3684f28c67538d4D072C22734";
@@ -223,8 +223,8 @@ pub struct ZeroXChainInfo {
 /// 0x Swap module — multi-chain DEX aggregator (API v2).
 pub struct ZeroXModule {
     http: reqwest::Client,
-    /// 0x API Key (from dashboard.0x.org).
-    pub api_key: String,
+    /// Backend API URL.
+    pub backend_url: String,
     /// Atlas builder fee recipient address.
     pub fee_recipient: Option<String>,
     /// Atlas builder fee in bps (default: 1 bps = 0.01%).
@@ -232,7 +232,7 @@ pub struct ZeroXModule {
 }
 
 impl ZeroXModule {
-    pub fn new(api_key: String) -> Self {
+    pub fn new(backend_url: String) -> Self {
         let http = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(15))
             .build()
@@ -242,7 +242,7 @@ impl ZeroXModule {
 
         Self {
             http,
-            api_key,
+            backend_url,
             fee_recipient: Some(ATLAS_FEE_WALLET.to_string()),
             fee_bps: BUILDER_FEE_BPS,
         }
@@ -255,13 +255,12 @@ impl ZeroXModule {
         self
     }
 
-    /// GET request with 0x v2 auth headers.
-    async fn get(&self, url: &str, query: &[(&str, &str)]) -> AtlasResult<serde_json::Value> {
+    /// GET request to Atlas backend.
+    async fn get(&self, path: &str, query: &[(&str, &str)]) -> AtlasResult<serde_json::Value> {
+        let url = format!("{}{}", self.backend_url, path);
         let resp = self
             .http
-            .get(url)
-            .header("0x-api-key", &self.api_key)
-            .header("0x-version", "v2")
+            .get(&url)
             .query(query)
             .send()
             .await
@@ -302,7 +301,7 @@ impl ZeroXModule {
         }
 
         let cid = chain_id(chain).to_string();
-        let url = format!("{ZEROX_API_BASE}/swap/allowance-holder/price");
+        let path = format!("{ZEROX_API_BASE}/swap/allowance-holder/price");
         let mut query = vec![
             ("chainId", cid.as_str()),
             ("sellToken", sell_token),
@@ -327,7 +326,7 @@ impl ZeroXModule {
             query.push(("swapFeeBps", &bps));
         }
 
-        let val = self.get(&url, &query).await?;
+        let val = self.get(&path, &query).await?;
         serde_json::from_value(val)
             .map_err(|e| AtlasError::Other(format!("Failed to deserialize 0x price: {e}")))
     }
@@ -353,7 +352,7 @@ impl ZeroXModule {
         }
 
         let cid = chain_id(chain).to_string();
-        let url = format!("{ZEROX_API_BASE}/swap/allowance-holder/quote");
+        let path = format!("{ZEROX_API_BASE}/swap/allowance-holder/quote");
         let mut query = vec![
             ("chainId", cid.as_str()),
             ("sellToken", sell_token),
@@ -376,7 +375,7 @@ impl ZeroXModule {
             query.push(("swapFeeBps", &bps));
         }
 
-        let val = self.get(&url, &query).await?;
+        let val = self.get(&path, &query).await?;
         serde_json::from_value(val)
             .map_err(|e| AtlasError::Other(format!("Failed to deserialize 0x quote: {e}")))
     }
@@ -385,8 +384,8 @@ impl ZeroXModule {
 
     /// Get list of chains supported by 0x Swap API.
     pub async fn supported_chains(&self) -> AtlasResult<ZeroXChainsResponse> {
-        let url = format!("{ZEROX_API_BASE}/swap/chains");
-        let val = self.get(&url, &[]).await?;
+        let path = format!("{ZEROX_API_BASE}/swap/chains");
+        let val = self.get(&path, &[]).await?;
         serde_json::from_value(val)
             .map_err(|e| AtlasError::Other(format!("Failed to deserialize 0x chains: {e}")))
     }
@@ -396,8 +395,8 @@ impl ZeroXModule {
     /// Get available liquidity sources for a chain.
     pub async fn sources(&self, chain: &Chain) -> AtlasResult<serde_json::Value> {
         let cid = chain_id(chain).to_string();
-        let url = format!("{ZEROX_API_BASE}/sources");
-        self.get(&url, &[("chainId", &cid)]).await
+        let path = format!("{ZEROX_API_BASE}/sources");
+        self.get(&path, &[("chainId", &cid)]).await
     }
 }
 
@@ -448,22 +447,16 @@ impl SwapModule for ZeroXModule {
             Decimal::ZERO
         };
 
-        let estimated_gas = resp
-            .transaction
-            .as_ref()
-            .and_then(|tx| {
-                tx.gas
-                    .as_ref()
-                    .and_then(|g| g.as_str())
-                    .and_then(|s| s.parse::<u64>().ok())
-            });
+        let estimated_gas = resp.transaction.as_ref().and_then(|tx| {
+            tx.gas
+                .as_ref()
+                .and_then(|g| g.as_str())
+                .and_then(|s| s.parse::<u64>().ok())
+        });
 
         let allowance_target = resp.allowance_target.clone();
 
-        let tx_data = resp
-            .transaction
-            .as_ref()
-            .map(|tx| tx.data.clone());
+        let tx_data = resp.transaction.as_ref().map(|tx| tx.data.clone());
 
         Ok(SwapQuote {
             protocol: Protocol::ZeroX,
@@ -582,7 +575,7 @@ impl ZeroXModule {
         start_timestamp: Option<u64>,
         end_timestamp: Option<u64>,
     ) -> AtlasResult<TradeAnalyticsResponse> {
-        let url = format!("{ZEROX_API_BASE}/trade-analytics/swap");
+        let path = format!("{ZEROX_API_BASE}/trade-analytics/swap");
         let mut query = Vec::new();
 
         let start_ts;
@@ -601,7 +594,7 @@ impl ZeroXModule {
         }
 
         let q: Vec<(&str, &str)> = query.iter().map(|(k, v)| (*k, *v)).collect();
-        let val = self.get(&url, &q).await?;
+        let val = self.get(&path, &q).await?;
         serde_json::from_value(val)
             .map_err(|e| AtlasError::Other(format!("Failed to deserialize trade analytics: {e}")))
     }

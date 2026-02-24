@@ -21,14 +21,14 @@ pub fn generate_wallet(name: &str, fmt: OutputFormat) -> Result<()> {
     }
 
     println!("╔══════════════════════════════════════════════════════════════╗");
-    println!("║  NEW WALLET CREATED                                        ║");
+    println!("║  NEW WALLET CREATED                                          ║");
     println!("╠══════════════════════════════════════════════════════════════╣");
     println!("║  Profile : {:<49}║", profile_name);
     println!("║  Address : {:<49}║", address);
     println!("║  Private : {:<49}║", private_key);
     println!("╠══════════════════════════════════════════════════════════════╣");
-    println!("║  ⚠  BACK UP YOUR PRIVATE KEY NOW. It will NOT be shown     ║");
-    println!("║     again. It is stored ONLY in your OS secure keyring.     ║");
+    println!("║  ⚠  BACK UP YOUR PRIVATE KEY NOW. It will NOT be shown       ║");
+    println!("║     again. It is stored ONLY in your OS secure keyring.      ║");
     println!("╚══════════════════════════════════════════════════════════════╝");
     Ok(())
 }
@@ -81,19 +81,54 @@ pub fn switch_profile(name: &str, fmt: OutputFormat) -> Result<()> {
     Ok(())
 }
 
+/// `atlas profile export <name>`
+pub fn export_wallet(name: &str, fmt: OutputFormat) -> Result<()> {
+    let (profile_name, address, private_key) = AuthManager::export_wallet(name)?;
+
+    if fmt != OutputFormat::Table {
+        let json = serde_json::json!({
+            "name": profile_name,
+            "address": address,
+            "private_key": private_key,
+        });
+        if matches!(fmt, OutputFormat::JsonPretty) {
+            println!("{}", serde_json::to_string_pretty(&json)?);
+        } else {
+            println!("{}", serde_json::to_string(&json)?);
+        }
+        return Ok(());
+    }
+
+    println!("╔══════════════════════════════════════════════════════════════╗");
+    println!("║  WALLET EXPORT                                             ║");
+    println!("╠══════════════════════════════════════════════════════════════╣");
+    println!("║  Profile : {:<49}║", profile_name);
+    println!("║  Address : {:<49}║", address);
+    println!("║  Private : {:<49}║", private_key);
+    println!("╠══════════════════════════════════════════════════════════════╣");
+    println!("║  ⚠  WARNING: ANYONE WITH THIS KEY CAN STEAL YOUR FUNDS.     ║");
+    println!("║     DO NOT SHARE IT WITH ANYONE SECURE IT IMMEDIATELY.      ║");
+    println!("╚══════════════════════════════════════════════════════════════╝");
+    Ok(())
+}
+
 /// `atlas profile list`
 pub fn list_profiles(fmt: OutputFormat) -> Result<()> {
     let store = AuthManager::load_store_pub()?;
     let config = atlas_core::workspace::load_config()?;
 
     if fmt != OutputFormat::Table {
-        let profiles: Vec<serde_json::Value> = store.wallets.iter().map(|w| {
-            serde_json::json!({
-                "name": w.name,
-                "address": w.address,
-                "active": w.name == config.system.active_profile,
+        let profiles: Vec<serde_json::Value> = store
+            .wallets
+            .iter()
+            .map(|w| {
+                serde_json::json!({
+                    "name": w.name,
+                    "address": w.address,
+                    "active": w.name == config.system.active_profile,
+                })
             })
-        }).collect();
+            .collect();
         if matches!(fmt, OutputFormat::JsonPretty) {
             println!("{}", serde_json::to_string_pretty(&profiles)?);
         } else {
@@ -111,7 +146,11 @@ pub fn list_profiles(fmt: OutputFormat) -> Result<()> {
     println!("│ Profile          │ Address                                    │ Active   │");
     println!("├──────────────────┼────────────────────────────────────────────┼──────────┤");
     for w in &store.wallets {
-        let active = if w.name == config.system.active_profile { "  ●" } else { "" };
+        let active = if w.name == config.system.active_profile {
+            "  ●"
+        } else {
+            ""
+        };
         println!("│ {:<16} │ {:<42} │ {:<8} │", w.name, w.address, active);
     }
     println!("└──────────────────┴────────────────────────────────────────────┴──────────┘");

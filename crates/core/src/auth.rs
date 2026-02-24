@@ -40,8 +40,7 @@ impl AuthManager {
         let path = crate::workspace::resolve("keystore/wallets.json")?;
         let json =
             serde_json::to_string_pretty(store).context("Failed to serialize wallet store")?;
-        fs::write(&path, &json)
-            .with_context(|| format!("Failed to write {}", path.display()))?;
+        fs::write(&path, &json).with_context(|| format!("Failed to write {}", path.display()))?;
         Ok(())
     }
 
@@ -49,8 +48,8 @@ impl AuthManager {
 
     /// Store a hex-encoded private key in the OS keyring.
     fn store_key(profile_name: &str, hex_key: &str) -> Result<()> {
-        let entry = Entry::new(KEYRING_SERVICE, profile_name)
-            .context("Failed to create keyring entry")?;
+        let entry =
+            Entry::new(KEYRING_SERVICE, profile_name).context("Failed to create keyring entry")?;
         entry
             .set_password(hex_key)
             .context("Failed to store key in OS keyring")?;
@@ -59,8 +58,8 @@ impl AuthManager {
 
     /// Retrieve a hex-encoded private key from the OS keyring.
     fn retrieve_key(profile_name: &str) -> Result<String> {
-        let entry = Entry::new(KEYRING_SERVICE, profile_name)
-            .context("Failed to access keyring entry")?;
+        let entry =
+            Entry::new(KEYRING_SERVICE, profile_name).context("Failed to access keyring entry")?;
         let key = entry
             .get_password()
             .with_context(|| format!("No keyring entry found for profile '{profile_name}'"))?;
@@ -154,5 +153,26 @@ impl AuthManager {
             .parse()
             .context("Corrupted key in keyring — invalid hex")?;
         Ok(signer)
+    }
+
+    /// Export a wallet's private key.
+    /// Returns (name, address, private_key_hex).
+    pub fn export_wallet(name: &str) -> Result<(String, String, String)> {
+        let store = Self::load_store()?;
+        if !store.exists(name) {
+            bail!("Profile '{name}' does not exist");
+        }
+
+        let address_str = store
+            .wallets
+            .iter()
+            .find(|w| w.name == name)
+            .map(|w| w.address.clone())
+            .unwrap_or_default();
+
+        let hex_key = Self::retrieve_key(name)?;
+
+        info!(profile = name, "wallet exported");
+        Ok((name.to_string(), address_str, hex_key))
     }
 }

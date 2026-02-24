@@ -18,24 +18,43 @@ pub fn run(fmt: OutputFormat) -> Result<()> {
     let config = atlas_core::workspace::load_config()?;
 
     let modules = vec![
-        ("hyperliquid", "Perpetual Trading", config.modules.hyperliquid.enabled,
-         format!("network={}, rpc={}", config.modules.hyperliquid.config.network, config.modules.hyperliquid.config.rpc_url)),
-        ("morpho", "DeFi Lending", config.modules.morpho.enabled,
-         format!("chain={}", config.modules.morpho.config.chain)),
-        ("zero_x", "DEX Aggregator (0x)", config.modules.zero_x.enabled,
-         format!("api_key={}", if config.modules.zero_x.config.api_key.is_empty() { "<not set>" } else { "***" })),
+        (
+            "hyperliquid",
+            "Perpetual Trading",
+            config.modules.hyperliquid.enabled,
+            format!(
+                "network={}, rpc={}",
+                config.modules.hyperliquid.config.network,
+                config.modules.hyperliquid.config.rpc_url
+            ),
+        ),
+        (
+            "morpho",
+            "DeFi Lending",
+            config.modules.morpho.enabled,
+            format!("chain={}", config.modules.morpho.config.chain),
+        ),
+        (
+            "zero_x",
+            "DEX Aggregator (0x)",
+            config.modules.zero_x.enabled,
+            String::from("proxied via backend"),
+        ),
     ];
 
     match fmt {
         OutputFormat::Json | OutputFormat::JsonPretty => {
-            let json_modules: Vec<serde_json::Value> = modules.iter().map(|(name, desc, enabled, cfg)| {
-                serde_json::json!({
-                    "name": name,
-                    "description": desc,
-                    "enabled": enabled,
-                    "config": cfg,
+            let json_modules: Vec<serde_json::Value> = modules
+                .iter()
+                .map(|(name, desc, enabled, cfg)| {
+                    serde_json::json!({
+                        "name": name,
+                        "description": desc,
+                        "enabled": enabled,
+                        "config": cfg,
+                    })
                 })
-            }).collect();
+                .collect();
             let json = if matches!(fmt, OutputFormat::JsonPretty) {
                 serde_json::to_string_pretty(&json_modules)?
             } else {
@@ -126,10 +145,7 @@ pub fn config_set(module: &str, key: &str, value: &str, fmt: OutputFormat) -> Re
             }
             _ => anyhow::bail!("Unknown key '{key}' for morpho. Available: chain"),
         },
-        "zero_x" => match key {
-            "api_key" | "key" => config.modules.zero_x.config.api_key = value.to_string(),
-            _ => anyhow::bail!("Unknown key '{key}' for zero_x. Available: api_key"),
-        },
+        "zero_x" => anyhow::bail!("No configurable keys for zero_x yet."),
         _ => unreachable!(),
     }
 
@@ -138,7 +154,12 @@ pub fn config_set(module: &str, key: &str, value: &str, fmt: OutputFormat) -> Re
     if fmt == OutputFormat::Table {
         println!("✓ {resolved}.{key} = {value}");
     } else {
-        json_ok(fmt, "config_set", resolved, Some(("key", &format!("{key}={value}"))));
+        json_ok(
+            fmt,
+            "config_set",
+            resolved,
+            Some(("key", &format!("{key}={value}"))),
+        );
     }
     Ok(())
 }

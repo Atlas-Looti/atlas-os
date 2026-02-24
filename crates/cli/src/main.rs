@@ -22,7 +22,11 @@ struct Cli {
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
-enum CliOutputFormat { Table, Json, JsonPretty }
+enum CliOutputFormat {
+    Table,
+    Json,
+    JsonPretty,
+}
 
 impl From<CliOutputFormat> for OutputFormat {
     fn from(f: CliOutputFormat) -> OutputFormat {
@@ -41,7 +45,6 @@ impl From<CliOutputFormat> for OutputFormat {
 #[derive(Subcommand)]
 enum Commands {
     // ── CORE OS ─────────────────────────────────────────────────
-
     /// Manage wallet profiles (generate, import, use, list).
     Profile {
         #[command(subcommand)]
@@ -67,7 +70,6 @@ enum Commands {
     Tui,
 
     // ── MARKET DATA & ANALYTICS ─────────────────────────────────
-
     /// Market data & technical analysis: price, funding, orderbook, ta.
     Market {
         #[command(subcommand)]
@@ -81,7 +83,6 @@ enum Commands {
     },
 
     // ── PROTOCOL MODULES (namespaced per protocol) ──────────────
-
     /// Hyperliquid DEX: perp trading, spot trading, vaults.
     #[command(alias = "hl")]
     Hyperliquid {
@@ -103,7 +104,6 @@ enum Commands {
     },
 
     // ── UTILITIES ───────────────────────────────────────────────
-
     /// Query cached history and PnL.
     History {
         #[command(subcommand)]
@@ -140,6 +140,11 @@ enum ProfileAction {
     },
     /// List all profiles.
     List,
+    /// Export the private key of a profile.
+    Export {
+        /// Profile name to export.
+        name: String,
+    },
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -502,9 +507,11 @@ enum HlPerpAction {
         /// Size: 200 (default mode), $200 (USDC margin), 0.5eth (units), 10lots.
         size: String,
         /// Override leverage for size calculation.
-        #[arg(long)] leverage: Option<u32>,
+        #[arg(long)]
+        leverage: Option<u32>,
         /// Slippage tolerance (e.g. 0.05 = 5%).
-        #[arg(long)] slippage: Option<f64>,
+        #[arg(long)]
+        slippage: Option<f64>,
     },
     /// Market sell / short.
     Sell {
@@ -513,18 +520,22 @@ enum HlPerpAction {
         /// Size: 200 (default mode), $200 (USDC margin), 0.5eth (units), 10lots.
         size: String,
         /// Override leverage for size calculation.
-        #[arg(long)] leverage: Option<u32>,
+        #[arg(long)]
+        leverage: Option<u32>,
         /// Slippage tolerance (e.g. 0.05 = 5%).
-        #[arg(long)] slippage: Option<f64>,
+        #[arg(long)]
+        slippage: Option<f64>,
     },
     /// Close position.
     Close {
         /// Coin symbol.
         ticker: String,
         /// Partial close size (omit to close full position).
-        #[arg(long)] size: Option<f64>,
+        #[arg(long)]
+        size: Option<f64>,
         /// Slippage tolerance.
-        #[arg(long)] slippage: Option<f64>,
+        #[arg(long)]
+        slippage: Option<f64>,
     },
     /// Place limit order.
     Order {
@@ -537,14 +548,16 @@ enum HlPerpAction {
         /// Limit price in USD.
         price: f64,
         /// Close-only order (won't open new positions).
-        #[arg(long, default_value_t = false)] reduce_only: bool,
+        #[arg(long, default_value_t = false)]
+        reduce_only: bool,
     },
     /// Cancel order(s). Without --oid, cancels all orders for the coin.
     Cancel {
         /// Coin symbol.
         ticker: String,
         /// Specific order ID to cancel.
-        #[arg(long)] oid: Option<u64>,
+        #[arg(long)]
+        oid: Option<u64>,
     },
     /// List open positions.
     Positions,
@@ -559,7 +572,8 @@ enum HlPerpAction {
         /// Leverage multiplier (e.g. 10).
         value: u32,
         /// Use cross margin (default: isolated).
-        #[arg(long, default_value_t = false)] cross: bool,
+        #[arg(long, default_value_t = false)]
+        cross: bool,
     },
     /// Update isolated margin for a position.
     Margin {
@@ -586,7 +600,8 @@ enum HlSpotAction {
         /// Amount to buy.
         size: f64,
         /// Slippage tolerance.
-        #[arg(long)] slippage: Option<f64>,
+        #[arg(long)]
+        slippage: Option<f64>,
     },
     /// Sell spot token.
     Sell {
@@ -595,7 +610,8 @@ enum HlSpotAction {
         /// Amount to sell.
         size: f64,
         /// Slippage tolerance.
-        #[arg(long)] slippage: Option<f64>,
+        #[arg(long)]
+        slippage: Option<f64>,
     },
     /// Show spot token balances.
     Balance,
@@ -606,7 +622,8 @@ enum HlSpotAction {
         /// Amount to transfer.
         amount: String,
         /// Token (default: USDC).
-        #[arg(long)] token: Option<String>,
+        #[arg(long)]
+        token: Option<String>,
     },
 }
 
@@ -627,7 +644,11 @@ enum HlSubAction {
 #[derive(Subcommand)]
 enum HlAgentAction {
     /// Approve agent wallet.
-    Approve { address: String, #[arg(long)] name: Option<String> },
+    Approve {
+        address: String,
+        #[arg(long)]
+        name: Option<String>,
+    },
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -637,7 +658,10 @@ enum HlAgentAction {
 #[derive(Subcommand)]
 enum MorphoAction {
     /// List lending markets.
-    Markets { #[arg(long, default_value = "ethereum")] chain: String },
+    Markets {
+        #[arg(long, default_value = "ethereum")]
+        chain: String,
+    },
     /// Show lending positions.
     Positions,
 }
@@ -699,7 +723,8 @@ enum StreamAction {
         /// Coin symbol.
         ticker: String,
         /// Number of price levels per side.
-        #[arg(long, default_value_t = 10)] depth: usize,
+        #[arg(long, default_value_t = 10)]
+        depth: usize,
     },
     /// Stream candlestick updates for a coin.
     Candles {
@@ -715,14 +740,23 @@ enum StreamAction {
 #[derive(Subcommand)]
 enum RiskAction {
     Calc {
-        coin: String, side: String, entry: f64,
-        #[arg(long)] stop: Option<f64>,
-        #[arg(long)] leverage: Option<u32>,
+        coin: String,
+        side: String,
+        entry: f64,
+        #[arg(long)]
+        stop: Option<f64>,
+        #[arg(long)]
+        leverage: Option<u32>,
     },
     Offline {
-        coin: String, side: String, entry: f64, account: f64,
-        #[arg(long)] stop: Option<f64>,
-        #[arg(long)] leverage: Option<u32>,
+        coin: String,
+        side: String,
+        entry: f64,
+        account: f64,
+        #[arg(long)]
+        stop: Option<f64>,
+        #[arg(long)]
+        leverage: Option<u32>,
     },
 }
 
@@ -732,41 +766,66 @@ enum HistoryAction {
         /// Filter by protocol (hyperliquid, 0x, morpho). Default: all.
         #[arg(long, alias = "proto")]
         protocol: Option<String>,
-        #[arg(long)] coin: Option<String>,
-        #[arg(long)] from: Option<String>,
-        #[arg(long)] to: Option<String>,
-        #[arg(long, default_value_t = 50)] limit: usize,
+        #[arg(long)]
+        coin: Option<String>,
+        #[arg(long)]
+        from: Option<String>,
+        #[arg(long)]
+        to: Option<String>,
+        #[arg(long, default_value_t = 50)]
+        limit: usize,
     },
     Orders {
         /// Filter by protocol (hyperliquid, 0x, morpho). Default: all.
         #[arg(long, alias = "proto")]
         protocol: Option<String>,
-        #[arg(long)] coin: Option<String>,
-        #[arg(long)] status: Option<String>,
-        #[arg(long, default_value_t = 50)] limit: usize,
+        #[arg(long)]
+        coin: Option<String>,
+        #[arg(long)]
+        status: Option<String>,
+        #[arg(long, default_value_t = 50)]
+        limit: usize,
     },
     Pnl {
         /// Filter by protocol (hyperliquid, 0x, morpho). Default: all.
         #[arg(long, alias = "proto")]
         protocol: Option<String>,
-        #[arg(long)] coin: Option<String>,
-        #[arg(long)] from: Option<String>,
-        #[arg(long)] to: Option<String>,
+        #[arg(long)]
+        coin: Option<String>,
+        #[arg(long)]
+        from: Option<String>,
+        #[arg(long)]
+        to: Option<String>,
     },
 }
 
 #[derive(Subcommand)]
 enum ExportAction {
     Trades {
-        #[arg(long, alias = "proto")] protocol: Option<String>,
-        #[arg(long)] csv: bool, #[arg(long)] json: bool,
-        #[arg(long)] coin: Option<String>,
-        #[arg(long)] from: Option<String>, #[arg(long)] to: Option<String>,
+        #[arg(long, alias = "proto")]
+        protocol: Option<String>,
+        #[arg(long)]
+        csv: bool,
+        #[arg(long)]
+        json: bool,
+        #[arg(long)]
+        coin: Option<String>,
+        #[arg(long)]
+        from: Option<String>,
+        #[arg(long)]
+        to: Option<String>,
     },
     Pnl {
-        #[arg(long, alias = "proto")] protocol: Option<String>,
-        #[arg(long)] csv: bool, #[arg(long)] json: bool,
-        #[arg(long)] from: Option<String>, #[arg(long)] to: Option<String>,
+        #[arg(long, alias = "proto")]
+        protocol: Option<String>,
+        #[arg(long)]
+        csv: bool,
+        #[arg(long)]
+        json: bool,
+        #[arg(long)]
+        from: Option<String>,
+        #[arg(long)]
+        to: Option<String>,
     },
 }
 
@@ -814,6 +873,7 @@ async fn run(command: Commands, fmt: OutputFormat) -> Result<()> {
             ProfileAction::Import { name } => commands::auth::import_wallet(&name, fmt),
             ProfileAction::Use { name } => commands::auth::switch_profile(&name, fmt),
             ProfileAction::List => commands::auth::list_profiles(fmt),
+            ProfileAction::Export { name } => commands::auth::export_wallet(&name, fmt),
         },
 
         Commands::Configure { action } => match action {
@@ -828,7 +888,10 @@ async fn run(command: Commands, fmt: OutputFormat) -> Result<()> {
                     if fmt == OutputFormat::Table {
                         println!("✓ verbose = {val}");
                     } else {
-                        println!("{}", serde_json::json!({"ok": true, "key": "verbose", "value": val}));
+                        println!(
+                            "{}",
+                            serde_json::json!({"ok": true, "key": "verbose", "value": val})
+                        );
                     }
                     Ok(())
                 }
@@ -839,7 +902,10 @@ async fn run(command: Commands, fmt: OutputFormat) -> Result<()> {
                     if fmt == OutputFormat::Table {
                         println!("✓ api_url = {url}");
                     } else {
-                        println!("{}", serde_json::json!({"ok": true, "key": "api_url", "value": url}));
+                        println!(
+                            "{}",
+                            serde_json::json!({"ok": true, "key": "api_url", "value": url})
+                        );
                     }
                     Ok(())
                 }
@@ -854,10 +920,18 @@ async fn run(command: Commands, fmt: OutputFormat) -> Result<()> {
             },
             ConfigureAction::Trading { action } => match action {
                 TradingConfigAction::Mode { value } => commands::configure::set_mode(&value, fmt),
-                TradingConfigAction::Size { value } => commands::configure::set_size_mode(&value, fmt),
-                TradingConfigAction::Leverage { value } => commands::configure::set_leverage(value, fmt),
-                TradingConfigAction::Slippage { value } => commands::configure::set_slippage(value, fmt),
-                TradingConfigAction::Lot { coin, size } => commands::configure::set_lot_size(&coin, size, fmt),
+                TradingConfigAction::Size { value } => {
+                    commands::configure::set_size_mode(&value, fmt)
+                }
+                TradingConfigAction::Leverage { value } => {
+                    commands::configure::set_leverage(value, fmt)
+                }
+                TradingConfigAction::Slippage { value } => {
+                    commands::configure::set_slippage(value, fmt)
+                }
+                TradingConfigAction::Lot { coin, size } => {
+                    commands::configure::set_lot_size(&coin, size, fmt)
+                }
             },
         },
 
@@ -869,40 +943,108 @@ async fn run(command: Commands, fmt: OutputFormat) -> Result<()> {
         Commands::Market { action } => match action {
             MarketAction::Hyperliquid { action } => match action {
                 MarketHlAction::List { spot } => commands::market::markets(spot, fmt).await,
-                MarketHlAction::Price { tickers, all } => commands::market::price(&tickers, all, fmt).await,
+                MarketHlAction::Price { tickers, all } => {
+                    commands::market::price(&tickers, all, fmt).await
+                }
                 MarketHlAction::Funding { ticker } => commands::market::funding(&ticker, fmt).await,
-                MarketHlAction::Orderbook { ticker, depth } => commands::market::orderbook(&ticker, depth, fmt).await,
-                MarketHlAction::Candles { ticker, timeframe, limit } => commands::market::candles(&ticker, &timeframe, limit, fmt).await,
+                MarketHlAction::Orderbook { ticker, depth } => {
+                    commands::market::orderbook(&ticker, depth, fmt).await
+                }
+                MarketHlAction::Candles {
+                    ticker,
+                    timeframe,
+                    limit,
+                } => commands::market::candles(&ticker, &timeframe, limit, fmt).await,
                 MarketHlAction::Info { coin } => commands::market::info(&coin, fmt).await,
-                MarketHlAction::Top { sort, limit, reverse } => commands::market::top(&sort, limit, reverse, fmt).await,
+                MarketHlAction::Top {
+                    sort,
+                    limit,
+                    reverse,
+                } => commands::market::top(&sort, limit, reverse, fmt).await,
                 MarketHlAction::Spread { coins } => commands::market::spread(&coins, fmt).await,
                 MarketHlAction::Search { query } => commands::market::search(&query, fmt).await,
                 MarketHlAction::Summary => commands::market::summary(fmt).await,
-                MarketHlAction::Rsi { ticker, timeframe, period } => commands::ta::rsi(&ticker, &timeframe, period, fmt).await,
-                MarketHlAction::Macd { ticker, timeframe } => commands::ta::macd(&ticker, &timeframe, fmt).await,
+                MarketHlAction::Rsi {
+                    ticker,
+                    timeframe,
+                    period,
+                } => commands::ta::rsi(&ticker, &timeframe, period, fmt).await,
+                MarketHlAction::Macd { ticker, timeframe } => {
+                    commands::ta::macd(&ticker, &timeframe, fmt).await
+                }
                 MarketHlAction::Vwap { ticker } => commands::ta::vwap(&ticker, fmt).await,
                 MarketHlAction::Trend { ticker } => commands::ta::trend(&ticker, fmt).await,
-                MarketHlAction::Bbands { ticker, timeframe, period } => commands::ta::bbands(&ticker, &timeframe, period, fmt).await,
-                MarketHlAction::Stoch { ticker, timeframe } => commands::ta::stoch(&ticker, &timeframe, fmt).await,
-                MarketHlAction::Adx { ticker, timeframe, period } => commands::ta::adx(&ticker, &timeframe, period, fmt).await,
-                MarketHlAction::Atr { ticker, timeframe, period } => commands::ta::atr(&ticker, &timeframe, period, fmt).await,
-                MarketHlAction::Ema { ticker, timeframe, period } => commands::ta::ema(&ticker, &timeframe, period, fmt).await,
-                MarketHlAction::Sma { ticker, timeframe, period } => commands::ta::sma(&ticker, &timeframe, period, fmt).await,
-                MarketHlAction::Obv { ticker, timeframe } => commands::ta::obv(&ticker, &timeframe, fmt).await,
-                MarketHlAction::Cci { ticker, timeframe, period } => commands::ta::cci(&ticker, &timeframe, period, fmt).await,
-                MarketHlAction::Willr { ticker, timeframe, period } => commands::ta::willr(&ticker, &timeframe, period, fmt).await,
-                MarketHlAction::Sar { ticker, timeframe } => commands::ta::sar(&ticker, &timeframe, fmt).await,
-                MarketHlAction::Patterns { ticker, timeframe } => commands::ta::patterns(&ticker, &timeframe, fmt).await,
+                MarketHlAction::Bbands {
+                    ticker,
+                    timeframe,
+                    period,
+                } => commands::ta::bbands(&ticker, &timeframe, period, fmt).await,
+                MarketHlAction::Stoch { ticker, timeframe } => {
+                    commands::ta::stoch(&ticker, &timeframe, fmt).await
+                }
+                MarketHlAction::Adx {
+                    ticker,
+                    timeframe,
+                    period,
+                } => commands::ta::adx(&ticker, &timeframe, period, fmt).await,
+                MarketHlAction::Atr {
+                    ticker,
+                    timeframe,
+                    period,
+                } => commands::ta::atr(&ticker, &timeframe, period, fmt).await,
+                MarketHlAction::Ema {
+                    ticker,
+                    timeframe,
+                    period,
+                } => commands::ta::ema(&ticker, &timeframe, period, fmt).await,
+                MarketHlAction::Sma {
+                    ticker,
+                    timeframe,
+                    period,
+                } => commands::ta::sma(&ticker, &timeframe, period, fmt).await,
+                MarketHlAction::Obv { ticker, timeframe } => {
+                    commands::ta::obv(&ticker, &timeframe, fmt).await
+                }
+                MarketHlAction::Cci {
+                    ticker,
+                    timeframe,
+                    period,
+                } => commands::ta::cci(&ticker, &timeframe, period, fmt).await,
+                MarketHlAction::Willr {
+                    ticker,
+                    timeframe,
+                    period,
+                } => commands::ta::willr(&ticker, &timeframe, period, fmt).await,
+                MarketHlAction::Sar { ticker, timeframe } => {
+                    commands::ta::sar(&ticker, &timeframe, fmt).await
+                }
+                MarketHlAction::Patterns { ticker, timeframe } => {
+                    commands::ta::patterns(&ticker, &timeframe, fmt).await
+                }
             },
             MarketAction::Dex { action } => match action {
-                MarketDexAction::Trending { network, limit } => commands::coingecko::dex_trending(network.as_deref(), limit, fmt).await,
-                MarketDexAction::New { network, limit } => commands::coingecko::dex_new(network.as_deref(), limit, fmt).await,
-                MarketDexAction::Pools { network, limit } => commands::coingecko::dex_top_pools(&network, limit, fmt).await,
-                MarketDexAction::Pool { network, address } => commands::coingecko::dex_pool_detail(&network, &address, fmt).await,
-                MarketDexAction::Token { network, address } => commands::coingecko::dex_token_info(&network, &address, fmt).await,
+                MarketDexAction::Trending { network, limit } => {
+                    commands::coingecko::dex_trending(network.as_deref(), limit, fmt).await
+                }
+                MarketDexAction::New { network, limit } => {
+                    commands::coingecko::dex_new(network.as_deref(), limit, fmt).await
+                }
+                MarketDexAction::Pools { network, limit } => {
+                    commands::coingecko::dex_top_pools(&network, limit, fmt).await
+                }
+                MarketDexAction::Pool { network, address } => {
+                    commands::coingecko::dex_pool_detail(&network, &address, fmt).await
+                }
+                MarketDexAction::Token { network, address } => {
+                    commands::coingecko::dex_token_info(&network, &address, fmt).await
+                }
                 MarketDexAction::Networks => commands::coingecko::dex_networks(fmt).await,
-                MarketDexAction::Dexes { network } => commands::coingecko::dex_dexes(&network, fmt).await,
-                MarketDexAction::Search { query } => commands::coingecko::dex_search(&query, fmt).await,
+                MarketDexAction::Dexes { network } => {
+                    commands::coingecko::dex_dexes(&network, fmt).await
+                }
+                MarketDexAction::Search { query } => {
+                    commands::coingecko::dex_search(&query, fmt).await
+                }
             },
             MarketAction::Global => commands::coingecko::global(fmt).await,
             MarketAction::Trending => commands::coingecko::trending(fmt).await,
@@ -914,8 +1056,12 @@ async fn run(command: Commands, fmt: OutputFormat) -> Result<()> {
         Commands::Stream { action } => match action {
             StreamAction::Prices => commands::stream::stream_prices(fmt).await,
             StreamAction::Trades { ticker } => commands::stream::stream_trades(&ticker, fmt).await,
-            StreamAction::Book { ticker, depth } => commands::stream::stream_book(&ticker, depth, fmt).await,
-            StreamAction::Candles { ticker, interval } => commands::stream::stream_candles(&ticker, &interval, fmt).await,
+            StreamAction::Book { ticker, depth } => {
+                commands::stream::stream_book(&ticker, depth, fmt).await
+            }
+            StreamAction::Candles { ticker, interval } => {
+                commands::stream::stream_candles(&ticker, &interval, fmt).await
+            }
             StreamAction::User => commands::stream::stream_user(fmt).await,
         },
 
@@ -927,53 +1073,133 @@ async fn run(command: Commands, fmt: OutputFormat) -> Result<()> {
             }
             match action {
                 HyperliquidAction::Perp { action } => match action {
-                    HlPerpAction::Buy { ticker, size, leverage, slippage } => commands::trade::market_buy(&ticker, &size, leverage, slippage, fmt).await,
-                    HlPerpAction::Sell { ticker, size, leverage, slippage } => commands::trade::market_sell(&ticker, &size, leverage, slippage, fmt).await,
-                    HlPerpAction::Close { ticker, size, slippage } => commands::trade::close_position(&ticker, size, slippage, fmt).await,
-                    HlPerpAction::Order { ticker, side, size, price, reduce_only } => commands::trade::limit_order(&ticker, &side, &size, price, reduce_only, "Gtc", fmt).await,
-                    HlPerpAction::Cancel { ticker, oid } => commands::trade::cancel(&ticker, oid, fmt).await,
+                    HlPerpAction::Buy {
+                        ticker,
+                        size,
+                        leverage,
+                        slippage,
+                    } => commands::trade::market_buy(&ticker, &size, leverage, slippage, fmt).await,
+                    HlPerpAction::Sell {
+                        ticker,
+                        size,
+                        leverage,
+                        slippage,
+                    } => {
+                        commands::trade::market_sell(&ticker, &size, leverage, slippage, fmt).await
+                    }
+                    HlPerpAction::Close {
+                        ticker,
+                        size,
+                        slippage,
+                    } => commands::trade::close_position(&ticker, size, slippage, fmt).await,
+                    HlPerpAction::Order {
+                        ticker,
+                        side,
+                        size,
+                        price,
+                        reduce_only,
+                    } => {
+                        commands::trade::limit_order(
+                            &ticker,
+                            &side,
+                            &size,
+                            price,
+                            reduce_only,
+                            "Gtc",
+                            fmt,
+                        )
+                        .await
+                    }
+                    HlPerpAction::Cancel { ticker, oid } => {
+                        commands::trade::cancel(&ticker, oid, fmt).await
+                    }
                     HlPerpAction::Positions => commands::trade::list_positions(fmt).await,
                     HlPerpAction::Orders => commands::trade::list_orders(fmt).await,
                     HlPerpAction::Fills => commands::trade::list_fills(fmt).await,
-                    HlPerpAction::Leverage { ticker, value, cross } => commands::account::set_leverage(&ticker, value, cross, fmt).await,
-                    HlPerpAction::Margin { ticker, amount } => commands::account::update_margin(&ticker, amount, fmt).await,
-                    HlPerpAction::Transfer { amount, destination } => commands::account::transfer_usdc(&amount, &destination, fmt).await,
+                    HlPerpAction::Leverage {
+                        ticker,
+                        value,
+                        cross,
+                    } => commands::account::set_leverage(&ticker, value, cross, fmt).await,
+                    HlPerpAction::Margin { ticker, amount } => {
+                        commands::account::update_margin(&ticker, amount, fmt).await
+                    }
+                    HlPerpAction::Transfer {
+                        amount,
+                        destination,
+                    } => commands::account::transfer_usdc(&amount, &destination, fmt).await,
                 },
                 HyperliquidAction::Spot { action } => match action {
-                    HlSpotAction::Buy { base, size, slippage } => commands::spot::spot_buy(&base, size, slippage, fmt).await,
-                    HlSpotAction::Sell { base, size, slippage } => commands::spot::spot_sell(&base, size, slippage, fmt).await,
+                    HlSpotAction::Buy {
+                        base,
+                        size,
+                        slippage,
+                    } => commands::spot::spot_buy(&base, size, slippage, fmt).await,
+                    HlSpotAction::Sell {
+                        base,
+                        size,
+                        slippage,
+                    } => commands::spot::spot_sell(&base, size, slippage, fmt).await,
                     HlSpotAction::Balance => commands::spot::spot_balance(fmt).await,
-                    HlSpotAction::Transfer { direction, amount, token } => commands::spot::spot_transfer(&direction, &amount, token.as_deref(), fmt).await,
+                    HlSpotAction::Transfer {
+                        direction,
+                        amount,
+                        token,
+                    } => {
+                        commands::spot::spot_transfer(&direction, &amount, token.as_deref(), fmt)
+                            .await
+                    }
                 },
                 HyperliquidAction::Vault { action } => match action {
-                    HlVaultAction::Details { vault } => commands::vault::vault_details(&vault, fmt).await,
+                    HlVaultAction::Details { vault } => {
+                        commands::vault::vault_details(&vault, fmt).await
+                    }
                     HlVaultAction::Deposits => commands::vault::vault_deposits(fmt).await,
                 },
                 HyperliquidAction::Sub { action } => match action {
                     HlSubAction::List => commands::sub::sub_list(fmt).await,
                 },
                 HyperliquidAction::Agent { action } => match action {
-                    HlAgentAction::Approve { address, name } => commands::sub::agent_approve(&address, name.as_deref(), fmt).await,
+                    HlAgentAction::Approve { address, name } => {
+                        commands::sub::agent_approve(&address, name.as_deref(), fmt).await
+                    }
                 },
                 HyperliquidAction::Sync { full } => commands::history::run_sync(full, fmt).await,
                 HyperliquidAction::Risk { action } => match action {
-                    RiskAction::Calc { coin, side, entry, stop, leverage } => commands::risk::calculate(&coin, &side, entry, stop, leverage, fmt).await,
-                    RiskAction::Offline { coin, side, entry, account, stop, leverage } => commands::risk::calculate_offline(&coin, &side, entry, account, stop, leverage, fmt),
+                    RiskAction::Calc {
+                        coin,
+                        side,
+                        entry,
+                        stop,
+                        leverage,
+                    } => commands::risk::calculate(&coin, &side, entry, stop, leverage, fmt).await,
+                    RiskAction::Offline {
+                        coin,
+                        side,
+                        entry,
+                        account,
+                        stop,
+                        leverage,
+                    } => commands::risk::calculate_offline(
+                        &coin, &side, entry, account, stop, leverage, fmt,
+                    ),
                 },
             }
-        },
+        }
 
         // ── MORPHO ──────────────────────────────────────────────
         Commands::Morpho { action } => {
             let config = atlas_core::workspace::load_config()?;
             if !config.modules.morpho.enabled {
-                anyhow::bail!("Morpho module is disabled. Run: atlas configure module enable morpho");
+                anyhow::bail!(
+                    "Morpho module is disabled. Run: atlas configure module enable morpho"
+                );
             }
             match action {
                 MorphoAction::Markets { chain } => commands::morpho::markets(&chain, fmt).await,
                 MorphoAction::Positions => commands::morpho::positions(fmt).await,
             }
-        },
+        }
 
         // ── 0x ─────────────────────────────────────────────────
         Commands::ZeroX { action } => {
@@ -981,29 +1207,96 @@ async fn run(command: Commands, fmt: OutputFormat) -> Result<()> {
             if !config.modules.zero_x.enabled {
                 anyhow::bail!("0x module is disabled. Run: atlas configure module enable zero_x");
             }
-            if config.modules.zero_x.config.api_key.is_empty() {
-                anyhow::bail!("0x API key not set. Run: atlas configure module set zero_x api_key <key>");
-            }
             match action {
-                ZeroXAction::Quote { sell_token, buy_token, amount, chain, slippage } => {
-                    commands::zero_x::quote(&sell_token, &buy_token, &amount, &chain, slippage, fmt).await
+                ZeroXAction::Quote {
+                    sell_token,
+                    buy_token,
+                    amount,
+                    chain,
+                    slippage,
+                } => {
+                    commands::zero_x::quote(&sell_token, &buy_token, &amount, &chain, slippage, fmt)
+                        .await
                 }
                 ZeroXAction::Chains => commands::zero_x::chains(fmt).await,
                 ZeroXAction::Sources { chain } => commands::zero_x::sources(&chain, fmt).await,
-                ZeroXAction::Trades { start, end } => commands::zero_x::trades(start, end, fmt).await,
+                ZeroXAction::Trades { start, end } => {
+                    commands::zero_x::trades(start, end, fmt).await
+                }
             }
-        },
+        }
 
         // ── UTILITIES ───────────────────────────────────────────
         Commands::History { action } => match action {
-            HistoryAction::Trades { protocol, coin, from, to, limit } => commands::history::run_trades(protocol.as_deref(), coin.as_deref(), from.as_deref(), to.as_deref(), limit, fmt),
-            HistoryAction::Orders { protocol, coin, status, limit } => commands::history::run_orders(protocol.as_deref(), coin.as_deref(), status.as_deref(), limit, fmt),
-            HistoryAction::Pnl { protocol, coin, from, to } => commands::history::run_pnl(protocol.as_deref(), coin.as_deref(), from.as_deref(), to.as_deref(), fmt),
+            HistoryAction::Trades {
+                protocol,
+                coin,
+                from,
+                to,
+                limit,
+            } => commands::history::run_trades(
+                protocol.as_deref(),
+                coin.as_deref(),
+                from.as_deref(),
+                to.as_deref(),
+                limit,
+                fmt,
+            ),
+            HistoryAction::Orders {
+                protocol,
+                coin,
+                status,
+                limit,
+            } => commands::history::run_orders(
+                protocol.as_deref(),
+                coin.as_deref(),
+                status.as_deref(),
+                limit,
+                fmt,
+            ),
+            HistoryAction::Pnl {
+                protocol,
+                coin,
+                from,
+                to,
+            } => commands::history::run_pnl(
+                protocol.as_deref(),
+                coin.as_deref(),
+                from.as_deref(),
+                to.as_deref(),
+                fmt,
+            ),
         },
 
         Commands::Export { action } => match action {
-            ExportAction::Trades { protocol, csv: _, json, coin, from, to } => commands::export::run_export_trades(protocol.as_deref(), json, coin.as_deref(), from.as_deref(), to.as_deref(), fmt),
-            ExportAction::Pnl { protocol, csv: _, json, from, to } => commands::export::run_export_pnl(protocol.as_deref(), json, from.as_deref(), to.as_deref(), fmt),
+            ExportAction::Trades {
+                protocol,
+                csv: _,
+                json,
+                coin,
+                from,
+                to,
+            } => commands::export::run_export_trades(
+                protocol.as_deref(),
+                json,
+                coin.as_deref(),
+                from.as_deref(),
+                to.as_deref(),
+                fmt,
+            ),
+            ExportAction::Pnl {
+                protocol,
+                csv: _,
+                json,
+                from,
+                to,
+            } => commands::export::run_export_pnl(
+                protocol.as_deref(),
+                json,
+                from.as_deref(),
+                to.as_deref(),
+                fmt,
+            ),
         },
     }
 }

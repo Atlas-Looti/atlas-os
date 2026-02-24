@@ -227,8 +227,8 @@ impl Orchestrator {
 
         // ── 0x (swap) ───────────────────────────────────────────
         if config.modules.zero_x.enabled {
-            let api_key = config.modules.zero_x.config.api_key.clone();
-            let zero_x = atlas_mod_zero_x::client::ZeroXModule::new(api_key);
+            let backend_url = config.system.api_url.clone();
+            let zero_x = atlas_mod_zero_x::client::ZeroXModule::new(backend_url);
             orch.add_swap(Arc::new(zero_x));
             info!("0x swap module loaded");
         }

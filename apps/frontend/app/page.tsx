@@ -1,7 +1,7 @@
 "use client";
 
-import { useSignIn, useSignUp } from "@clerk/nextjs";
-import { useState, FormEvent } from "react";
+import { useSignIn, useSignUp, useUser } from "@clerk/nextjs";
+import { useState, FormEvent, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Mailbox01Icon, ArrowRight01Icon, Tick01Icon } from "@hugeicons/core-free-icons";
@@ -9,6 +9,7 @@ import { Mailbox01Icon, ArrowRight01Icon, Tick01Icon } from "@hugeicons/core-fre
 export default function AuthPage() {
     const { isLoaded: isSignInLoaded, signIn, setActive: setSignInActive } = useSignIn();
     const { isLoaded: isSignUpLoaded, signUp, setActive: setSignUpActive } = useSignUp();
+    const { user, isLoaded: isUserLoaded } = useUser();
     const router = useRouter();
 
     const [email, setEmail] = useState("");
@@ -19,7 +20,14 @@ export default function AuthPage() {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState("");
 
-    if (!isSignInLoaded || !isSignUpLoaded) return null;
+    // Automatically redirect if already signed in
+    useEffect(() => {
+        if (isUserLoaded && user) {
+            router.push("/dashboard");
+        }
+    }, [isUserLoaded, user, router]);
+
+    if (!isSignInLoaded || !isSignUpLoaded || !isUserLoaded || user) return null;
 
     const handleEmailSubmit = async (e: FormEvent) => {
         e.preventDefault();

@@ -19,6 +19,8 @@ pub struct AppState {
     pub coingecko: Option<CoinGeckoClient>,
     /// Redis cache (None if Redis not available).
     pub cache: Option<Cache>,
+    /// 0x API key for swap quote proxying.
+    pub zerox_api_key: Option<String>,
 }
 
 impl AppState {
@@ -41,13 +43,16 @@ impl AppState {
                 "pro" => CoinGeckoTier::Pro,
                 _ => CoinGeckoTier::Demo,
             };
-            tracing::info!("CoinGecko API key found — tier: {:?}, market data APIs enabled", tier);
+            tracing::info!(
+                "CoinGecko API key found — tier: {:?}, market data APIs enabled",
+                tier
+            );
             CoinGeckoClient::new(&key, tier)
         });
 
         // Redis — from env var or default
-        let redis_url = std::env::var("REDIS_URL")
-            .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+        let redis_url =
+            std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
 
         let cache = match Cache::new(&redis_url).await {
             Ok(c) => {
@@ -68,6 +73,7 @@ impl AppState {
             alchemy,
             coingecko,
             cache,
+            zerox_api_key: std::env::var("ZEROX_API_KEY").ok(),
         })
     }
 }

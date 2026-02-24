@@ -111,11 +111,7 @@ pub struct MorphoConfig {
 
 /// 0x API configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ZeroXConfig {
-    /// 0x API Key
-    #[serde(default)]
-    pub api_key: String,
-}
+pub struct ZeroXConfig {}
 
 fn default_hl_config() -> ModuleEntry<HyperliquidConfig> {
     ModuleEntry {
@@ -141,7 +137,7 @@ fn default_morpho_config() -> ModuleEntry<MorphoConfig> {
 fn default_zero_x_config() -> ModuleEntry<ZeroXConfig> {
     ModuleEntry {
         enabled: false,
-        config: ZeroXConfig { api_key: "".into() },
+        config: ZeroXConfig {},
     }
 }
 

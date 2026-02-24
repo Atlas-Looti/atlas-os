@@ -44,12 +44,21 @@ pub async fn run(fix: bool, fmt: OutputFormat) -> Result<()> {
 
     match api_latency_ms {
         Some(ms) => {
-            let quality = if ms < 200 { "✓ excellent" }
-                else if ms < 500 { "✓ good" }
-                else if ms < 1000 { "⚠ slow" }
-                else { "✗ very slow" };
-            println!("│  API Latency    : {} ({ms}ms){:>width$}│",
-                quality, "", width = 20_usize.saturating_sub(quality.len()));
+            let quality = if ms < 200 {
+                "✓ excellent"
+            } else if ms < 500 {
+                "✓ good"
+            } else if ms < 1000 {
+                "⚠ slow"
+            } else {
+                "✗ very slow"
+            };
+            println!(
+                "│  API Latency    : {} ({ms}ms){:>width$}│",
+                quality,
+                "",
+                width = 20_usize.saturating_sub(quality.len())
+            );
         }
         None => {
             println!("│  API Latency    : ✗ unreachable              │");
@@ -60,16 +69,24 @@ pub async fn run(fix: bool, fmt: OutputFormat) -> Result<()> {
     if let Ok(config) = atlas_core::workspace::load_config() {
         println!("├─────────────────────────────────────────────┤");
         println!("│  Modules:                                   │");
-        let hl = if config.modules.hyperliquid.enabled { "✓ enabled" } else { "✗ disabled" };
-        let morpho = if config.modules.morpho.enabled { "✓ enabled" } else { "✗ disabled" };
-        let zx = if config.modules.zero_x.enabled { "✓ enabled" } else { "✗ disabled" };
+        let hl = if config.modules.hyperliquid.enabled {
+            "✓ enabled"
+        } else {
+            "✗ disabled"
+        };
+        let morpho = if config.modules.morpho.enabled {
+            "✓ enabled"
+        } else {
+            "✗ disabled"
+        };
+        let zx = if config.modules.zero_x.enabled {
+            "✓ enabled"
+        } else {
+            "✗ disabled"
+        };
         println!("│    Hyperliquid  : {:<25}│", hl);
         println!("│    Morpho       : {:<25}│", morpho);
         println!("│    0x Swap      : {:<25}│", zx);
-
-        if config.modules.zero_x.enabled && config.modules.zero_x.config.api_key.is_empty() {
-            println!("│    ⚠ 0x: API key not set                    │");
-        }
     }
 
     println!("├─────────────────────────────────────────────┤");
