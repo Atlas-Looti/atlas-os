@@ -242,3 +242,52 @@ pub struct OrderResult {
     pub avg_price: Option<Decimal>,
     pub message: Option<String>,
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+//  SPOT
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Spot token balance.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SpotBalance {
+    pub protocol: Protocol,
+    pub token: String,
+    pub total: Decimal,
+    pub available: Decimal,
+    pub held: Decimal,
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  VAULTS & SUBACCOUNTS
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Vault details.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VaultDetails {
+    pub protocol: Protocol,
+    pub address: String,
+    pub name: String,
+    pub leader: String,
+    pub portfolio_value: Decimal,
+    pub followers: u32,
+    pub apr: Option<Decimal>,
+    pub pnl_all_time: Option<Decimal>,
+}
+
+/// User's vault deposit.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VaultDeposit {
+    pub protocol: Protocol,
+    pub vault_address: String,
+    pub equity: Decimal,
+    pub pnl: Decimal,
+}
+
+/// Subaccount info.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubAccount {
+    pub protocol: Protocol,
+    pub name: String,
+    pub address: String,
+    pub account_value: Decimal,
+}

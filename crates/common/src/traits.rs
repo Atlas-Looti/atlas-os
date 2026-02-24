@@ -92,8 +92,67 @@ pub trait PerpModule: Send + Sync {
         is_cross: bool,
     ) -> AtlasResult<()>;
 
+    /// Update isolated margin for a position.
+    async fn update_margin(&self, symbol: &str, amount: Decimal) -> AtlasResult<()>;
+
     /// Transfer USDC.
     async fn transfer(&self, amount: Decimal, destination: &str) -> AtlasResult<String>;
+
+    /// Cancel an order by client order ID.
+    async fn cancel_by_cloid(&self, symbol: &str, cloid: &str) -> AtlasResult<()> {
+        // Default: fall back to cancel_order if not supported
+        self.cancel_order(symbol, cloid).await
+    }
+
+    // ── Spot operations (optional — not all perp protocols have spot) ──
+
+    /// Get spot token balances. Returns empty vec if not supported.
+    async fn spot_balances(&self) -> AtlasResult<Vec<SpotBalance>> {
+        Ok(vec![])
+    }
+
+    /// Place a spot market order. Returns error if not supported.
+    async fn spot_market_order(
+        &self,
+        _base: &str,
+        _side: Side,
+        _size: Decimal,
+        _slippage: Option<f64>,
+    ) -> AtlasResult<OrderResult> {
+        Err(crate::error::AtlasError::Other("Spot trading not supported on this protocol".into()))
+    }
+
+    /// Internal transfer between sub-wallets (perps↔spot↔evm).
+    async fn internal_transfer(
+        &self,
+        _direction: &str,
+        _amount: Decimal,
+        _token: Option<&str>,
+    ) -> AtlasResult<String> {
+        Err(crate::error::AtlasError::Other("Internal transfers not supported on this protocol".into()))
+    }
+
+    // ── Vault / subaccount operations (optional) ────────────────
+
+    /// Get vault details.
+    async fn vault_details(&self, _vault_address: &str) -> AtlasResult<VaultDetails> {
+        Err(crate::error::AtlasError::Other("Vaults not supported on this protocol".into()))
+    }
+
+    /// Get user's vault deposits.
+    async fn vault_deposits(&self) -> AtlasResult<Vec<VaultDeposit>> {
+        Ok(vec![])
+    }
+
+    /// List subaccounts.
+    async fn subaccounts(&self) -> AtlasResult<Vec<SubAccount>> {
+        Ok(vec![])
+    }
+
+    /// Approve an agent wallet.
+    async fn approve_agent(&self, _agent_address: &str, _name: Option<&str>) -> AtlasResult<String> {
+        Err(crate::error::AtlasError::Other("Agent approval not supported on this protocol".into()))
+    }
 }
 
 /// Market data provider — read-only, no auth needed.
