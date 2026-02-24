@@ -115,10 +115,7 @@ pub enum AtlasError {
     InsufficientBalance(String),
 
     #[error("Protocol error ({protocol}): {message}")]
-    Protocol {
-        protocol: String,
-        message: String,
-    },
+    Protocol { protocol: String, message: String },
 
     // ── Network ─────────────────────────────────────────────────────
     #[error("Backend unreachable: {0}")]
@@ -280,7 +277,10 @@ impl AtlasError {
                 message: msg.clone(),
                 category: ErrorCategory::Network,
                 recoverable: true,
-                hints: vec!["Check network connectivity".into(), "Retry in a few seconds".into()],
+                hints: vec![
+                    "Check network connectivity".into(),
+                    "Retry in a few seconds".into(),
+                ],
             },
             AtlasError::ProtocolTimeout(msg) => ErrorDetail {
                 code: "PROTOCOL_TIMEOUT".into(),
@@ -317,7 +317,9 @@ impl AtlasError {
                 message: msg.clone(),
                 category: ErrorCategory::Validation,
                 recoverable: true,
-                hints: vec!["List available markets: atlas market hyperliquid list --output json".into()],
+                hints: vec![
+                    "List available markets: atlas market hyperliquid list --output json".into(),
+                ],
             },
             AtlasError::UnsupportedChain(msg) => ErrorDetail {
                 code: "UNSUPPORTED_CHAIN".into(),
@@ -331,7 +333,9 @@ impl AtlasError {
                 message: msg.clone(),
                 category: ErrorCategory::Validation,
                 recoverable: true,
-                hints: vec!["Check available assets: atlas market hyperliquid list --output json".into()],
+                hints: vec![
+                    "Check available assets: atlas market hyperliquid list --output json".into(),
+                ],
             },
 
             // System

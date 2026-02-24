@@ -1301,7 +1301,13 @@ async fn run(command: Commands, fmt: OutputFormat) -> Result<()> {
                     yes,
                 } => {
                     commands::zero_x::swap(
-                        &sell_token, &buy_token, &amount, &chain, slippage, yes, fmt,
+                        &sell_token,
+                        &buy_token,
+                        &amount,
+                        &chain,
+                        slippage,
+                        yes,
+                        fmt,
                     )
                     .await
                 }

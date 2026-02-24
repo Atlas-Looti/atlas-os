@@ -7,26 +7,24 @@ use anyhow::Result;
 use atlas_core::output::OutputFormat;
 use rust_decimal::prelude::*;
 use ta::indicators::{
-    RelativeStrengthIndex,
-    MovingAverageConvergenceDivergence,
-    BollingerBands,
-    SlowStochastic,
-    AverageTrueRange,
-    ExponentialMovingAverage,
-    SimpleMovingAverage,
-    CommodityChannelIndex,
+    AverageTrueRange, BollingerBands, CommodityChannelIndex, ExponentialMovingAverage,
+    MovingAverageConvergenceDivergence, RelativeStrengthIndex, SimpleMovingAverage, SlowStochastic,
 };
-use ta::{Next, DataItem, Close, High, Low, Open};
+use ta::{Close, DataItem, High, Low, Next, Open};
 
 /// Fetch candle data from Hyperliquid and convert to ta::DataItem.
-async fn fetch_data_items(ticker: &str, timeframe: &str, count: usize)
-    -> Result<(Vec<DataItem>, Vec<f64>)>
-{
+async fn fetch_data_items(
+    ticker: &str,
+    timeframe: &str,
+    count: usize,
+) -> Result<(Vec<DataItem>, Vec<f64>)> {
     let orch = crate::factory::readonly().await?;
     let perp = orch.perp(None)?;
     let ticker_upper = ticker.to_uppercase();
 
-    let candles = perp.candles(&ticker_upper, timeframe, count).await
+    let candles = perp
+        .candles(&ticker_upper, timeframe, count)
+        .await
         .map_err(|e| anyhow::anyhow!("{e}"))?;
 
     if candles.is_empty() {
@@ -42,7 +40,11 @@ async fn fetch_data_items(ticker: &str, timeframe: &str, count: usize)
         let close = c.close.to_f64().unwrap_or(0.0);
         let volume = c.volume.to_f64().unwrap_or(0.0);
         if let Ok(item) = DataItem::builder()
-            .open(open).high(high).low(low).close(close).volume(volume)
+            .open(open)
+            .high(high)
+            .low(low)
+            .close(close)
+            .volume(volume)
             .build()
         {
             items.push(item);
@@ -71,23 +73,32 @@ fn print_json(val: &serde_json::Value, pretty: bool) {
 
 pub async fn rsi(ticker: &str, timeframe: &str, period: usize, fmt: OutputFormat) -> Result<()> {
     let (items, _) = fetch_data_items(ticker, timeframe, period + 100).await?;
-    let mut rsi_ind = RelativeStrengthIndex::new(period)
-        .map_err(|e| anyhow::anyhow!("RSI init: {e}"))?;
+    let mut rsi_ind =
+        RelativeStrengthIndex::new(period).map_err(|e| anyhow::anyhow!("RSI init: {e}"))?;
 
     let mut rsi_val = 50.0;
     for item in &items {
         rsi_val = rsi_ind.next(item.close());
     }
 
-    let signal = if rsi_val > 70.0 { "overbought" } else if rsi_val < 30.0 { "oversold" } else { "neutral" };
+    let signal = if rsi_val > 70.0 {
+        "overbought"
+    } else if rsi_val < 30.0 {
+        "oversold"
+    } else {
+        "neutral"
+    };
     let t = ticker.to_uppercase();
 
     match fmt {
         OutputFormat::Json | OutputFormat::JsonPretty => {
-            print_json(&serde_json::json!({
-                "ticker": t, "timeframe": timeframe, "period": period,
-                "rsi": format!("{:.2}", rsi_val), "signal": signal,
-            }), matches!(fmt, OutputFormat::JsonPretty));
+            print_json(
+                &serde_json::json!({
+                    "ticker": t, "timeframe": timeframe, "period": period,
+                    "rsi": format!("{:.2}", rsi_val), "signal": signal,
+                }),
+                matches!(fmt, OutputFormat::JsonPretty),
+            );
         }
         OutputFormat::Table => {
             println!("📊 RSI({period}) for {t} [{timeframe}]");
@@ -108,24 +119,33 @@ pub async fn macd(ticker: &str, timeframe: &str, fmt: OutputFormat) -> Result<()
         .map_err(|e| anyhow::anyhow!("MACD init: {e}"))?;
 
     let mut output = ta::indicators::MovingAverageConvergenceDivergenceOutput {
-        macd: 0.0, signal: 0.0, histogram: 0.0,
+        macd: 0.0,
+        signal: 0.0,
+        histogram: 0.0,
     };
     for item in &items {
         output = macd_ind.next(item.close());
     }
 
-    let trend = if output.histogram > 0.0 { "bullish" } else { "bearish" };
+    let trend = if output.histogram > 0.0 {
+        "bullish"
+    } else {
+        "bearish"
+    };
     let t = ticker.to_uppercase();
 
     match fmt {
         OutputFormat::Json | OutputFormat::JsonPretty => {
-            print_json(&serde_json::json!({
-                "ticker": t, "timeframe": timeframe,
-                "macd": format!("{:.4}", output.macd),
-                "signal": format!("{:.4}", output.signal),
-                "histogram": format!("{:.4}", output.histogram),
-                "trend": trend,
-            }), matches!(fmt, OutputFormat::JsonPretty));
+            print_json(
+                &serde_json::json!({
+                    "ticker": t, "timeframe": timeframe,
+                    "macd": format!("{:.4}", output.macd),
+                    "signal": format!("{:.4}", output.signal),
+                    "histogram": format!("{:.4}", output.histogram),
+                    "trend": trend,
+                }),
+                matches!(fmt, OutputFormat::JsonPretty),
+            );
         }
         OutputFormat::Table => {
             println!("📊 MACD for {t} [{timeframe}]");
@@ -153,17 +173,24 @@ pub async fn vwap(ticker: &str, fmt: OutputFormat) -> Result<()> {
         cum_vol += volumes[i];
     }
 
-    let vwap_val = if cum_vol > 0.0 { cum_tp_vol / cum_vol } else { 0.0 };
+    let vwap_val = if cum_vol > 0.0 {
+        cum_tp_vol / cum_vol
+    } else {
+        0.0
+    };
     let last = items.last().map(|i| i.close()).unwrap_or(0.0);
     let pos = if last > vwap_val { "above" } else { "below" };
     let t = ticker.to_uppercase();
 
     match fmt {
         OutputFormat::Json | OutputFormat::JsonPretty => {
-            print_json(&serde_json::json!({
-                "ticker": t, "vwap": format!("{:.2}", vwap_val),
-                "last_price": format!("{:.2}", last), "position": pos,
-            }), matches!(fmt, OutputFormat::JsonPretty));
+            print_json(
+                &serde_json::json!({
+                    "ticker": t, "vwap": format!("{:.2}", vwap_val),
+                    "last_price": format!("{:.2}", last), "position": pos,
+                }),
+                matches!(fmt, OutputFormat::JsonPretty),
+            );
         }
         OutputFormat::Table => {
             println!("📊 VWAP for {t} (24h)");
@@ -181,33 +208,46 @@ pub async fn vwap(ticker: &str, fmt: OutputFormat) -> Result<()> {
 
 pub async fn bbands(ticker: &str, timeframe: &str, period: usize, fmt: OutputFormat) -> Result<()> {
     let (items, _) = fetch_data_items(ticker, timeframe, period + 100).await?;
-    let mut bb = BollingerBands::new(period, 2.0_f64)
-        .map_err(|e| anyhow::anyhow!("BBANDS init: {e}"))?;
+    let mut bb =
+        BollingerBands::new(period, 2.0_f64).map_err(|e| anyhow::anyhow!("BBANDS init: {e}"))?;
 
     let mut output = ta::indicators::BollingerBandsOutput {
-        average: 0.0, upper: 0.0, lower: 0.0,
+        average: 0.0,
+        upper: 0.0,
+        lower: 0.0,
     };
     for item in &items {
         output = bb.next(item.close());
     }
 
     let last = items.last().map(|i| i.close()).unwrap_or(0.0);
-    let width = if output.average > 0.0 { (output.upper - output.lower) / output.average * 100.0 } else { 0.0 };
-    let pos = if last > output.upper { "above upper" }
-        else if last < output.lower { "below lower" }
-        else { "within bands" };
+    let width = if output.average > 0.0 {
+        (output.upper - output.lower) / output.average * 100.0
+    } else {
+        0.0
+    };
+    let pos = if last > output.upper {
+        "above upper"
+    } else if last < output.lower {
+        "below lower"
+    } else {
+        "within bands"
+    };
     let t = ticker.to_uppercase();
 
     match fmt {
         OutputFormat::Json | OutputFormat::JsonPretty => {
-            print_json(&serde_json::json!({
-                "ticker": t, "timeframe": timeframe, "period": period,
-                "upper": format!("{:.2}", output.upper),
-                "middle": format!("{:.2}", output.average),
-                "lower": format!("{:.2}", output.lower),
-                "width_pct": format!("{:.2}", width),
-                "position": pos, "last_price": format!("{:.2}", last),
-            }), matches!(fmt, OutputFormat::JsonPretty));
+            print_json(
+                &serde_json::json!({
+                    "ticker": t, "timeframe": timeframe, "period": period,
+                    "upper": format!("{:.2}", output.upper),
+                    "middle": format!("{:.2}", output.average),
+                    "lower": format!("{:.2}", output.lower),
+                    "width_pct": format!("{:.2}", width),
+                    "position": pos, "last_price": format!("{:.2}", last),
+                }),
+                matches!(fmt, OutputFormat::JsonPretty),
+            );
         }
         OutputFormat::Table => {
             println!("📊 Bollinger Bands({period}) for {t} [{timeframe}]");
@@ -230,10 +270,10 @@ pub async fn stoch(ticker: &str, timeframe: &str, fmt: OutputFormat) -> Result<(
     let (items, _) = fetch_data_items(ticker, timeframe, 100).await?;
 
     // %K via SlowStochastic, %D via EMA of %K
-    let mut stoch_ind = SlowStochastic::new(14, 3)
-        .map_err(|e| anyhow::anyhow!("STOCH init: {e}"))?;
-    let mut d_ema = ExponentialMovingAverage::new(3)
-        .map_err(|e| anyhow::anyhow!("STOCH D init: {e}"))?;
+    let mut stoch_ind =
+        SlowStochastic::new(14, 3).map_err(|e| anyhow::anyhow!("STOCH init: {e}"))?;
+    let mut d_ema =
+        ExponentialMovingAverage::new(3).map_err(|e| anyhow::anyhow!("STOCH D init: {e}"))?;
 
     let mut k_val = 50.0;
     let mut d_val = 50.0;
@@ -242,19 +282,30 @@ pub async fn stoch(ticker: &str, timeframe: &str, fmt: OutputFormat) -> Result<(
         d_val = d_ema.next(k_val);
     }
 
-    let signal = if k_val > 80.0 { "overbought" }
-        else if k_val < 20.0 { "oversold" }
-        else { "neutral" };
-    let cross = if k_val > d_val { "bullish (%K > %D)" } else { "bearish (%K < %D)" };
+    let signal = if k_val > 80.0 {
+        "overbought"
+    } else if k_val < 20.0 {
+        "oversold"
+    } else {
+        "neutral"
+    };
+    let cross = if k_val > d_val {
+        "bullish (%K > %D)"
+    } else {
+        "bearish (%K < %D)"
+    };
     let t = ticker.to_uppercase();
 
     match fmt {
         OutputFormat::Json | OutputFormat::JsonPretty => {
-            print_json(&serde_json::json!({
-                "ticker": t, "timeframe": timeframe,
-                "k": format!("{:.2}", k_val), "d": format!("{:.2}", d_val),
-                "signal": signal, "cross": cross,
-            }), matches!(fmt, OutputFormat::JsonPretty));
+            print_json(
+                &serde_json::json!({
+                    "ticker": t, "timeframe": timeframe,
+                    "k": format!("{:.2}", k_val), "d": format!("{:.2}", d_val),
+                    "signal": signal, "cross": cross,
+                }),
+                matches!(fmt, OutputFormat::JsonPretty),
+            );
         }
         OutputFormat::Table => {
             println!("📊 Stochastic(14,3) for {t} [{timeframe}]");
@@ -287,9 +338,9 @@ pub async fn adx(ticker: &str, timeframe: &str, period: usize, fmt: OutputFormat
     for i in 1..n {
         let h = items[i].high();
         let l = items[i].low();
-        let ph = items[i-1].high();
-        let pl = items[i-1].low();
-        let pc = items[i-1].close();
+        let ph = items[i - 1].high();
+        let pl = items[i - 1].low();
+        let pc = items[i - 1].close();
 
         let up = h - ph;
         let down = pl - l;
@@ -314,10 +365,22 @@ pub async fn adx(ticker: &str, timeframe: &str, period: usize, fmt: OutputFormat
             mdm_s = mdm_s - mdm_s / p + minus_dm[i];
         }
 
-        let pdi = if atr_s > 0.0 { pdm_s / atr_s * 100.0 } else { 0.0 };
-        let mdi = if atr_s > 0.0 { mdm_s / atr_s * 100.0 } else { 0.0 };
+        let pdi = if atr_s > 0.0 {
+            pdm_s / atr_s * 100.0
+        } else {
+            0.0
+        };
+        let mdi = if atr_s > 0.0 {
+            mdm_s / atr_s * 100.0
+        } else {
+            0.0
+        };
         let di_sum = pdi + mdi;
-        let dx = if di_sum > 0.0 { ((pdi - mdi).abs() / di_sum) * 100.0 } else { 0.0 };
+        let dx = if di_sum > 0.0 {
+            ((pdi - mdi).abs() / di_sum) * 100.0
+        } else {
+            0.0
+        };
         dx_values.push(dx);
     }
 
@@ -330,17 +393,24 @@ pub async fn adx(ticker: &str, timeframe: &str, period: usize, fmt: OutputFormat
         adx_val = (adx_val * (p - 1.0) + dx) / p;
     }
 
-    let strength = if adx_val > 50.0 { "strong trend" }
-        else if adx_val > 25.0 { "trending" }
-        else { "weak/no trend" };
+    let strength = if adx_val > 50.0 {
+        "strong trend"
+    } else if adx_val > 25.0 {
+        "trending"
+    } else {
+        "weak/no trend"
+    };
     let t = ticker.to_uppercase();
 
     match fmt {
         OutputFormat::Json | OutputFormat::JsonPretty => {
-            print_json(&serde_json::json!({
-                "ticker": t, "timeframe": timeframe, "period": period,
-                "adx": format!("{:.2}", adx_val), "strength": strength,
-            }), matches!(fmt, OutputFormat::JsonPretty));
+            print_json(
+                &serde_json::json!({
+                    "ticker": t, "timeframe": timeframe, "period": period,
+                    "adx": format!("{:.2}", adx_val), "strength": strength,
+                }),
+                matches!(fmt, OutputFormat::JsonPretty),
+            );
         }
         OutputFormat::Table => {
             println!("📊 ADX({period}) for {t} [{timeframe}]");
@@ -357,8 +427,8 @@ pub async fn adx(ticker: &str, timeframe: &str, period: usize, fmt: OutputFormat
 
 pub async fn atr(ticker: &str, timeframe: &str, period: usize, fmt: OutputFormat) -> Result<()> {
     let (items, _) = fetch_data_items(ticker, timeframe, period + 100).await?;
-    let mut atr_ind = AverageTrueRange::new(period)
-        .map_err(|e| anyhow::anyhow!("ATR init: {e}"))?;
+    let mut atr_ind =
+        AverageTrueRange::new(period).map_err(|e| anyhow::anyhow!("ATR init: {e}"))?;
 
     let mut atr_val = 0.0;
     for item in &items {
@@ -366,19 +436,32 @@ pub async fn atr(ticker: &str, timeframe: &str, period: usize, fmt: OutputFormat
     }
 
     let last = items.last().map(|i| i.close()).unwrap_or(0.0);
-    let atr_pct = if last > 0.0 { atr_val / last * 100.0 } else { 0.0 };
-    let volatility = if atr_pct > 5.0 { "high" } else if atr_pct > 2.0 { "moderate" } else { "low" };
+    let atr_pct = if last > 0.0 {
+        atr_val / last * 100.0
+    } else {
+        0.0
+    };
+    let volatility = if atr_pct > 5.0 {
+        "high"
+    } else if atr_pct > 2.0 {
+        "moderate"
+    } else {
+        "low"
+    };
     let t = ticker.to_uppercase();
 
     match fmt {
         OutputFormat::Json | OutputFormat::JsonPretty => {
-            print_json(&serde_json::json!({
-                "ticker": t, "timeframe": timeframe, "period": period,
-                "atr": format!("{:.4}", atr_val),
-                "atr_pct": format!("{:.2}", atr_pct),
-                "volatility": volatility,
-                "last_price": format!("{:.2}", last),
-            }), matches!(fmt, OutputFormat::JsonPretty));
+            print_json(
+                &serde_json::json!({
+                    "ticker": t, "timeframe": timeframe, "period": period,
+                    "atr": format!("{:.4}", atr_val),
+                    "atr_pct": format!("{:.2}", atr_pct),
+                    "volatility": volatility,
+                    "last_price": format!("{:.2}", last),
+                }),
+                matches!(fmt, OutputFormat::JsonPretty),
+            );
         }
         OutputFormat::Table => {
             println!("📊 ATR({period}) for {t} [{timeframe}]");
@@ -397,8 +480,8 @@ pub async fn atr(ticker: &str, timeframe: &str, period: usize, fmt: OutputFormat
 
 pub async fn ema(ticker: &str, timeframe: &str, period: usize, fmt: OutputFormat) -> Result<()> {
     let (items, _) = fetch_data_items(ticker, timeframe, period + 100).await?;
-    let mut ema_ind = ExponentialMovingAverage::new(period)
-        .map_err(|e| anyhow::anyhow!("EMA init: {e}"))?;
+    let mut ema_ind =
+        ExponentialMovingAverage::new(period).map_err(|e| anyhow::anyhow!("EMA init: {e}"))?;
 
     let mut ema_val = 0.0;
     for item in &items {
@@ -411,11 +494,14 @@ pub async fn ema(ticker: &str, timeframe: &str, period: usize, fmt: OutputFormat
 
     match fmt {
         OutputFormat::Json | OutputFormat::JsonPretty => {
-            print_json(&serde_json::json!({
-                "ticker": t, "timeframe": timeframe, "period": period,
-                "ema": format!("{:.2}", ema_val),
-                "last_price": format!("{:.2}", last), "position": pos,
-            }), matches!(fmt, OutputFormat::JsonPretty));
+            print_json(
+                &serde_json::json!({
+                    "ticker": t, "timeframe": timeframe, "period": period,
+                    "ema": format!("{:.2}", ema_val),
+                    "last_price": format!("{:.2}", last), "position": pos,
+                }),
+                matches!(fmt, OutputFormat::JsonPretty),
+            );
         }
         OutputFormat::Table => {
             println!("📊 EMA({period}) for {t} [{timeframe}]");
@@ -433,8 +519,8 @@ pub async fn ema(ticker: &str, timeframe: &str, period: usize, fmt: OutputFormat
 
 pub async fn sma(ticker: &str, timeframe: &str, period: usize, fmt: OutputFormat) -> Result<()> {
     let (items, _) = fetch_data_items(ticker, timeframe, period + 100).await?;
-    let mut sma_ind = SimpleMovingAverage::new(period)
-        .map_err(|e| anyhow::anyhow!("SMA init: {e}"))?;
+    let mut sma_ind =
+        SimpleMovingAverage::new(period).map_err(|e| anyhow::anyhow!("SMA init: {e}"))?;
 
     let mut sma_val = 0.0;
     for item in &items {
@@ -447,11 +533,14 @@ pub async fn sma(ticker: &str, timeframe: &str, period: usize, fmt: OutputFormat
 
     match fmt {
         OutputFormat::Json | OutputFormat::JsonPretty => {
-            print_json(&serde_json::json!({
-                "ticker": t, "timeframe": timeframe, "period": period,
-                "sma": format!("{:.2}", sma_val),
-                "last_price": format!("{:.2}", last), "position": pos,
-            }), matches!(fmt, OutputFormat::JsonPretty));
+            print_json(
+                &serde_json::json!({
+                    "ticker": t, "timeframe": timeframe, "period": period,
+                    "sma": format!("{:.2}", sma_val),
+                    "last_price": format!("{:.2}", last), "position": pos,
+                }),
+                matches!(fmt, OutputFormat::JsonPretty),
+            );
         }
         OutputFormat::Table => {
             println!("📊 SMA({period}) for {t} [{timeframe}]");
@@ -483,19 +572,28 @@ pub async fn obv(ticker: &str, timeframe: &str, fmt: OutputFormat) -> Result<()>
                 obv_val -= volumes[i];
             }
         }
-        if i == items.len() - 2 { prev_obv = obv_val; }
+        if i == items.len() - 2 {
+            prev_obv = obv_val;
+        }
         prev_close = close;
     }
 
-    let obv_trend = if obv_val > prev_obv { "rising" } else { "falling" };
+    let obv_trend = if obv_val > prev_obv {
+        "rising"
+    } else {
+        "falling"
+    };
     let t = ticker.to_uppercase();
 
     match fmt {
         OutputFormat::Json | OutputFormat::JsonPretty => {
-            print_json(&serde_json::json!({
-                "ticker": t, "timeframe": timeframe,
-                "obv": format!("{:.0}", obv_val), "trend": obv_trend,
-            }), matches!(fmt, OutputFormat::JsonPretty));
+            print_json(
+                &serde_json::json!({
+                    "ticker": t, "timeframe": timeframe,
+                    "obv": format!("{:.0}", obv_val), "trend": obv_trend,
+                }),
+                matches!(fmt, OutputFormat::JsonPretty),
+            );
         }
         OutputFormat::Table => {
             println!("📊 OBV for {t} [{timeframe}]");
@@ -512,25 +610,32 @@ pub async fn obv(ticker: &str, timeframe: &str, fmt: OutputFormat) -> Result<()>
 
 pub async fn cci(ticker: &str, timeframe: &str, period: usize, fmt: OutputFormat) -> Result<()> {
     let (items, _) = fetch_data_items(ticker, timeframe, period + 100).await?;
-    let mut cci_ind = CommodityChannelIndex::new(period)
-        .map_err(|e| anyhow::anyhow!("CCI init: {e}"))?;
+    let mut cci_ind =
+        CommodityChannelIndex::new(period).map_err(|e| anyhow::anyhow!("CCI init: {e}"))?;
 
     let mut cci_val = 0.0;
     for item in &items {
         cci_val = cci_ind.next(item);
     }
 
-    let signal = if cci_val > 100.0 { "overbought" }
-        else if cci_val < -100.0 { "oversold" }
-        else { "neutral" };
+    let signal = if cci_val > 100.0 {
+        "overbought"
+    } else if cci_val < -100.0 {
+        "oversold"
+    } else {
+        "neutral"
+    };
     let t = ticker.to_uppercase();
 
     match fmt {
         OutputFormat::Json | OutputFormat::JsonPretty => {
-            print_json(&serde_json::json!({
-                "ticker": t, "timeframe": timeframe, "period": period,
-                "cci": format!("{:.2}", cci_val), "signal": signal,
-            }), matches!(fmt, OutputFormat::JsonPretty));
+            print_json(
+                &serde_json::json!({
+                    "ticker": t, "timeframe": timeframe, "period": period,
+                    "cci": format!("{:.2}", cci_val), "signal": signal,
+                }),
+                matches!(fmt, OutputFormat::JsonPretty),
+            );
         }
         OutputFormat::Table => {
             println!("📊 CCI({period}) for {t} [{timeframe}]");
@@ -553,25 +658,40 @@ pub async fn willr(ticker: &str, timeframe: &str, period: usize, fmt: OutputForm
     }
 
     let start = items.len() - period;
-    let period_high = items[start..].iter().map(|i| i.high()).fold(f64::MIN, f64::max);
-    let period_low = items[start..].iter().map(|i| i.low()).fold(f64::MAX, f64::min);
+    let period_high = items[start..]
+        .iter()
+        .map(|i| i.high())
+        .fold(f64::MIN, f64::max);
+    let period_low = items[start..]
+        .iter()
+        .map(|i| i.low())
+        .fold(f64::MAX, f64::min);
     let close = items.last().map(|i| i.close()).unwrap_or(0.0);
 
     let wr = if (period_high - period_low).abs() > f64::EPSILON {
         ((period_high - close) / (period_high - period_low)) * -100.0
-    } else { -50.0 };
+    } else {
+        -50.0
+    };
 
-    let signal = if wr > -20.0 { "overbought" }
-        else if wr < -80.0 { "oversold" }
-        else { "neutral" };
+    let signal = if wr > -20.0 {
+        "overbought"
+    } else if wr < -80.0 {
+        "oversold"
+    } else {
+        "neutral"
+    };
     let t = ticker.to_uppercase();
 
     match fmt {
         OutputFormat::Json | OutputFormat::JsonPretty => {
-            print_json(&serde_json::json!({
-                "ticker": t, "timeframe": timeframe, "period": period,
-                "willr": format!("{:.2}", wr), "signal": signal,
-            }), matches!(fmt, OutputFormat::JsonPretty));
+            print_json(
+                &serde_json::json!({
+                    "ticker": t, "timeframe": timeframe, "period": period,
+                    "willr": format!("{:.2}", wr), "signal": signal,
+                }),
+                matches!(fmt, OutputFormat::JsonPretty),
+            );
         }
         OutputFormat::Table => {
             println!("📊 Williams %R({period}) for {t} [{timeframe}]");
@@ -599,15 +719,23 @@ pub async fn sar(ticker: &str, timeframe: &str, fmt: OutputFormat) -> Result<()>
     let af_step = 0.02;
 
     let mut is_long = items[1].close() > items[0].close();
-    let mut sar = if is_long { items[0].low() } else { items[0].high() };
-    let mut ep = if is_long { items[1].high() } else { items[1].low() };
+    let mut sar = if is_long {
+        items[0].low()
+    } else {
+        items[0].high()
+    };
+    let mut ep = if is_long {
+        items[1].high()
+    } else {
+        items[1].low()
+    };
     let mut af = af_start;
 
     for i in 2..items.len() {
         sar = sar + af * (ep - sar);
 
         if is_long {
-            sar = sar.min(items[i-1].low()).min(items[i-2].low());
+            sar = sar.min(items[i - 1].low()).min(items[i - 2].low());
             if items[i].low() < sar {
                 is_long = false;
                 sar = ep;
@@ -618,7 +746,7 @@ pub async fn sar(ticker: &str, timeframe: &str, fmt: OutputFormat) -> Result<()>
                 af = (af + af_step).min(af_max);
             }
         } else {
-            sar = sar.max(items[i-1].high()).max(items[i-2].high());
+            sar = sar.max(items[i - 1].high()).max(items[i - 2].high());
             if items[i].high() > sar {
                 is_long = true;
                 sar = ep;
@@ -632,16 +760,23 @@ pub async fn sar(ticker: &str, timeframe: &str, fmt: OutputFormat) -> Result<()>
     }
 
     let last = items.last().map(|i| i.close()).unwrap_or(0.0);
-    let signal = if last > sar { "bullish (price above SAR)" } else { "bearish (price below SAR)" };
+    let signal = if last > sar {
+        "bullish (price above SAR)"
+    } else {
+        "bearish (price below SAR)"
+    };
     let t = ticker.to_uppercase();
 
     match fmt {
         OutputFormat::Json | OutputFormat::JsonPretty => {
-            print_json(&serde_json::json!({
-                "ticker": t, "timeframe": timeframe,
-                "sar": format!("{:.4}", sar),
-                "last_price": format!("{:.2}", last), "signal": signal,
-            }), matches!(fmt, OutputFormat::JsonPretty));
+            print_json(
+                &serde_json::json!({
+                    "ticker": t, "timeframe": timeframe,
+                    "sar": format!("{:.4}", sar),
+                    "last_price": format!("{:.2}", last), "signal": signal,
+                }),
+                matches!(fmt, OutputFormat::JsonPretty),
+            );
         }
         OutputFormat::Table => {
             println!("📊 Parabolic SAR for {t} [{timeframe}]");
@@ -690,29 +825,37 @@ pub async fn patterns(ticker: &str, timeframe: &str, fmt: OutputFormat) -> Resul
     }
 
     // Bullish Engulfing
-    if prev.close() < prev.open() && last.close() > last.open()
-        && last.open() <= prev.close() && last.close() >= prev.open()
+    if prev.close() < prev.open()
+        && last.close() > last.open()
+        && last.open() <= prev.close()
+        && last.close() >= prev.open()
     {
         detected.push(("Bullish Engulfing", "bullish reversal", "bullish"));
     }
 
     // Bearish Engulfing
-    if prev.close() > prev.open() && last.close() < last.open()
-        && last.open() >= prev.close() && last.close() <= prev.open()
+    if prev.close() > prev.open()
+        && last.close() < last.open()
+        && last.open() >= prev.close()
+        && last.close() <= prev.open()
     {
         detected.push(("Bearish Engulfing", "bearish reversal", "bearish"));
     }
 
     // Bullish Harami
-    if prev.close() < prev.open() && last.close() > last.open()
-        && last.open() > prev.close() && last.close() < prev.open()
+    if prev.close() < prev.open()
+        && last.close() > last.open()
+        && last.open() > prev.close()
+        && last.close() < prev.open()
     {
         detected.push(("Bullish Harami", "bullish reversal", "bullish"));
     }
 
     // Bearish Harami
-    if prev.close() > prev.open() && last.close() < last.open()
-        && last.open() < prev.close() && last.close() > prev.open()
+    if prev.close() > prev.open()
+        && last.close() < last.open()
+        && last.open() < prev.close()
+        && last.close() > prev.open()
     {
         detected.push(("Bearish Harami", "bearish reversal", "bearish"));
     }
@@ -724,9 +867,12 @@ pub async fn patterns(ticker: &str, timeframe: &str, fmt: OutputFormat) -> Resul
             let pats: Vec<serde_json::Value> = detected.iter().map(|(name, kind, sig)| {
                 serde_json::json!({ "pattern": name, "type": kind, "signal": sig })
             }).collect();
-            print_json(&serde_json::json!({
-                "ticker": t, "timeframe": timeframe, "patterns": pats,
-            }), matches!(fmt, OutputFormat::JsonPretty));
+            print_json(
+                &serde_json::json!({
+                    "ticker": t, "timeframe": timeframe, "patterns": pats,
+                }),
+                matches!(fmt, OutputFormat::JsonPretty),
+            );
         }
         OutputFormat::Table => {
             println!("🕯️ Candlestick Patterns for {t} [{timeframe}]\n");
@@ -755,14 +901,20 @@ pub async fn trend(ticker: &str, fmt: OutputFormat) -> Result<()> {
     // RSI
     let mut rsi_ind = RelativeStrengthIndex::new(14).unwrap();
     let mut rsi_val = 50.0;
-    for item in &items { rsi_val = rsi_ind.next(item.close()); }
+    for item in &items {
+        rsi_val = rsi_ind.next(item.close());
+    }
 
     // MACD
     let mut macd_ind = MovingAverageConvergenceDivergence::new(12, 26, 9).unwrap();
     let mut macd_out = ta::indicators::MovingAverageConvergenceDivergenceOutput {
-        macd: 0.0, signal: 0.0, histogram: 0.0,
+        macd: 0.0,
+        signal: 0.0,
+        histogram: 0.0,
     };
-    for item in &items { macd_out = macd_ind.next(item.close()); }
+    for item in &items {
+        macd_out = macd_ind.next(item.close());
+    }
 
     // SMA 20 & 50
     let mut sma20_ind = SimpleMovingAverage::new(20).unwrap();
@@ -777,52 +929,92 @@ pub async fn trend(ticker: &str, fmt: OutputFormat) -> Result<()> {
     // Bollinger Bands
     let mut bb = BollingerBands::new(20, 2.0_f64).unwrap();
     let mut bb_out = ta::indicators::BollingerBandsOutput {
-        average: 0.0, upper: 0.0, lower: 0.0,
+        average: 0.0,
+        upper: 0.0,
+        lower: 0.0,
     };
-    for item in &items { bb_out = bb.next(item.close()); }
+    for item in &items {
+        bb_out = bb.next(item.close());
+    }
 
     // ATR
     let mut atr_ind = AverageTrueRange::new(14).unwrap();
     let mut atr_val = 0.0;
-    for item in &items { atr_val = atr_ind.next(item); }
+    for item in &items {
+        atr_val = atr_ind.next(item);
+    }
 
     let last = items.last().map(|i| i.close()).unwrap_or(0.0);
 
     // Score
     let mut score = 50i32;
-    if rsi_val > 50.0 { score += ((rsi_val - 50.0) * 0.5) as i32; }
-    else { score -= ((50.0 - rsi_val) * 0.5) as i32; }
-    if macd_out.histogram > 0.0 { score += 12; } else { score -= 12; }
-    if macd_out.macd > macd_out.signal { score += 5; } else { score -= 5; }
-    if last > sma20_val { score += 8; } else { score -= 8; }
-    if sma20_val > sma50_val { score += 8; } else { score -= 8; }
+    if rsi_val > 50.0 {
+        score += ((rsi_val - 50.0) * 0.5) as i32;
+    } else {
+        score -= ((50.0 - rsi_val) * 0.5) as i32;
+    }
+    if macd_out.histogram > 0.0 {
+        score += 12;
+    } else {
+        score -= 12;
+    }
+    if macd_out.macd > macd_out.signal {
+        score += 5;
+    } else {
+        score -= 5;
+    }
+    if last > sma20_val {
+        score += 8;
+    } else {
+        score -= 8;
+    }
+    if sma20_val > sma50_val {
+        score += 8;
+    } else {
+        score -= 8;
+    }
     let score = score.clamp(0, 100);
 
-    let trend_label = if score >= 70 { "bullish" }
-        else if score >= 55 { "slightly bullish" }
-        else if score >= 45 { "neutral" }
-        else if score >= 30 { "slightly bearish" }
-        else { "bearish" };
+    let trend_label = if score >= 70 {
+        "bullish"
+    } else if score >= 55 {
+        "slightly bullish"
+    } else if score >= 45 {
+        "neutral"
+    } else if score >= 30 {
+        "slightly bearish"
+    } else {
+        "bearish"
+    };
 
     let recent = items.len().saturating_sub(24);
-    let support = items[recent..].iter().map(|i| i.low()).fold(f64::MAX, f64::min);
-    let resistance = items[recent..].iter().map(|i| i.high()).fold(0.0f64, f64::max);
+    let support = items[recent..]
+        .iter()
+        .map(|i| i.low())
+        .fold(f64::MAX, f64::min);
+    let resistance = items[recent..]
+        .iter()
+        .map(|i| i.high())
+        .fold(0.0f64, f64::max);
 
     match fmt {
         OutputFormat::Json | OutputFormat::JsonPretty => {
-            print_json(&serde_json::json!({
-                "ticker": t, "trend": trend_label, "score": score,
-                "rsi": format!("{:.2}", rsi_val),
-                "macd_histogram": format!("{:.4}", macd_out.histogram),
-                "atr": format!("{:.4}", atr_val),
-                "sma_20": format!("{:.2}", sma20_val),
-                "sma_50": format!("{:.2}", sma50_val),
-                "bb_upper": format!("{:.2}", bb_out.upper),
-                "bb_lower": format!("{:.2}", bb_out.lower),
-                "support": format!("{:.2}", support),
-                "resistance": format!("{:.2}", resistance),
-                "last_price": format!("{:.2}", last),
-            }), matches!(fmt, OutputFormat::JsonPretty));
+            print_json(
+                &serde_json::json!({
+                    "ticker": t, "trend": trend_label, "score": score,
+                    "rsi": format!("{:.2}", rsi_val),
+                    "macd_histogram": format!("{:.4}", macd_out.histogram),
+                    "atr": format!("{:.4}", atr_val),
+                    "sma_20": format!("{:.2}", sma20_val),
+                    "sma_50": format!("{:.2}", sma50_val),
+                    "bb_upper": format!("{:.2}", bb_out.upper),
+                    "bb_lower": format!("{:.2}", bb_out.lower),
+                    "support": format!("{:.2}", support),
+                    "resistance": format!("{:.2}", resistance),
+                    "last_price": format!("{:.2}", last),
+                }),
+                matches!(fmt, OutputFormat::JsonPretty),
+            );
         }
         OutputFormat::Table => {
             println!("📊 TREND ANALYSIS: {t}");

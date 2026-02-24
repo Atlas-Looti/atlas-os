@@ -23,10 +23,7 @@ pub fn run(fmt: OutputFormat) -> Result<()> {
             "hyperliquid",
             "Perpetual Trading",
             config.modules.hyperliquid.enabled,
-            format!(
-                "network={}",
-                config.modules.hyperliquid.config.network,
-            ),
+            format!("network={}", config.modules.hyperliquid.config.network,),
         ),
         (
             "zero_x",

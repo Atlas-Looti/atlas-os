@@ -141,15 +141,19 @@ impl App {
     }
 
     async fn fetch_data(&mut self) -> anyhow::Result<()> {
-        use atlas_core::AuthManager;
         use atlas_core::workspace::load_config;
+        use atlas_core::AuthManager;
         use hypersdk::hypercore::{self as hypercore, types::Side};
 
         let config = load_config()?;
         let signer = AuthManager::get_active_signer()?;
         let address = alloy::signers::local::PrivateKeySigner::address(&signer);
         let testnet = config.modules.hyperliquid.config.network == "testnet";
-        let client = if testnet { hypercore::testnet() } else { hypercore::mainnet() };
+        let client = if testnet {
+            hypercore::testnet()
+        } else {
+            hypercore::mainnet()
+        };
 
         self.address = format!("{}", address);
 
@@ -326,7 +330,8 @@ impl App {
     async fn do_cancel(&self, coin: &str, oid: u64) -> anyhow::Result<()> {
         let orch = crate::factory::from_active_profile().await?;
         let perp = orch.perp(None).map_err(|e| anyhow::anyhow!("{e}"))?;
-        perp.cancel_order(coin, &oid.to_string()).await
+        perp.cancel_order(coin, &oid.to_string())
+            .await
             .map_err(|e| anyhow::anyhow!("{e}"))?;
         Ok(())
     }
@@ -365,8 +370,7 @@ impl App {
         if self.tab == 2 {
             // Orders tab — move selection
             if !self.open_orders.is_empty() {
-                self.selected_order =
-                    (self.selected_order + 1).min(self.open_orders.len() - 1);
+                self.selected_order = (self.selected_order + 1).min(self.open_orders.len() - 1);
             }
         } else {
             self.scroll = self.scroll.saturating_add(1);
@@ -391,5 +395,4 @@ impl App {
     pub fn should_refresh(&self) -> bool {
         self.tick_count.is_multiple_of(self.refresh_interval) && self.tick_count > 0
     }
-
 }

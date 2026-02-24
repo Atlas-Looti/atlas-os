@@ -1,6 +1,6 @@
 use anyhow::Result;
-use atlas_core::output::{LeverageOutput, MarginOutput, TransferOutput};
 use atlas_core::output::{render, OutputFormat};
+use atlas_core::output::{LeverageOutput, MarginOutput, TransferOutput};
 use rust_decimal::prelude::*;
 
 /// `atlas leverage <coin> <value> [--cross]`
@@ -9,7 +9,8 @@ pub async fn set_leverage(coin: &str, value: u32, cross: bool, fmt: OutputFormat
     let perp = orch.perp(None)?;
     let coin_upper = coin.to_uppercase();
 
-    perp.set_leverage(&coin_upper, value, cross).await
+    perp.set_leverage(&coin_upper, value, cross)
+        .await
         .map_err(|e| anyhow::anyhow!("{e}"))?;
 
     let output = LeverageOutput {
@@ -27,10 +28,11 @@ pub async fn update_margin(coin: &str, amount: f64, fmt: OutputFormat) -> Result
     let perp = orch.perp(None)?;
     let coin_upper = coin.to_uppercase();
 
-    let dec_amount = Decimal::from_f64(amount)
-        .ok_or_else(|| anyhow::anyhow!("Invalid amount: {amount}"))?;
+    let dec_amount =
+        Decimal::from_f64(amount).ok_or_else(|| anyhow::anyhow!("Invalid amount: {amount}"))?;
 
-    perp.update_margin(&coin_upper, dec_amount).await
+    perp.update_margin(&coin_upper, dec_amount)
+        .await
         .map_err(|e| anyhow::anyhow!("{e}"))?;
 
     let output = MarginOutput {
@@ -47,10 +49,12 @@ pub async fn transfer_usdc(amount: &str, destination: &str, fmt: OutputFormat) -
     let orch = crate::factory::from_active_profile().await?;
     let perp = orch.perp(None)?;
 
-    let dec_amount: Decimal = amount.parse()
+    let dec_amount: Decimal = amount
+        .parse()
         .map_err(|_| anyhow::anyhow!("Invalid amount: {amount}"))?;
 
-    perp.transfer(dec_amount, destination).await
+    perp.transfer(dec_amount, destination)
+        .await
         .map_err(|e| anyhow::anyhow!("{e}"))?;
 
     let output = TransferOutput {

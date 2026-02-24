@@ -32,12 +32,15 @@ impl BackendClient {
     /// GET a JSON endpoint from the backend.
     pub async fn get(&self, path: &str, query: &[(&str, &str)]) -> Result<serde_json::Value> {
         let url = format!("{}{}", self.base_url, path);
-        let resp = self.http
+        let resp = self
+            .http
             .get(&url)
             .query(query)
             .send()
             .await
-            .with_context(|| format!("Failed to reach Atlas backend at {url}. Is atlas-server running?"))?;
+            .with_context(|| {
+                format!("Failed to reach Atlas backend at {url}. Is atlas-server running?")
+            })?;
 
         if !resp.status().is_success() {
             let status = resp.status();

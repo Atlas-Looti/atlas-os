@@ -492,7 +492,6 @@ pub struct ExportOutput {
     pub format: String,
 }
 
-
 // Unified output rendering: JSON or human-readable table.
 //
 // Usage:
@@ -502,7 +501,6 @@ pub struct ExportOutput {
 // let data = StatusOutput { ... };
 // render(format, &data)?;
 // ```
-
 
 /// Output format for CLI commands.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -601,7 +599,6 @@ pub fn render_json_or<T: Serialize>(format: OutputFormat, data: &T) -> anyhow::R
 }
 
 // ─── TableDisplay implementations for output types ──────────────────
-
 
 impl TableDisplay for StatusOutput {
     fn print_table(&self) {
@@ -798,7 +795,7 @@ impl TableDisplay for DoctorOutput {
             if check.status == "ok" {
                 let val = check.value.as_deref().unwrap_or("");
                 let display = if val.is_empty() {
-                    format!("{icon}")
+                    icon.to_string()
                 } else {
                     format!("{icon} ({val})")
                 };
@@ -1199,8 +1196,6 @@ impl TableDisplay for ExportOutput {
         );
     }
 }
-
-
 
 #[cfg(test)]
 mod tests {

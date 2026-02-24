@@ -1,6 +1,6 @@
 use anyhow::Result;
-use atlas_core::AuthManager;
 use atlas_core::output::OutputFormat;
+use atlas_core::AuthManager;
 
 /// `atlas profile generate <name>`
 pub fn generate_wallet(name: &str, fmt: OutputFormat) -> Result<()> {

@@ -10,7 +10,7 @@ use atlas_core::output::ExportOutput;
 use atlas_core::output::{render, OutputFormat};
 use rust_decimal::Decimal;
 
-use super::helpers::{normalize_protocol, parse_date_to_ms, format_ms};
+use super::helpers::{format_ms, normalize_protocol, parse_date_to_ms};
 
 /// Generate an export file path.
 fn export_path(kind: &str, ext: &str) -> Result<std::path::PathBuf> {
@@ -63,16 +63,19 @@ pub fn run_export_trades(
             hash: String,
         }
 
-        let rows: Vec<TradeRow> = fills.iter().map(|f| TradeRow {
-            coin: f.coin.clone(),
-            side: f.side.clone(),
-            size: f.sz.clone(),
-            price: f.px.clone(),
-            pnl: f.closed_pnl.clone(),
-            fee: f.fee.clone(),
-            time: format_ms(f.time_ms),
-            hash: f.hash.clone(),
-        }).collect();
+        let rows: Vec<TradeRow> = fills
+            .iter()
+            .map(|f| TradeRow {
+                coin: f.coin.clone(),
+                side: f.side.clone(),
+                size: f.sz.clone(),
+                price: f.px.clone(),
+                pnl: f.closed_pnl.clone(),
+                fee: f.fee.clone(),
+                time: format_ms(f.time_ms),
+                hash: f.hash.clone(),
+            })
+            .collect();
 
         let json = serde_json::to_string_pretty(&rows)?;
         std::fs::write(&path, &json)
@@ -95,8 +98,14 @@ pub fn run_export_trades(
             writeln!(
                 file,
                 "{},{},{},{},{},{},{},{}",
-                f.coin, f.side, f.sz, f.px, f.closed_pnl, f.fee,
-                format_ms(f.time_ms), f.hash,
+                f.coin,
+                f.side,
+                f.sz,
+                f.px,
+                f.closed_pnl,
+                f.fee,
+                format_ms(f.time_ms),
+                f.hash,
             )?;
         }
 
@@ -139,13 +148,16 @@ pub fn run_export_pnl(
     for fill in &fills {
         let pnl: Decimal = fill.closed_pnl.parse().unwrap_or(Decimal::ZERO);
         let fee: Decimal = fill.fee.parse().unwrap_or(Decimal::ZERO);
-        let entry = by_coin.entry(fill.coin.clone()).or_insert((Decimal::ZERO, Decimal::ZERO, 0));
+        let entry = by_coin
+            .entry(fill.coin.clone())
+            .or_insert((Decimal::ZERO, Decimal::ZERO, 0));
         entry.0 += pnl;
         entry.1 += fee;
         entry.2 += 1;
     }
 
-    let mut rows: Vec<(String, Decimal, Decimal, usize)> = by_coin.into_iter()
+    let mut rows: Vec<(String, Decimal, Decimal, usize)> = by_coin
+        .into_iter()
         .map(|(c, (pnl, fees, trades))| (c, pnl, fees, trades))
         .collect();
     rows.sort_by(|a, b| a.0.cmp(&b.0));
@@ -162,13 +174,16 @@ pub fn run_export_pnl(
             trades: usize,
         }
 
-        let export_rows: Vec<PnlRow> = rows.iter().map(|(c, pnl, fees, trades)| PnlRow {
-            coin: c.clone(),
-            pnl: pnl.to_string(),
-            fees: fees.to_string(),
-            net_pnl: (*pnl - *fees).to_string(),
-            trades: *trades,
-        }).collect();
+        let export_rows: Vec<PnlRow> = rows
+            .iter()
+            .map(|(c, pnl, fees, trades)| PnlRow {
+                coin: c.clone(),
+                pnl: pnl.to_string(),
+                fees: fees.to_string(),
+                net_pnl: (*pnl - *fees).to_string(),
+                trades: *trades,
+            })
+            .collect();
 
         let json = serde_json::to_string_pretty(&export_rows)?;
         std::fs::write(&path, &json)

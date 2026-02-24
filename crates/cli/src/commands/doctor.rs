@@ -1,14 +1,17 @@
 //! `atlas doctor` — system health checks.
 
 use anyhow::Result;
-use atlas_core::output::{DoctorCheck, DoctorOutput};
 use atlas_core::output::{render, OutputFormat};
+use atlas_core::output::{DoctorCheck, DoctorOutput};
 
 /// `atlas doctor [--fix]` — system health checks.
 pub async fn run(fix: bool, fmt: OutputFormat) -> Result<()> {
     // ── Check 1: Profile ────────────────────────────────────────────
     let config_result = atlas_core::workspace::load_config();
-    let profile_check = match (&config_result, atlas_core::auth::AuthManager::load_store_pub()) {
+    let profile_check = match (
+        &config_result,
+        atlas_core::auth::AuthManager::load_store_pub(),
+    ) {
         (Ok(cfg), Ok(store)) if !store.wallets.is_empty() => {
             let active = &cfg.system.active_profile;
             if store.exists(active) {
@@ -16,7 +19,9 @@ pub async fn run(fix: bool, fmt: OutputFormat) -> Result<()> {
             } else {
                 DoctorCheck::fail(
                     "profile",
-                    &format!("Active profile '{active}' not found. Run: atlas profile generate {active}"),
+                    &format!(
+                        "Active profile '{active}' not found. Run: atlas profile generate {active}"
+                    ),
                 )
             }
         }

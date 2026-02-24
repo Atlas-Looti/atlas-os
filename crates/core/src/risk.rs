@@ -63,8 +63,14 @@ pub struct RiskWarnings {
 ///
 /// This works identically for both Futures and CFD modes — the only
 /// difference is how `size` is displayed (units vs lots).
-pub fn calculate_position(config: &AppConfig, risk_config: &RiskConfig, input: &RiskInput) -> RiskOutput {
-    let leverage = input.leverage.unwrap_or(config.modules.hyperliquid.config.default_leverage);
+pub fn calculate_position(
+    config: &AppConfig,
+    risk_config: &RiskConfig,
+    input: &RiskInput,
+) -> RiskOutput {
+    let leverage = input
+        .leverage
+        .unwrap_or(config.modules.hyperliquid.config.default_leverage);
 
     // Dollar risk
     let risk_pct = risk_config.effective_risk_pct(&input.coin);
@@ -124,7 +130,12 @@ pub fn calculate_position(config: &AppConfig, risk_config: &RiskConfig, input: &
 
     // Convert to lots for CFD mode
     let lots = if config.modules.hyperliquid.config.is_cfd() {
-        config.modules.hyperliquid.config.lots.size_to_lots(&input.coin, size)
+        config
+            .modules
+            .hyperliquid
+            .config
+            .lots
+            .size_to_lots(&input.coin, size)
     } else {
         size
     };
@@ -230,13 +241,16 @@ pub fn format_risk_summary(config: &AppConfig, input: &RiskInput, output: &RiskO
     let side = if input.is_buy { "LONG" } else { "SHORT" };
 
     let size_display = if config.modules.hyperliquid.config.is_cfd() {
-        format!("{:.4} lots ({:.6} {})", output.lots, output.size, input.coin)
+        format!(
+            "{:.4} lots ({:.6} {})",
+            output.lots, output.size, input.coin
+        )
     } else {
         format!("{:.6} {}", output.size, input.coin)
     };
 
     format!(
- r#"╔══════════════════════════════════════════════════════════╗
+        r#"╔══════════════════════════════════════════════════════════╗
 ║  RISK CALCULATOR — {:<7} mode                      ║
 ╠══════════════════════════════════════════════════════════╣
 ║  Asset        : {:<6} {}                              ║
@@ -419,9 +433,9 @@ mod tests {
         risk_cfg.asset_overrides.insert(
             "BTC".to_string(),
             crate::risk::AssetRiskOverride {
-                max_risk_pct: Some(0.01), // 1% for BTC
+                max_risk_pct: Some(0.01),     // 1% for BTC
                 default_stop_pct: Some(0.03), // 3% stop
-                max_size: Some(0.1), // max 0.1 BTC
+                max_size: Some(0.1),          // max 0.1 BTC
             },
         );
 
@@ -510,10 +524,10 @@ pub struct AssetRiskOverride {
 impl Default for RiskConfig {
     fn default() -> Self {
         Self {
-            max_risk_pct: 0.02,           // 2% of account per trade
+            max_risk_pct: 0.02, // 2% of account per trade
             max_positions: 10,
             max_exposure_multiplier: 3.0,
-            default_stop_pct: 0.02,       // 2% stop-loss distance
+            default_stop_pct: 0.02, // 2% stop-loss distance
             asset_overrides: HashMap::new(),
         }
     }
@@ -538,8 +552,6 @@ impl RiskConfig {
 
     /// Get optional max size cap for an asset (in asset units).
     pub fn max_size(&self, coin: &str) -> Option<f64> {
-        self.asset_overrides
-            .get(coin)
-            .and_then(|o| o.max_size)
+        self.asset_overrides.get(coin).and_then(|o| o.max_size)
     }
 }

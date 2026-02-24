@@ -1,7 +1,7 @@
 // ── From atlas-common ──
+pub mod constants;
 pub mod error;
 pub mod traits;
-pub mod constants;
 pub mod types;
 
 // ── From atlas-types ──
@@ -16,15 +16,15 @@ pub mod prompt;
 pub mod risk;
 
 // ── Core modules ──
-pub mod workspace;
 pub mod auth;
 pub mod backend;
 pub mod db;
 pub mod engine;
 pub mod orchestrator;
+pub mod workspace;
 
-pub use workspace::init_workspace;
 pub use auth::AuthManager;
 pub use backend::BackendClient;
 pub use engine::Engine;
 pub use orchestrator::Orchestrator;
+pub use workspace::init_workspace;

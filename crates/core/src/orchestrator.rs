@@ -12,7 +12,6 @@ use tracing::info;
 use crate::traits::{LendingModule, PerpModule, SwapModule};
 use crate::types::*;
 
-
 /// The core orchestrator — holds all protocol modules.
 pub struct Orchestrator {
     /// Perp modules keyed by protocol name.
@@ -186,7 +185,6 @@ impl Orchestrator {
         }
         Ok(balances)
     }
-
 }
 
 /// Protocol registration info.

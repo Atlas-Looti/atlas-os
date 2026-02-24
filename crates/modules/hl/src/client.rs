@@ -9,10 +9,8 @@ use hypersdk::hypercore::{
     self as hypercore,
     types::{
         api::{Action, UpdateIsolatedMargin},
-        BatchCancel, BatchCancelCloid, BatchOrder, Cancel, CancelByCloid,
-        OrderGrouping, OrderRequest, OrderResponseStatus,
-        OrderTypePlacement, TimeInForce,
-        CandleInterval,
+        BatchCancel, BatchCancelCloid, BatchOrder, Cancel, CancelByCloid, CandleInterval,
+        OrderGrouping, OrderRequest, OrderResponseStatus, OrderTypePlacement, TimeInForce,
     },
     Cloid, HttpClient, NonceHandler, PerpMarket,
 };
@@ -122,10 +120,7 @@ pub struct HyperliquidModule {
 
 impl HyperliquidModule {
     /// Create from signer and network config.
-    pub async fn new(
-        signer: PrivateKeySigner,
-        testnet: bool,
-    ) -> Result<Self, AtlasError> {
+    pub async fn new(signer: PrivateKeySigner, testnet: bool) -> Result<Self, AtlasError> {
         let address = signer.address();
         let client = if testnet {
             hypercore::testnet()
@@ -133,14 +128,23 @@ impl HyperliquidModule {
             hypercore::mainnet()
         };
 
-        let perps = client.perps().await
+        let perps = client
+            .perps()
+            .await
             .map_err(|e| AtlasError::Network(format!("Failed to fetch markets: {e}")))?;
 
         let nonce = NonceHandler::default();
 
         info!(%address, testnet, markets = perps.len(), "Hyperliquid module ready");
 
-        Ok(Self { client, signer: Some(signer), nonce, perps, address: Some(address), testnet })
+        Ok(Self {
+            client,
+            signer: Some(signer),
+            nonce,
+            perps,
+            address: Some(address),
+            testnet,
+        })
     }
 
     /// Create a read-only client (no signer = market data only, no trading).
@@ -151,14 +155,27 @@ impl HyperliquidModule {
             hypercore::mainnet()
         };
 
-        let perps = client.perps().await
+        let perps = client
+            .perps()
+            .await
             .map_err(|e| AtlasError::Network(format!("Failed to fetch markets: {e}")))?;
 
         let nonce = NonceHandler::default();
 
-        info!(testnet, markets = perps.len(), "Hyperliquid module ready (read-only)");
+        info!(
+            testnet,
+            markets = perps.len(),
+            "Hyperliquid module ready (read-only)"
+        );
 
-        Ok(Self { client, signer: None, nonce, perps, address: None, testnet })
+        Ok(Self {
+            client,
+            signer: None,
+            nonce,
+            perps,
+            address: None,
+            testnet,
+        })
     }
 
     /// Fetch asset contexts (funding, OI, impact prices, volume, etc.) via metaAndAssetCtxs.
@@ -169,61 +186,82 @@ impl HyperliquidModule {
             "https://api.hyperliquid.xyz/info"
         };
         let http = reqwest::Client::new();
-        let resp: Value = http.post(url)
+        let resp: Value = http
+            .post(url)
             .json(&serde_json::json!({"type": "metaAndAssetCtxs"}))
-            .send().await
+            .send()
+            .await
             .map_err(|e| AtlasError::Network(format!("metaAndAssetCtxs: {e}")))?
-            .json().await
+            .json()
+            .await
             .map_err(|e| AtlasError::Network(format!("metaAndAssetCtxs parse: {e}")))?;
 
         // Response is [meta, [ctx, ctx, ...]]
-        let ctxs = resp.get(1)
+        let ctxs = resp
+            .get(1)
             .and_then(|v| v.as_array())
             .ok_or_else(|| AtlasError::Network("unexpected metaAndAssetCtxs shape".into()))?;
 
-        let universe = resp.get(0)
+        let universe = resp
+            .get(0)
             .and_then(|v| v.get("universe"))
             .and_then(|v| v.as_array())
             .ok_or_else(|| AtlasError::Network("missing universe in meta".into()))?;
 
         let mut result = Vec::with_capacity(ctxs.len());
         for (i, ctx) in ctxs.iter().enumerate() {
-            let name = universe.get(i)
+            let name = universe
+                .get(i)
                 .and_then(|u| u.get("name"))
                 .and_then(|n| n.as_str())
                 .unwrap_or("")
                 .to_string();
 
-            let impact_bid = ctx.get("impactPxs")
+            let impact_bid = ctx
+                .get("impactPxs")
                 .and_then(|v| v.get(0))
                 .and_then(|v| v.as_str())
                 .and_then(|s| Decimal::from_str(s).ok());
-            let impact_ask = ctx.get("impactPxs")
+            let impact_ask = ctx
+                .get("impactPxs")
                 .and_then(|v| v.get(1))
                 .and_then(|v| v.as_str())
                 .and_then(|s| Decimal::from_str(s).ok());
-            let mid_px = ctx.get("midPx")
+            let mid_px = ctx
+                .get("midPx")
                 .and_then(|v| v.as_str())
                 .and_then(|s| Decimal::from_str(s).ok());
-            let mark_px = ctx.get("markPx")
+            let mark_px = ctx
+                .get("markPx")
                 .and_then(|v| v.as_str())
                 .and_then(|s| Decimal::from_str(s).ok());
-            let volume = ctx.get("dayNtlVlm")
+            let volume = ctx
+                .get("dayNtlVlm")
                 .and_then(|v| v.as_str())
                 .and_then(|s| Decimal::from_str(s).ok());
-            let prev_day_px = ctx.get("prevDayPx")
+            let prev_day_px = ctx
+                .get("prevDayPx")
                 .and_then(|v| v.as_str())
                 .and_then(|s| Decimal::from_str(s).ok());
-            let oi = ctx.get("openInterest")
+            let oi = ctx
+                .get("openInterest")
                 .and_then(|v| v.as_str())
                 .and_then(|s| Decimal::from_str(s).ok());
-            let funding = ctx.get("funding")
+            let funding = ctx
+                .get("funding")
                 .and_then(|v| v.as_str())
                 .and_then(|s| Decimal::from_str(s).ok());
 
             result.push(AssetCtxRaw {
-                name, mid_px, mark_px, impact_bid, impact_ask,
-                volume, prev_day_px, oi, funding,
+                name,
+                mid_px,
+                mark_px,
+                impact_bid,
+                impact_ask,
+                volume,
+                prev_day_px,
+                oi,
+                funding,
             });
         }
         Ok(result)
@@ -233,8 +271,11 @@ impl HyperliquidModule {
     fn ctx_to_ticker(ctx: &AssetCtxRaw) -> Ticker {
         let mid = ctx.mid_px.unwrap_or(Decimal::ZERO);
         let change_pct = ctx.prev_day_px.and_then(|prev| {
-            if prev.is_zero() { None }
-            else { Some(((mid - prev) / prev * Decimal::from(100)).round_dp(2)) }
+            if prev.is_zero() {
+                None
+            } else {
+                Some(((mid - prev) / prev * Decimal::from(100)).round_dp(2))
+            }
         });
         Ticker {
             symbol: ctx.name.clone(),
@@ -256,9 +297,11 @@ impl HyperliquidModule {
 
     /// Get address, or error if read-only.
     fn require_address(&self) -> Result<Address, AtlasError> {
-        self.address.ok_or_else(|| AtlasError::Auth(
-            "No wallet address — authenticate first with: atlas profile generate <name>".into()
-        ))
+        self.address.ok_or_else(|| {
+            AtlasError::Auth(
+                "No wallet address — authenticate first with: atlas profile generate <name>".into(),
+            )
+        })
     }
 
     /// Resolve coin name to market index.
@@ -281,7 +324,8 @@ impl HyperliquidModule {
     /// Round price to valid tick.
     fn round_price(&self, coin: &str, price: Decimal) -> Result<Decimal, AtlasError> {
         let market = self.get_market(coin)?;
-        market.round_price(price)
+        market
+            .round_price(price)
             .ok_or_else(|| AtlasError::Other(format!("Invalid price {price} for {coin}")))
     }
 
@@ -294,12 +338,20 @@ impl HyperliquidModule {
 
     /// Chain identifier for signing.
     fn chain(&self) -> hypercore::Chain {
-        if self.testnet { hypercore::Chain::Testnet } else { hypercore::Chain::Mainnet }
+        if self.testnet {
+            hypercore::Chain::Testnet
+        } else {
+            hypercore::Chain::Mainnet
+        }
     }
 
     /// Base URL for direct HTTP requests.
     fn base_url(&self) -> &str {
-        if self.testnet { HL_TESTNET_RPC } else { HL_MAINNET_RPC }
+        if self.testnet {
+            HL_TESTNET_RPC
+        } else {
+            HL_MAINNET_RPC
+        }
     }
 
     /// Place a batch order with builder fee injection.
@@ -322,8 +374,8 @@ impl HyperliquidModule {
         // Inject builder fee
         let builder = BuilderFee::default();
         if let Some(action_obj) = json_val.get_mut("action") {
-            action_obj["builder"] = serde_json::to_value(&builder)
-                .map_err(|e| AtlasError::Other(e.to_string()))?;
+            action_obj["builder"] =
+                serde_json::to_value(&builder).map_err(|e| AtlasError::Other(e.to_string()))?;
         }
 
         let http = reqwest::Client::builder()
@@ -339,7 +391,9 @@ impl HyperliquidModule {
             .map_err(|e| AtlasError::Network(format!("Exchange request failed: {e}")))?;
 
         let status = resp.status();
-        let body = resp.text().await
+        let body = resp
+            .text()
+            .await
             .map_err(|e| AtlasError::Network(e.to_string()))?;
 
         if !status.is_success() {
@@ -349,24 +403,26 @@ impl HyperliquidModule {
             });
         }
 
-        let parsed: Value = serde_json::from_str(&body)
-            .map_err(|_| AtlasError::Protocol {
-                protocol: "hyperliquid".into(),
-                message: format!("Bad response: {body}"),
-            })?;
+        let parsed: Value = serde_json::from_str(&body).map_err(|_| AtlasError::Protocol {
+            protocol: "hyperliquid".into(),
+            message: format!("Bad response: {body}"),
+        })?;
 
         if parsed.get("status").and_then(|v| v.as_str()) == Some("err") {
-            let msg = parsed.get("response")
+            let msg = parsed
+                .get("response")
                 .and_then(|v| v.as_str())
                 .unwrap_or("Unknown error");
             return Err(AtlasError::OrderRejected(msg.to_string()));
         }
 
-        let statuses_val = parsed.pointer("/response/data/statuses")
-            .ok_or_else(|| AtlasError::Protocol {
-                protocol: "hyperliquid".into(),
-                message: format!("No statuses: {body}"),
-            })?;
+        let statuses_val =
+            parsed
+                .pointer("/response/data/statuses")
+                .ok_or_else(|| AtlasError::Protocol {
+                    protocol: "hyperliquid".into(),
+                    message: format!("No statuses: {body}"),
+                })?;
 
         serde_json::from_value(statuses_val.clone())
             .map_err(|e| AtlasError::Other(format!("Parse statuses: {e}")))
@@ -379,7 +435,11 @@ impl HyperliquidModule {
         }
 
         match &statuses[0] {
-            OrderResponseStatus::Filled { total_sz, avg_px, oid } => Ok(OrderResult {
+            OrderResponseStatus::Filled {
+                total_sz,
+                avg_px,
+                oid,
+            } => Ok(OrderResult {
                 protocol: Protocol::Hyperliquid,
                 order_id: oid.to_string(),
                 status: OrderStatus::Filled,
@@ -403,9 +463,7 @@ impl HyperliquidModule {
                 avg_price: None,
                 message: Some("accepted".into()),
             }),
-            OrderResponseStatus::Error(msg) => {
-                Err(AtlasError::OrderRejected(msg.clone()))
-            }
+            OrderResponseStatus::Error(msg) => Err(AtlasError::OrderRejected(msg.clone())),
         }
     }
 }
@@ -422,7 +480,8 @@ impl PerpModule for HyperliquidModule {
 
     async fn ticker(&self, symbol: &str) -> AtlasResult<Ticker> {
         let ctxs = self.fetch_asset_ctxs().await?;
-        let ctx = ctxs.iter()
+        let ctx = ctxs
+            .iter()
             .find(|c| c.name.eq_ignore_ascii_case(symbol))
             .ok_or_else(|| AtlasError::AssetNotFound(symbol.to_string()))?;
         Ok(Self::ctx_to_ticker(ctx))
@@ -430,7 +489,8 @@ impl PerpModule for HyperliquidModule {
 
     async fn all_tickers(&self) -> AtlasResult<Vec<Ticker>> {
         let ctxs = self.fetch_asset_ctxs().await?;
-        let mut tickers: Vec<Ticker> = ctxs.iter()
+        let mut tickers: Vec<Ticker> = ctxs
+            .iter()
             .filter(|c| c.mid_px.is_some())
             .map(Self::ctx_to_ticker)
             .collect();
@@ -446,46 +506,62 @@ impl PerpModule for HyperliquidModule {
     ) -> AtlasResult<Vec<Candle>> {
         let ci = parse_interval(interval)?;
         let now_ms = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH).unwrap()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
             .as_millis() as u64;
         let start = now_ms.saturating_sub(interval_to_ms(&ci) * limit as u64);
 
-        let raw = self.client.candle_snapshot(symbol, ci, start, now_ms).await
+        let raw = self
+            .client
+            .candle_snapshot(symbol, ci, start, now_ms)
+            .await
             .map_err(|e| AtlasError::Network(format!("Fetch candles: {e}")))?;
 
-        Ok(raw.iter().map(|c| Candle {
-            open_time_ms: c.open_time,
-            open: c.open,
-            high: c.high,
-            low: c.low,
-            close: c.close,
-            volume: c.volume,
-            trades: Some(c.num_trades),
-        }).collect())
+        Ok(raw
+            .iter()
+            .map(|c| Candle {
+                open_time_ms: c.open_time,
+                open: c.open,
+                high: c.high,
+                low: c.low,
+                close: c.close,
+                volume: c.volume,
+                trades: Some(c.num_trades),
+            })
+            .collect())
     }
 
     async fn funding(&self, symbol: &str) -> AtlasResult<Vec<FundingRate>> {
         let now_ms = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH).unwrap()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
             .as_millis() as u64;
         let start = now_ms.saturating_sub(7 * 86_400_000);
 
-        let rates = self.client.funding_history(symbol, start, Some(now_ms)).await
+        let rates = self
+            .client
+            .funding_history(symbol, start, Some(now_ms))
+            .await
             .map_err(|e| AtlasError::Network(format!("Fetch funding: {e}")))?;
 
-        Ok(rates.iter().map(|r| FundingRate {
-            symbol: r.coin.clone(),
-            protocol: Protocol::Hyperliquid,
-            rate: r.funding_rate,
-            premium: Some(r.premium),
-            timestamp_ms: r.time,
-            next_funding_ms: None,
-        }).collect())
+        Ok(rates
+            .iter()
+            .map(|r| FundingRate {
+                symbol: r.coin.clone(),
+                protocol: Protocol::Hyperliquid,
+                rate: r.funding_rate,
+                premium: Some(r.premium),
+                timestamp_ms: r.time,
+                next_funding_ms: None,
+            })
+            .collect())
     }
 
     async fn orderbook(&self, _symbol: &str, _depth: usize) -> AtlasResult<OrderBook> {
         // L2Book is WebSocket-only on Hyperliquid
-        Err(AtlasError::Other("Orderbook is WebSocket-only. Use `atlas stream book`.".into()))
+        Err(AtlasError::Other(
+            "Orderbook is WebSocket-only. Use `atlas stream book`.".into(),
+        ))
     }
 
     async fn market_order(
@@ -499,19 +575,29 @@ impl PerpModule for HyperliquidModule {
         let is_buy = side_to_is_buy(&side);
         let slip = slippage.unwrap_or(0.05);
 
-        let mids = self.client.all_mids(None).await
+        let mids = self
+            .client
+            .all_mids(None)
+            .await
             .map_err(|e| AtlasError::Network(format!("Fetch mids: {e}")))?;
-        let mid = mids.get(symbol)
+        let mid = mids
+            .get(symbol)
             .ok_or_else(|| AtlasError::AssetNotFound(symbol.to_string()))?;
 
-        let slip_dec = Decimal::from_f64(slip)
-            .ok_or_else(|| AtlasError::Other("Invalid slippage".into()))?;
-        let mult = if is_buy { Decimal::ONE + slip_dec } else { Decimal::ONE - slip_dec };
+        let slip_dec =
+            Decimal::from_f64(slip).ok_or_else(|| AtlasError::Other("Invalid slippage".into()))?;
+        let mult = if is_buy {
+            Decimal::ONE + slip_dec
+        } else {
+            Decimal::ONE - slip_dec
+        };
         let px = self.round_price(symbol, *mid * mult)?;
         let sz = self.round_size(symbol, size)?;
 
         if sz.is_zero() {
-            return Err(AtlasError::Other(format!("Size rounds to zero for {symbol}")));
+            return Err(AtlasError::Other(format!(
+                "Size rounds to zero for {symbol}"
+            )));
         }
 
         info!(
@@ -521,12 +607,21 @@ impl PerpModule for HyperliquidModule {
         );
 
         let order = OrderRequest {
-            asset, is_buy, reduce_only: false,
-            limit_px: px, sz, cloid: random_cloid(),
-            order_type: OrderTypePlacement::Limit { tif: TimeInForce::Ioc },
+            asset,
+            is_buy,
+            reduce_only: false,
+            limit_px: px,
+            sz,
+            cloid: random_cloid(),
+            order_type: OrderTypePlacement::Limit {
+                tif: TimeInForce::Ioc,
+            },
         };
 
-        let batch = BatchOrder { orders: vec![order], grouping: OrderGrouping::Na };
+        let batch = BatchOrder {
+            orders: vec![order],
+            grouping: OrderGrouping::Na,
+        };
         let statuses = self.place_with_builder(batch).await?;
         self.parse_response(&statuses)
     }
@@ -545,7 +640,9 @@ impl PerpModule for HyperliquidModule {
         let sz = self.round_size(symbol, size)?;
 
         if sz.is_zero() {
-            return Err(AtlasError::Other(format!("Size rounds to zero for {symbol}")));
+            return Err(AtlasError::Other(format!(
+                "Size rounds to zero for {symbol}"
+            )));
         }
 
         info!(
@@ -555,12 +652,21 @@ impl PerpModule for HyperliquidModule {
         );
 
         let order = OrderRequest {
-            asset, is_buy, reduce_only,
-            limit_px: px, sz, cloid: random_cloid(),
-            order_type: OrderTypePlacement::Limit { tif: TimeInForce::Gtc },
+            asset,
+            is_buy,
+            reduce_only,
+            limit_px: px,
+            sz,
+            cloid: random_cloid(),
+            order_type: OrderTypePlacement::Limit {
+                tif: TimeInForce::Gtc,
+            },
         };
 
-        let batch = BatchOrder { orders: vec![order], grouping: OrderGrouping::Na };
+        let batch = BatchOrder {
+            orders: vec![order],
+            grouping: OrderGrouping::Na,
+        };
         let statuses = self.place_with_builder(batch).await?;
         self.parse_response(&statuses)
     }
@@ -574,16 +680,23 @@ impl PerpModule for HyperliquidModule {
         let asset = self.resolve_asset(symbol)?;
         let slip = slippage.unwrap_or(0.05);
 
-        let state = self.client.clearinghouse_state(self.require_address()?, None).await
+        let state = self
+            .client
+            .clearinghouse_state(self.require_address()?, None)
+            .await
             .map_err(|e| AtlasError::Network(format!("Fetch state: {e}")))?;
 
-        let position = state.asset_positions.iter()
+        let position = state
+            .asset_positions
+            .iter()
             .find(|p| p.position.coin.eq_ignore_ascii_case(symbol))
             .ok_or_else(|| AtlasError::Other(format!("No position for {symbol}")))?;
 
         let pos_size = position.position.szi;
         if pos_size.is_zero() {
-            return Err(AtlasError::Other(format!("Position size is zero for {symbol}")));
+            return Err(AtlasError::Other(format!(
+                "Position size is zero for {symbol}"
+            )));
         }
 
         let is_long = pos_size > Decimal::ZERO;
@@ -594,34 +707,56 @@ impl PerpModule for HyperliquidModule {
             None => self.round_size(symbol, pos_size.abs())?,
         };
 
-        let mids = self.client.all_mids(None).await
+        let mids = self
+            .client
+            .all_mids(None)
+            .await
             .map_err(|e| AtlasError::Network(format!("Fetch mids: {e}")))?;
-        let mid = mids.get(symbol)
+        let mid = mids
+            .get(symbol)
             .ok_or_else(|| AtlasError::AssetNotFound(symbol.to_string()))?;
 
-        let slip_dec = Decimal::from_f64(slip)
-            .ok_or_else(|| AtlasError::Other("Invalid slippage".into()))?;
-        let mult = if is_buy { Decimal::ONE + slip_dec } else { Decimal::ONE - slip_dec };
+        let slip_dec =
+            Decimal::from_f64(slip).ok_or_else(|| AtlasError::Other("Invalid slippage".into()))?;
+        let mult = if is_buy {
+            Decimal::ONE + slip_dec
+        } else {
+            Decimal::ONE - slip_dec
+        };
         let px = self.round_price(symbol, *mid * mult)?;
 
         let order = OrderRequest {
-            asset, is_buy, reduce_only: true,
-            limit_px: px, sz: close_size, cloid: random_cloid(),
-            order_type: OrderTypePlacement::Limit { tif: TimeInForce::Ioc },
+            asset,
+            is_buy,
+            reduce_only: true,
+            limit_px: px,
+            sz: close_size,
+            cloid: random_cloid(),
+            order_type: OrderTypePlacement::Limit {
+                tif: TimeInForce::Ioc,
+            },
         };
 
-        let batch = BatchOrder { orders: vec![order], grouping: OrderGrouping::Na };
+        let batch = BatchOrder {
+            orders: vec![order],
+            grouping: OrderGrouping::Na,
+        };
         let statuses = self.place_with_builder(batch).await?;
         self.parse_response(&statuses)
     }
 
     async fn cancel_order(&self, symbol: &str, order_id: &str) -> AtlasResult<()> {
         let asset = self.resolve_asset(symbol)?;
-        let oid: u64 = order_id.parse()
+        let oid: u64 = order_id
+            .parse()
             .map_err(|_| AtlasError::Other(format!("Invalid OID: {order_id}")))?;
 
-        let batch = BatchCancel { cancels: vec![Cancel { asset, oid }] };
-        self.client.cancel(self.require_signer()?, batch, self.nonce.next(), None, None).await
+        let batch = BatchCancel {
+            cancels: vec![Cancel { asset, oid }],
+        };
+        self.client
+            .cancel(self.require_signer()?, batch, self.nonce.next(), None, None)
+            .await
             .map_err(|e| AtlasError::Protocol {
                 protocol: "hyperliquid".into(),
                 message: format!("Cancel failed: {}", e.message()),
@@ -631,86 +766,119 @@ impl PerpModule for HyperliquidModule {
 
     async fn cancel_all(&self, symbol: &str) -> AtlasResult<u32> {
         let asset = self.resolve_asset(symbol)?;
-        let orders = self.client.open_orders(self.require_address()?, None).await
+        let orders = self
+            .client
+            .open_orders(self.require_address()?, None)
+            .await
             .map_err(|e| AtlasError::Network(format!("Fetch orders: {e}")))?;
 
-        let matching: Vec<_> = orders.iter()
+        let matching: Vec<_> = orders
+            .iter()
             .filter(|o| o.coin.eq_ignore_ascii_case(symbol))
             .collect();
 
-        if matching.is_empty() { return Ok(0); }
+        if matching.is_empty() {
+            return Ok(0);
+        }
 
-        let cancels: Vec<Cancel> = matching.iter()
+        let cancels: Vec<Cancel> = matching
+            .iter()
             .map(|o| Cancel { asset, oid: o.oid })
             .collect();
         let total = cancels.len() as u32;
 
         let batch = BatchCancel { cancels };
-        let _ = self.client.cancel(self.require_signer()?, batch, self.nonce.next(), None, None).await;
+        let _ = self
+            .client
+            .cancel(self.require_signer()?, batch, self.nonce.next(), None, None)
+            .await;
 
         Ok(total)
     }
 
     async fn open_orders(&self) -> AtlasResult<Vec<Order>> {
-        let orders = self.client.open_orders(self.require_address()?, None).await
+        let orders = self
+            .client
+            .open_orders(self.require_address()?, None)
+            .await
             .map_err(|e| AtlasError::Network(format!("Fetch orders: {e}")))?;
 
-        Ok(orders.iter().map(|o| Order {
-            protocol: Protocol::Hyperliquid,
-            symbol: o.coin.clone(),
-            side: convert_side(&o.side),
-            order_type: OrderType::Limit,
-            size: o.sz,
-            price: Some(o.limit_px),
-            filled_size: None,
-            status: OrderStatus::Open,
-            order_id: o.oid.to_string(),
-            timestamp_ms: o.timestamp,
-        }).collect())
+        Ok(orders
+            .iter()
+            .map(|o| Order {
+                protocol: Protocol::Hyperliquid,
+                symbol: o.coin.clone(),
+                side: convert_side(&o.side),
+                order_type: OrderType::Limit,
+                size: o.sz,
+                price: Some(o.limit_px),
+                filled_size: None,
+                status: OrderStatus::Open,
+                order_id: o.oid.to_string(),
+                timestamp_ms: o.timestamp,
+            })
+            .collect())
     }
 
     async fn positions(&self) -> AtlasResult<Vec<Position>> {
-        let state = self.client.clearinghouse_state(self.require_address()?, None).await
+        let state = self
+            .client
+            .clearinghouse_state(self.require_address()?, None)
+            .await
             .map_err(|e| AtlasError::Network(format!("Fetch state: {e}")))?;
 
-        Ok(state.asset_positions.iter().map(|ap| {
-            let p = &ap.position;
-            let is_long = p.szi > Decimal::ZERO;
-            Position {
-                protocol: Protocol::Hyperliquid,
-                symbol: p.coin.clone(),
-                side: if is_long { Side::Buy } else { Side::Sell },
-                size: p.szi.abs(),
-                entry_price: p.entry_px,
-                mark_price: None,
-                unrealized_pnl: Some(p.unrealized_pnl),
-                leverage: Some(p.leverage.value.to_u32().unwrap_or(1)),
-                margin: None,
-                liquidation_price: p.liquidation_px,
-            }
-        }).collect())
+        Ok(state
+            .asset_positions
+            .iter()
+            .map(|ap| {
+                let p = &ap.position;
+                let is_long = p.szi > Decimal::ZERO;
+                Position {
+                    protocol: Protocol::Hyperliquid,
+                    symbol: p.coin.clone(),
+                    side: if is_long { Side::Buy } else { Side::Sell },
+                    size: p.szi.abs(),
+                    entry_price: p.entry_px,
+                    mark_price: None,
+                    unrealized_pnl: Some(p.unrealized_pnl),
+                    leverage: Some(p.leverage.value.to_u32().unwrap_or(1)),
+                    margin: None,
+                    liquidation_price: p.liquidation_px,
+                }
+            })
+            .collect())
     }
 
     async fn fills(&self) -> AtlasResult<Vec<Fill>> {
-        let fills = self.client.user_fills(self.require_address()?).await
+        let fills = self
+            .client
+            .user_fills(self.require_address()?)
+            .await
             .map_err(|e| AtlasError::Network(format!("Fetch fills: {e}")))?;
 
-        Ok(fills.iter().take(50).map(|f| Fill {
-            protocol: Protocol::Hyperliquid,
-            symbol: f.coin.clone(),
-            side: convert_side(&f.side),
-            price: f.px,
-            size: f.sz,
-            fee: f.fee,
-            realized_pnl: Some(f.closed_pnl),
-            order_id: f.oid.to_string(),
-            tx_hash: Some(f.hash.clone()),
-            timestamp_ms: f.time,
-        }).collect())
+        Ok(fills
+            .iter()
+            .take(50)
+            .map(|f| Fill {
+                protocol: Protocol::Hyperliquid,
+                symbol: f.coin.clone(),
+                side: convert_side(&f.side),
+                price: f.px,
+                size: f.sz,
+                fee: f.fee,
+                realized_pnl: Some(f.closed_pnl),
+                order_id: f.oid.to_string(),
+                tx_hash: Some(f.hash.clone()),
+                timestamp_ms: f.time,
+            })
+            .collect())
     }
 
     async fn balances(&self) -> AtlasResult<Vec<Balance>> {
-        let state = self.client.clearinghouse_state(self.require_address()?, None).await
+        let state = self
+            .client
+            .clearinghouse_state(self.require_address()?, None)
+            .await
             .map_err(|e| AtlasError::Network(format!("Fetch state: {e}")))?;
 
         Ok(vec![Balance {
@@ -723,12 +891,7 @@ impl PerpModule for HyperliquidModule {
         }])
     }
 
-    async fn set_leverage(
-        &self,
-        symbol: &str,
-        leverage: u32,
-        is_cross: bool,
-    ) -> AtlasResult<()> {
+    async fn set_leverage(&self, symbol: &str, leverage: u32, is_cross: bool) -> AtlasResult<()> {
         let asset = self.resolve_asset(symbol)?;
 
         let action_json = serde_json::json!({
@@ -748,7 +911,9 @@ impl PerpModule for HyperliquidModule {
         let source = if self.testnet { "b" } else { "a" };
         let agent_hash = compute_agent_signing_hash(source, connection_id);
 
-        let sig = self.require_signer()?.sign_hash_sync(&agent_hash)
+        let sig = self
+            .require_signer()?
+            .sign_hash_sync(&agent_hash)
             .map_err(|e| AtlasError::Auth(format!("Sign failed: {e}")))?;
 
         let r_hex = hex::encode(sig.r().to_be_bytes::<32>());
@@ -770,20 +935,25 @@ impl PerpModule for HyperliquidModule {
         let resp = http
             .post(format!("{}/exchange", self.base_url()))
             .json(&request_body)
-            .send().await
+            .send()
+            .await
             .map_err(|e| AtlasError::Network(e.to_string()))?;
 
-        let body = resp.text().await
+        let body = resp
+            .text()
+            .await
             .map_err(|e| AtlasError::Network(e.to_string()))?;
 
-        let parsed: Value = serde_json::from_str(&body)
-            .map_err(|_| AtlasError::Protocol {
-                protocol: "hyperliquid".into(),
-                message: format!("Bad response: {body}"),
-            })?;
+        let parsed: Value = serde_json::from_str(&body).map_err(|_| AtlasError::Protocol {
+            protocol: "hyperliquid".into(),
+            message: format!("Bad response: {body}"),
+        })?;
 
         if parsed.get("status").and_then(|v| v.as_str()) == Some("err") {
-            let msg = parsed.get("response").and_then(|v| v.as_str()).unwrap_or("Unknown");
+            let msg = parsed
+                .get("response")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Unknown");
             return Err(AtlasError::Protocol {
                 protocol: "hyperliquid".into(),
                 message: msg.to_string(),
@@ -794,7 +964,8 @@ impl PerpModule for HyperliquidModule {
     }
 
     async fn transfer(&self, amount: Decimal, destination: &str) -> AtlasResult<String> {
-        let dest: Address = destination.parse()
+        let dest: Address = destination
+            .parse()
             .map_err(|_| AtlasError::Other(format!("Invalid address: {destination}")))?;
 
         let nonce = self.nonce.next();
@@ -804,7 +975,9 @@ impl PerpModule for HyperliquidModule {
             time: nonce,
         };
 
-        self.client.send_usdc(self.require_signer()?, send, nonce).await
+        self.client
+            .send_usdc(self.require_signer()?, send, nonce)
+            .await
             .map_err(|e| AtlasError::Protocol {
                 protocol: "hyperliquid".into(),
                 message: format!("Transfer failed: {e}"),
@@ -817,10 +990,15 @@ impl PerpModule for HyperliquidModule {
         let asset = self.resolve_asset(symbol)?;
 
         // Determine is_buy from position side
-        let state = self.client.clearinghouse_state(self.require_address()?, None).await
+        let state = self
+            .client
+            .clearinghouse_state(self.require_address()?, None)
+            .await
             .map_err(|e| AtlasError::Network(format!("Fetch state: {e}")))?;
 
-        let is_buy = state.asset_positions.iter()
+        let is_buy = state
+            .asset_positions
+            .iter()
             .find(|p| p.position.coin.eq_ignore_ascii_case(symbol))
             .map(|p| p.position.szi > Decimal::ZERO)
             .unwrap_or(true);
@@ -829,7 +1007,11 @@ impl PerpModule for HyperliquidModule {
         let amount_f64 = amount.abs().to_f64().unwrap_or(0.0);
         let ntli = (amount_f64 * 1_000_000.0) as u64;
 
-        let update = UpdateIsolatedMargin { asset, is_buy, ntli };
+        let update = UpdateIsolatedMargin {
+            asset,
+            is_buy,
+            ntli,
+        };
         let chain = if self.testnet {
             hypercore::Chain::Testnet
         } else {
@@ -841,7 +1023,9 @@ impl PerpModule for HyperliquidModule {
             .sign_sync(self.require_signer()?, self.nonce.next(), None, None, chain)
             .map_err(|e| AtlasError::Auth(format!("Sign failed: {e}")))?;
 
-        self.client.send(signed).await
+        self.client
+            .send(signed)
+            .await
             .map_err(|e| AtlasError::Protocol {
                 protocol: "hyperliquid".into(),
                 message: format!("Margin update failed: {e}"),
@@ -862,8 +1046,12 @@ impl PerpModule for HyperliquidModule {
             asset,
             cloid: cloid_val,
         };
-        let batch = BatchCancelCloid { cancels: vec![cancel] };
-        self.client.cancel_by_cloid(self.require_signer()?, batch, self.nonce.next(), None, None).await
+        let batch = BatchCancelCloid {
+            cancels: vec![cancel],
+        };
+        self.client
+            .cancel_by_cloid(self.require_signer()?, batch, self.nonce.next(), None, None)
+            .await
             .map_err(|e| AtlasError::Protocol {
                 protocol: "hyperliquid".into(),
                 message: format!("Cancel by CLOID failed: {}", e.message()),
@@ -872,16 +1060,22 @@ impl PerpModule for HyperliquidModule {
     }
 
     async fn spot_balances(&self) -> AtlasResult<Vec<SpotBalance>> {
-        let balances = self.client.user_balances(self.require_address()?).await
+        let balances = self
+            .client
+            .user_balances(self.require_address()?)
+            .await
             .map_err(|e| AtlasError::Network(format!("Fetch spot balances: {e}")))?;
 
-        Ok(balances.iter().map(|b| SpotBalance {
-            protocol: Protocol::Hyperliquid,
-            token: b.coin.clone(),
-            total: b.total,
-            available: b.available(),
-            held: b.hold,
-        }).collect())
+        Ok(balances
+            .iter()
+            .map(|b| SpotBalance {
+                protocol: Protocol::Hyperliquid,
+                token: b.coin.clone(),
+                total: b.total,
+                available: b.available(),
+                held: b.hold,
+            })
+            .collect())
     }
 
     async fn spot_market_order(
@@ -891,28 +1085,46 @@ impl PerpModule for HyperliquidModule {
         size: Decimal,
         slippage: Option<f64>,
     ) -> AtlasResult<OrderResult> {
-        let spot_markets = self.client.spot().await
+        let spot_markets = self
+            .client
+            .spot()
+            .await
             .map_err(|e| AtlasError::Network(format!("Fetch spot markets: {e}")))?;
 
-        let market = spot_markets.iter()
-            .find(|m| m.tokens.first().map(|t| t.name.eq_ignore_ascii_case(base)).unwrap_or(false))
+        let market = spot_markets
+            .iter()
+            .find(|m| {
+                m.tokens
+                    .first()
+                    .map(|t| t.name.eq_ignore_ascii_case(base))
+                    .unwrap_or(false)
+            })
             .ok_or_else(|| AtlasError::AssetNotFound(format!("Spot: {base}")))?;
 
         let is_buy = side_to_is_buy(&side);
         let slip = slippage.unwrap_or(0.05);
 
-        let mids = self.client.all_mids(None).await
+        let mids = self
+            .client
+            .all_mids(None)
+            .await
             .map_err(|e| AtlasError::Network(format!("Fetch mids: {e}")))?;
 
         let mid_key = format!("@{}", market.index);
-        let mid = mids.get(base)
+        let mid = mids
+            .get(base)
             .or_else(|| mids.get(&mid_key))
             .ok_or_else(|| AtlasError::Other(format!("No mid price for spot {base}")))?;
 
-        let slip_dec = Decimal::from_f64(slip)
-            .ok_or_else(|| AtlasError::Other("Invalid slippage".into()))?;
-        let mult = if is_buy { Decimal::ONE + slip_dec } else { Decimal::ONE - slip_dec };
-        let px = market.round_price(*mid * mult)
+        let slip_dec =
+            Decimal::from_f64(slip).ok_or_else(|| AtlasError::Other("Invalid slippage".into()))?;
+        let mult = if is_buy {
+            Decimal::ONE + slip_dec
+        } else {
+            Decimal::ONE - slip_dec
+        };
+        let px = market
+            .round_price(*mid * mult)
             .ok_or_else(|| AtlasError::Other("Cannot round spot price".to_string()))?;
 
         let sz_dp = market.tokens[0].sz_decimals.max(0) as u32;
@@ -928,13 +1140,20 @@ impl PerpModule for HyperliquidModule {
             limit_px: px,
             sz,
             cloid: random_cloid(),
-            order_type: OrderTypePlacement::Limit { tif: TimeInForce::Ioc },
+            order_type: OrderTypePlacement::Limit {
+                tif: TimeInForce::Ioc,
+            },
         };
 
-        let batch = BatchOrder { orders: vec![order], grouping: OrderGrouping::Na };
+        let batch = BatchOrder {
+            orders: vec![order],
+            grouping: OrderGrouping::Na,
+        };
         // Spot: no builder fee
-        let statuses = self.client
-            .place(self.require_signer()?, batch, self.nonce.next(), None, None).await
+        let statuses = self
+            .client
+            .place(self.require_signer()?, batch, self.nonce.next(), None, None)
+            .await
             .map_err(|e| AtlasError::Protocol {
                 protocol: "hyperliquid".into(),
                 message: format!("Spot order failed: {}", e.message()),
@@ -952,54 +1171,90 @@ impl PerpModule for HyperliquidModule {
         let token_name = token.unwrap_or("USDC");
 
         // Find spot token
-        let tokens = self.client.spot_tokens().await
+        let tokens = self
+            .client
+            .spot_tokens()
+            .await
             .map_err(|e| AtlasError::Network(format!("Fetch spot tokens: {e}")))?;
 
-        let spot_token = tokens.into_iter()
+        let spot_token = tokens
+            .into_iter()
             .find(|t| t.name.eq_ignore_ascii_case(token_name))
             .ok_or_else(|| AtlasError::AssetNotFound(format!("Spot token: {token_name}")))?;
 
         match direction {
             "to-spot" | "perps-to-spot" => {
                 self.client
-                    .transfer_to_spot(self.require_signer()?, spot_token, amount, self.nonce.next()).await
+                    .transfer_to_spot(
+                        self.require_signer()?,
+                        spot_token,
+                        amount,
+                        self.nonce.next(),
+                    )
+                    .await
                     .map_err(|e| AtlasError::Protocol {
                         protocol: "hyperliquid".into(),
                         message: format!("Transfer to spot failed: {e}"),
                     })?;
-                Ok(format!("Transferred {} {} perps → spot", amount, token_name))
+                Ok(format!(
+                    "Transferred {} {} perps → spot",
+                    amount, token_name
+                ))
             }
             "to-perps" | "spot-to-perps" => {
                 self.client
-                    .transfer_to_perps(self.require_signer()?, spot_token, amount, self.nonce.next()).await
+                    .transfer_to_perps(
+                        self.require_signer()?,
+                        spot_token,
+                        amount,
+                        self.nonce.next(),
+                    )
+                    .await
                     .map_err(|e| AtlasError::Protocol {
                         protocol: "hyperliquid".into(),
                         message: format!("Transfer to perps failed: {e}"),
                     })?;
-                Ok(format!("Transferred {} {} spot → perps", amount, token_name))
+                Ok(format!(
+                    "Transferred {} {} spot → perps",
+                    amount, token_name
+                ))
             }
             "to-evm" | "spot-to-evm" => {
                 self.client
-                    .transfer_to_evm(self.require_signer()?, spot_token, amount, self.nonce.next()).await
+                    .transfer_to_evm(
+                        self.require_signer()?,
+                        spot_token,
+                        amount,
+                        self.nonce.next(),
+                    )
+                    .await
                     .map_err(|e| AtlasError::Protocol {
                         protocol: "hyperliquid".into(),
                         message: format!("Transfer to EVM failed: {e}"),
                     })?;
                 Ok(format!("Transferred {} {} spot → EVM", amount, token_name))
             }
-            _ => Err(AtlasError::Other(format!("Unknown transfer direction: {direction}"))),
+            _ => Err(AtlasError::Other(format!(
+                "Unknown transfer direction: {direction}"
+            ))),
         }
     }
 
     async fn vault_details(&self, vault_address: &str) -> AtlasResult<VaultDetails> {
-        let vault_addr: Address = vault_address.parse()
+        let vault_addr: Address = vault_address
+            .parse()
             .map_err(|_| AtlasError::Other(format!("Invalid vault address: {vault_address}")))?;
 
-        let details = self.client.vault_details(vault_addr, Some(self.require_address()?)).await
+        let details = self
+            .client
+            .vault_details(vault_addr, Some(self.require_address()?))
+            .await
             .map_err(|e| AtlasError::Network(format!("Fetch vault details: {e}")))?;
 
         // Portfolio is Vec<(period, VaultPortfolio)> — get "allTime" or last entry
-        let portfolio_value = details.portfolio.iter()
+        let portfolio_value = details
+            .portfolio
+            .iter()
             .find(|(period, _)| period == "allTime")
             .or_else(|| details.portfolio.last())
             .and_then(|(_, p)| p.account_value_history.last())
@@ -1019,44 +1274,69 @@ impl PerpModule for HyperliquidModule {
     }
 
     async fn vault_deposits(&self) -> AtlasResult<Vec<VaultDeposit>> {
-        let equities = self.client.user_vault_equities(self.require_address()?).await
+        let equities = self
+            .client
+            .user_vault_equities(self.require_address()?)
+            .await
             .map_err(|e| AtlasError::Network(format!("Fetch vault deposits: {e}")))?;
 
-        Ok(equities.iter().map(|e| VaultDeposit {
-            protocol: Protocol::Hyperliquid,
-            vault_address: format!("{:?}", e.vault_address),
-            equity: e.equity,
-            pnl: Decimal::ZERO, // API doesn't return PnL here
-        }).collect())
+        Ok(equities
+            .iter()
+            .map(|e| VaultDeposit {
+                protocol: Protocol::Hyperliquid,
+                vault_address: format!("{:?}", e.vault_address),
+                equity: e.equity,
+                pnl: Decimal::ZERO, // API doesn't return PnL here
+            })
+            .collect())
     }
 
     async fn subaccounts(&self) -> AtlasResult<Vec<SubAccount>> {
-        let subs = self.client.subaccounts(self.require_address()?).await
+        let subs = self
+            .client
+            .subaccounts(self.require_address()?)
+            .await
             .map_err(|e| AtlasError::Network(format!("Fetch subaccounts: {e}")))?;
 
-        Ok(subs.iter().map(|sub| SubAccount {
-            protocol: Protocol::Hyperliquid,
-            name: sub.name.clone(),
-            address: format!("{:?}", sub.sub_account_user),
-            account_value: sub.clearinghouse_state.margin_summary.account_value,
-        }).collect())
+        Ok(subs
+            .iter()
+            .map(|sub| SubAccount {
+                protocol: Protocol::Hyperliquid,
+                name: sub.name.clone(),
+                address: format!("{:?}", sub.sub_account_user),
+                account_value: sub.clearinghouse_state.margin_summary.account_value,
+            })
+            .collect())
     }
 
     async fn approve_agent(&self, agent_address: &str, name: Option<&str>) -> AtlasResult<String> {
-        let agent_addr: Address = agent_address.parse()
+        let agent_addr: Address = agent_address
+            .parse()
             .map_err(|_| AtlasError::Other(format!("Invalid agent address: {agent_address}")))?;
 
         let agent_name = name.unwrap_or("").to_string();
 
         self.client
-            .approve_agent(self.require_signer()?, agent_addr, agent_name.clone(), self.nonce.next()).await
+            .approve_agent(
+                self.require_signer()?,
+                agent_addr,
+                agent_name.clone(),
+                self.nonce.next(),
+            )
+            .await
             .map_err(|e| AtlasError::Protocol {
                 protocol: "hyperliquid".into(),
                 message: format!("Agent approval failed: {e}"),
             })?;
 
-        Ok(format!("Agent {} approved{}", agent_address,
-            if agent_name.is_empty() { String::new() } else { format!(" as '{}'", agent_name) }
+        Ok(format!(
+            "Agent {} approved{}",
+            agent_address,
+            if agent_name.is_empty() {
+                String::new()
+            } else {
+                format!(" as '{}'", agent_name)
+            }
         ))
     }
 }

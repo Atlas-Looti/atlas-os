@@ -1,5 +1,5 @@
-use anyhow::{bail, Result};
 use crate::config::SizeInput;
+use anyhow::{bail, Result};
 
 /// Parse "buy"/"sell"/"long"/"short" into a boolean (true = buy).
 pub fn parse_side(s: &str) -> Result<bool> {
@@ -41,7 +41,8 @@ pub fn parse_size(s: &str) -> Result<SizeInput> {
     // ── USDC prefix: "$200" ──
     if let Some(stripped) = trimmed.strip_prefix('$') {
         let num = stripped.trim();
-        let val: f64 = num.parse()
+        let val: f64 = num
+            .parse()
             .map_err(|_| anyhow::anyhow!("Invalid USDC amount: '{s}'"))?;
         return Ok(SizeInput::Usdc(val));
     }
@@ -51,13 +52,15 @@ pub fn parse_size(s: &str) -> Result<SizeInput> {
     // ── USDC suffix: "200$", "200usdc", "200u" ──
     if lower.ends_with('$') {
         let num = &trimmed[..trimmed.len() - 1].trim();
-        let val: f64 = num.parse()
+        let val: f64 = num
+            .parse()
             .map_err(|_| anyhow::anyhow!("Invalid USDC amount: '{s}'"))?;
         return Ok(SizeInput::Usdc(val));
     }
     if lower.ends_with("usdc") {
         let num = &trimmed[..trimmed.len() - 4].trim();
-        let val: f64 = num.parse()
+        let val: f64 = num
+            .parse()
             .map_err(|_| anyhow::anyhow!("Invalid USDC amount: '{s}'"))?;
         return Ok(SizeInput::Usdc(val));
     }
@@ -65,13 +68,15 @@ pub fn parse_size(s: &str) -> Result<SizeInput> {
     // ── Lots suffix: "50lots", "50lot", "50l" ──
     if lower.ends_with("lots") {
         let num = &trimmed[..trimmed.len() - 4].trim();
-        let val: f64 = num.parse()
+        let val: f64 = num
+            .parse()
             .map_err(|_| anyhow::anyhow!("Invalid lot amount: '{s}'"))?;
         return Ok(SizeInput::Lots(val));
     }
     if lower.ends_with("lot") {
         let num = &trimmed[..trimmed.len() - 3].trim();
-        let val: f64 = num.parse()
+        let val: f64 = num
+            .parse()
             .map_err(|_| anyhow::anyhow!("Invalid lot amount: '{s}'"))?;
         return Ok(SizeInput::Lots(val));
     }
@@ -86,18 +91,23 @@ pub fn parse_size(s: &str) -> Result<SizeInput> {
     // ── Units suffix: "0.5eth", "0.5btc", "0.5units", "0.5unit" ──
     if lower.ends_with("units") {
         let num = &trimmed[..trimmed.len() - 5].trim();
-        let val: f64 = num.parse()
+        let val: f64 = num
+            .parse()
             .map_err(|_| anyhow::anyhow!("Invalid unit amount: '{s}'"))?;
         return Ok(SizeInput::Units(val));
     }
     if lower.ends_with("unit") {
         let num = &trimmed[..trimmed.len() - 4].trim();
-        let val: f64 = num.parse()
+        let val: f64 = num
+            .parse()
             .map_err(|_| anyhow::anyhow!("Invalid unit amount: '{s}'"))?;
         return Ok(SizeInput::Units(val));
     }
     // Common asset suffixes → explicit units
-    for suffix in &["eth", "btc", "sol", "doge", "arb", "avax", "matic", "link", "op", "sui", "bnb", "xrp", "ada", "dot", "atom"] {
+    for suffix in &[
+        "eth", "btc", "sol", "doge", "arb", "avax", "matic", "link", "op", "sui", "bnb", "xrp",
+        "ada", "dot", "atom",
+    ] {
         if lower.ends_with(suffix) {
             let num = &trimmed[..trimmed.len() - suffix.len()].trim();
             if let Ok(val) = num.parse::<f64>() {
@@ -115,10 +125,11 @@ pub fn parse_size(s: &str) -> Result<SizeInput> {
     }
 
     // ── Default: bare number → Raw (interpreted by config) ──
-    let val: f64 = trimmed.parse()
-        .map_err(|_| anyhow::anyhow!(
+    let val: f64 = trimmed.parse().map_err(|_| {
+        anyhow::anyhow!(
             "Invalid size: '{s}'. Examples: 200 (default mode), $200 (USDC), 0.5eth (units), 50lots"
-        ))?;
+        )
+    })?;
     Ok(SizeInput::Raw(val))
 }
 

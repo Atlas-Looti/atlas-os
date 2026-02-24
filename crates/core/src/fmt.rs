@@ -118,12 +118,20 @@ pub fn truncate_str(s: &str, max: usize) -> &str {
 
 /// Format a side boolean as display string.
 pub fn format_side(is_buy: bool) -> &'static str {
-    if is_buy { "BUY" } else { "SELL" }
+    if is_buy {
+        "BUY"
+    } else {
+        "SELL"
+    }
 }
 
 /// Format a side string from SDK ("B"/"S") to display.
 pub fn format_side_letter(s: &str) -> &'static str {
-    if s == "B" { "BUY" } else { "SELL" }
+    if s == "B" {
+        "BUY"
+    } else {
+        "SELL"
+    }
 }
 
 /// Determine if a numeric string is positive, negative, or zero.

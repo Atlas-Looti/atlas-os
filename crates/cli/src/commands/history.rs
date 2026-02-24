@@ -4,16 +4,16 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use atlas_core::db::AtlasDb;
-use atlas_core::Engine;
 use atlas_core::db::{FillFilter, OrderFilter};
-use atlas_core::output::{
-    OrderHistoryOutput, OrderHistoryRow, PnlByCoinRow, PnlSummaryOutput,
-    SyncOutput, TradeHistoryOutput, TradeHistoryRow,
-};
 use atlas_core::output::{render, OutputFormat};
+use atlas_core::output::{
+    OrderHistoryOutput, OrderHistoryRow, PnlByCoinRow, PnlSummaryOutput, SyncOutput,
+    TradeHistoryOutput, TradeHistoryRow,
+};
+use atlas_core::Engine;
 use rust_decimal::Decimal;
 
-use super::helpers::{normalize_protocol, parse_date_to_ms, format_ms};
+use super::helpers::{format_ms, normalize_protocol, parse_date_to_ms};
 
 /// `atlas history trades [--protocol hl] [--coin COIN] [--from DATE] [--to DATE] [--limit N]`
 pub fn run_trades(
@@ -39,8 +39,9 @@ pub fn run_trades(
 
     let fills = db.query_fills(&filter)?;
 
-    let trades: Vec<TradeHistoryRow> = fills.iter().map(|f| {
-        TradeHistoryRow {
+    let trades: Vec<TradeHistoryRow> = fills
+        .iter()
+        .map(|f| TradeHistoryRow {
             protocol: f.protocol.clone(),
             coin: f.coin.clone(),
             side: f.side.clone(),
@@ -49,8 +50,8 @@ pub fn run_trades(
             pnl: f.closed_pnl.clone(),
             fee: f.fee.clone(),
             time: format_ms(f.time_ms),
-        }
-    }).collect();
+        })
+        .collect();
 
     let total = trades.len();
     let output = TradeHistoryOutput { trades, total };
@@ -77,8 +78,9 @@ pub fn run_orders(
 
     let orders = db.query_orders(&filter)?;
 
-    let rows: Vec<OrderHistoryRow> = orders.iter().map(|o| {
-        OrderHistoryRow {
+    let rows: Vec<OrderHistoryRow> = orders
+        .iter()
+        .map(|o| OrderHistoryRow {
             coin: o.coin.clone(),
             side: o.side.clone(),
             size: o.sz.clone(),
@@ -87,11 +89,14 @@ pub fn run_orders(
             status: o.status.clone(),
             order_type: o.order_type.clone(),
             time: format_ms(o.timestamp_ms),
-        }
-    }).collect();
+        })
+        .collect();
 
     let total = rows.len();
-    let output = OrderHistoryOutput { orders: rows, total };
+    let output = OrderHistoryOutput {
+        orders: rows,
+        total,
+    };
     render(fmt, &output)?;
     Ok(())
 }
@@ -138,7 +143,9 @@ pub fn run_pnl(
             loss_count += 1;
         }
 
-        let entry = by_coin.entry(fill.coin.clone()).or_insert((Decimal::ZERO, Decimal::ZERO, 0));
+        let entry = by_coin
+            .entry(fill.coin.clone())
+            .or_insert((Decimal::ZERO, Decimal::ZERO, 0));
         entry.0 += pnl;
         entry.1 += fee;
         entry.2 += 1;
@@ -153,14 +160,15 @@ pub fn run_pnl(
         "N/A".to_string()
     };
 
-    let mut coin_rows: Vec<PnlByCoinRow> = by_coin.into_iter().map(|(c, (pnl, fees, trades))| {
-        PnlByCoinRow {
+    let mut coin_rows: Vec<PnlByCoinRow> = by_coin
+        .into_iter()
+        .map(|(c, (pnl, fees, trades))| PnlByCoinRow {
             coin: c,
             pnl: pnl.to_string(),
             fees: fees.to_string(),
             trades,
-        }
-    }).collect();
+        })
+        .collect();
     coin_rows.sort_by(|a, b| a.coin.cmp(&b.coin));
 
     let output = PnlSummaryOutput {

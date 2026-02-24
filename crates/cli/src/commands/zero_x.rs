@@ -1,8 +1,8 @@
 //! `atlas zero-x` commands — 0x DEX aggregator (multi-chain swaps).
 
 use anyhow::Result;
-use atlas_core::types::Chain;
 use atlas_core::output::OutputFormat;
+use atlas_core::types::Chain;
 
 /// Parse chain string to Chain enum.
 fn parse_chain(chain: &str) -> Result<Chain> {
@@ -10,9 +10,7 @@ fn parse_chain(chain: &str) -> Result<Chain> {
         "ethereum" | "eth" | "1" => Ok(Chain::Ethereum),
         "arbitrum" | "arb" | "42161" => Ok(Chain::Arbitrum),
         "base" | "8453" => Ok(Chain::Base),
-        _ => anyhow::bail!(
-            "Unsupported chain: {chain}. Supported: ethereum, arbitrum, base"
-        ),
+        _ => anyhow::bail!("Unsupported chain: {chain}. Supported: ethereum, arbitrum, base"),
     }
 }
 
@@ -41,7 +39,14 @@ pub async fn quote(
 
     let taker = zerox.taker_address();
     let resp = zerox
-        .price(&chain_enum, sell_token, buy_token, amount, taker.as_deref(), slippage_bps)
+        .price(
+            &chain_enum,
+            sell_token,
+            buy_token,
+            amount,
+            taker.as_deref(),
+            slippage_bps,
+        )
         .await
         .map_err(|e| anyhow::anyhow!("{e}"))?;
 
@@ -50,7 +55,11 @@ pub async fn quote(
         return Ok(());
     }
 
-    let allowance_required = resp.issues.as_ref().and_then(|i| i.allowance.as_ref()).is_some();
+    let allowance_required = resp
+        .issues
+        .as_ref()
+        .and_then(|i| i.allowance.as_ref())
+        .is_some();
     let allowance_spender = resp
         .issues
         .as_ref()
@@ -94,8 +103,14 @@ pub async fn quote(
             println!("│  0x SWAP QUOTE                                  │");
             println!("├─────────────────────────────────────────────────┤");
             println!("│  Chain         : {:<30} │", chain);
-            println!("│  Sell Token    : {:<30} │", &sell_token[..sell_token.len().min(30)]);
-            println!("│  Buy Token     : {:<30} │", &buy_token[..buy_token.len().min(30)]);
+            println!(
+                "│  Sell Token    : {:<30} │",
+                &sell_token[..sell_token.len().min(30)]
+            );
+            println!(
+                "│  Buy Token     : {:<30} │",
+                &buy_token[..buy_token.len().min(30)]
+            );
             println!("│  Sell Amount   : {:<30} │", sell_amt);
             println!("│  Buy Amount    : {:<30} │", buy_amt);
             println!("│  Min Buy Amt   : {:<30} │", min_buy);
@@ -106,15 +121,27 @@ pub async fn quote(
                 let sources: Vec<String> = route
                     .fills
                     .iter()
-                    .map(|f| format!("{} ({}%)", f.source, f.proportion_bps.parse::<f64>().unwrap_or(0.0) / 100.0))
+                    .map(|f| {
+                        format!(
+                            "{} ({}%)",
+                            f.source,
+                            f.proportion_bps.parse::<f64>().unwrap_or(0.0) / 100.0
+                        )
+                    })
                     .collect();
-                println!("│  Route         : {:<30} │", sources.join(", ").chars().take(30).collect::<String>());
+                println!(
+                    "│  Route         : {:<30} │",
+                    sources.join(", ").chars().take(30).collect::<String>()
+                );
             }
 
             // Show issues
             if let Some(issues) = &resp.issues {
                 if let Some(allowance) = &issues.allowance {
-                    println!("│  ⚠ Allowance   : set on {:<23} │", &allowance.spender[..allowance.spender.len().min(23)]);
+                    println!(
+                        "│  ⚠ Allowance   : set on {:<23} │",
+                        &allowance.spender[..allowance.spender.len().min(23)]
+                    );
                 }
                 if let Some(balance) = &issues.balance {
                     println!("│  ⚠ Balance     : need {:<25} │", &balance.expected);
@@ -219,15 +246,22 @@ pub async fn swap(
         .ok_or_else(|| anyhow::anyhow!("0x module not available"))?;
 
     // 1. Get indicative price first
-    let taker = zerox.taker_address().ok_or_else(|| {
-        anyhow::anyhow!("No wallet loaded. Run: atlas profile import")
-    })?;
+    let taker = zerox
+        .taker_address()
+        .ok_or_else(|| anyhow::anyhow!("No wallet loaded. Run: atlas profile import"))?;
 
     let slippage = slippage_bps.unwrap_or(zerox.default_slippage_bps);
 
     println!("⏳ Getting swap quote...");
     let price_resp = zerox
-        .price(&chain_enum, sell_token, buy_token, amount, Some(&taker), Some(slippage))
+        .price(
+            &chain_enum,
+            sell_token,
+            buy_token,
+            amount,
+            Some(&taker),
+            Some(slippage),
+        )
         .await
         .map_err(|e| anyhow::anyhow!("{e}"))?;
 
@@ -245,8 +279,14 @@ pub async fn swap(
         println!("│  0x SWAP — CONFIRM EXECUTION                    │");
         println!("├─────────────────────────────────────────────────┤");
         println!("│  Chain         : {:<30} │", chain);
-        println!("│  Sell          : {:<30} │", &sell_token[..sell_token.len().min(30)]);
-        println!("│  Buy           : {:<30} │", &buy_token[..buy_token.len().min(30)]);
+        println!(
+            "│  Sell          : {:<30} │",
+            &sell_token[..sell_token.len().min(30)]
+        );
+        println!(
+            "│  Buy           : {:<30} │",
+            &buy_token[..buy_token.len().min(30)]
+        );
         println!("│  Sell Amount   : {:<30} │", sell_amt);
         println!("│  Buy Amount    : {:<30} │", buy_amt);
         println!("│  Min Buy (slip): {:<30} │", min_buy);
@@ -257,10 +297,16 @@ pub async fn swap(
         // Show issues
         if let Some(ref issues) = price_resp.issues {
             if let Some(ref allowance) = issues.allowance {
-                println!("  ⚠ Token approval needed (spender: {})", &allowance.spender[..allowance.spender.len().min(42)]);
+                println!(
+                    "  ⚠ Token approval needed (spender: {})",
+                    &allowance.spender[..allowance.spender.len().min(42)]
+                );
             }
             if let Some(ref balance) = issues.balance {
-                println!("  ⚠ Insufficient balance (need: {}, have: {})", balance.expected, balance.actual);
+                println!(
+                    "  ⚠ Insufficient balance (need: {}, have: {})",
+                    balance.expected, balance.actual
+                );
             }
         }
 
@@ -278,7 +324,8 @@ pub async fn swap(
     // 3. Execute the swap via SwapModule trait
     println!("⏳ Executing swap on-chain...");
 
-    let sell_dec: rust_decimal::Decimal = amount.parse()
+    let sell_dec: rust_decimal::Decimal = amount
+        .parse()
         .map_err(|_| anyhow::anyhow!("Invalid amount: {amount}"))?;
 
     // Build a SwapQuote for the trait's swap() method
@@ -326,8 +373,14 @@ pub async fn swap(
             println!("✅ Swap executed successfully!");
             println!("   TX Hash: {tx_hash}");
             println!("   Chain: {chain}");
-            println!("   Sold: {sell_amt} of {}", &sell_token[..sell_token.len().min(20)]);
-            println!("   Bought: ~{buy_amt} of {}", &buy_token[..buy_token.len().min(20)]);
+            println!(
+                "   Sold: {sell_amt} of {}",
+                &sell_token[..sell_token.len().min(20)]
+            );
+            println!(
+                "   Bought: ~{buy_amt} of {}",
+                &buy_token[..buy_token.len().min(20)]
+            );
         }
     }
 

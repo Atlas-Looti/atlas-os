@@ -22,14 +22,8 @@ use alloy::signers::local::PrivateKeySigner;
 /// Backend mounts at /atlas-os/0x (see apps/backend index).
 const ZEROX_API_BASE: &str = "/atlas-os/0x";
 
-/// AllowanceHolder address for Cancun hardfork chains (Ethereum, Arbitrum, Base, etc.)
-pub const ALLOWANCE_HOLDER_CANCUN: &str = "0x0000000000001fF3684f28c67538d4D072C22734";
-
-/// AllowanceHolder address for Shanghai hardfork chains (Mantle).
-pub const ALLOWANCE_HOLDER_SHANGHAI: &str = "0x0000000000005E88410CcDFaDe4a5EfaE4b49562";
-
-/// Permit2 address (universal across all chains).
-pub const PERMIT2_ADDRESS: &str = "0x000000000022D473030F116dDEE9F6B43aC78BA3";
+/// AllowanceHolder address (Ethereum, Arbitrum, Base, etc.)
+pub const ALLOWANCE_HOLDER: &str = "0x0000000000001fF3684f28c67538d4D072C22734";
 
 /// Native token placeholder address (works on all chains).
 pub const NATIVE_TOKEN: &str = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
@@ -44,16 +38,6 @@ pub fn chain_id(chain: &Chain) -> u64 {
         Chain::Base => 8453,
         Chain::HyperliquidL1 => 998, // HyperEVM mainnet (not supported by 0x)
         Chain::Solana => 0,          // Not supported by 0x (non-EVM)
-    }
-}
-
-/// Get the Chain enum from an EVM chain ID.
-pub fn chain_from_id(id: u64) -> Option<Chain> {
-    match id {
-        1 => Some(Chain::Ethereum),
-        42161 => Some(Chain::Arbitrum),
-        8453 => Some(Chain::Base),
-        _ => None,
     }
 }
 
@@ -291,13 +275,6 @@ impl ZeroXModule {
         self
     }
 
-    /// Set the builder fee recipient and bps.
-    pub fn with_fee(mut self, recipient: String, bps: u16) -> Self {
-        self.fee_recipient = Some(recipient);
-        self.fee_bps = bps;
-        self
-    }
-
     /// Set the EVM signer for on-chain swap execution.
     pub fn with_signer(mut self, signer: PrivateKeySigner) -> Self {
         self.signer = Some(signer);
@@ -320,26 +297,27 @@ impl ZeroXModule {
             Chain::Solana => "solana", // won't work, non-EVM
         };
         let key = self.api_key.as_deref().unwrap_or("none");
-        format!("{}/atlas-os/rpc/v2/{}/{}", self.backend_url, key, chain_slug)
+        format!(
+            "{}/atlas-os/rpc/v2/{}/{}",
+            self.backend_url, key, chain_slug
+        )
     }
 
     /// Build an alloy provider pointing at the Atlas backend RPC proxy.
-    async fn build_provider(
-        &self,
-        chain: &Chain,
-    ) -> AtlasResult<impl Provider> {
+    async fn build_provider(&self, chain: &Chain) -> AtlasResult<impl Provider> {
         let signer = self.signer.clone().ok_or_else(|| {
-            AtlasError::Auth("No signer available. Import a wallet first: `atlas profile import`".into())
+            AtlasError::Auth(
+                "No signer available. Import a wallet first: `atlas profile import`".into(),
+            )
         })?;
 
-        let rpc_url: alloy::transports::http::reqwest::Url = self.rpc_url(chain)
+        let rpc_url: alloy::transports::http::reqwest::Url = self
+            .rpc_url(chain)
             .parse()
             .map_err(|e| AtlasError::Other(format!("Invalid RPC URL: {e}")))?;
 
         let wallet = EthereumWallet::from(signer);
-        let provider = ProviderBuilder::new()
-            .wallet(wallet)
-            .connect_http(rpc_url);
+        let provider = ProviderBuilder::new().wallet(wallet).connect_http(rpc_url);
 
         Ok(provider)
     }
@@ -366,11 +344,8 @@ impl ZeroXModule {
         // ERC20 approve(address spender, uint256 amount)
         // selector: 0x095ea7b3
         // Approve exact sell amount (not unlimited — safer)
-        let approve_amount = U256::from_str_radix(
-            &amount.sell_amount.to_string(),
-            10,
-        )
-        .unwrap_or(U256::MAX);
+        let approve_amount =
+            U256::from_str_radix(&amount.sell_amount.to_string(), 10).unwrap_or(U256::MAX);
 
         let mut calldata = Vec::with_capacity(68);
         calldata.extend_from_slice(&hex::decode("095ea7b3").unwrap());
@@ -631,7 +606,9 @@ impl SwapModule for ZeroXModule {
 
     async fn swap(&self, quote: &SwapQuote) -> AtlasResult<String> {
         let signer = self.signer.as_ref().ok_or_else(|| {
-            AtlasError::Auth("No signer available. Import a wallet first: `atlas profile import`".into())
+            AtlasError::Auth(
+                "No signer available. Import a wallet first: `atlas profile import`".into(),
+            )
         })?;
         let taker = format!("{:?}", signer.address());
 
@@ -654,12 +631,14 @@ impl SwapModule for ZeroXModule {
             });
         }
 
-        let tx_data = firm.transaction.as_ref().ok_or_else(|| {
-            AtlasError::Protocol {
+        let tx_data = firm
+            .transaction
+            .as_ref()
+            .ok_or_else(|| AtlasError::Protocol {
                 protocol: "0x".into(),
-                message: "0x quote did not return transaction data. The pair may not be swappable.".into(),
-            }
-        })?;
+                message: "0x quote did not return transaction data. The pair may not be swappable."
+                    .into(),
+            })?;
 
         // 2. Check if we need token approval (skip for native ETH sells)
         let is_native = quote.sell_token.to_lowercase() == NATIVE_TOKEN;
@@ -667,10 +646,7 @@ impl SwapModule for ZeroXModule {
             if let Some(ref issues) = firm.issues {
                 if issues.allowance.is_some() {
                     // Need to approve the AllowanceHolder to spend our tokens
-                    let spender = firm
-                        .allowance_target
-                        .as_deref()
-                        .unwrap_or(ALLOWANCE_HOLDER_CANCUN);
+                    let spender = firm.allowance_target.as_deref().unwrap_or(ALLOWANCE_HOLDER);
 
                     info!(
                         "Setting token approval for {} on {}",
@@ -696,7 +672,11 @@ impl SwapModule for ZeroXModule {
 
         let value = U256::from_str_radix(
             tx_data.value.strip_prefix("0x").unwrap_or(&tx_data.value),
-            if tx_data.value.starts_with("0x") { 16 } else { 10 },
+            if tx_data.value.starts_with("0x") {
+                16
+            } else {
+                10
+            },
         )
         .unwrap_or(U256::ZERO);
 
@@ -732,4 +712,3 @@ impl SwapModule for ZeroXModule {
         Ok(tx_hash)
     }
 }
-

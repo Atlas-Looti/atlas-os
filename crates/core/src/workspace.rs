@@ -1,8 +1,8 @@
 use std::fs;
 use std::path::PathBuf;
 
-use anyhow::{Context, Result};
 use crate::config::AppConfig;
+use anyhow::{Context, Result};
 use tracing::info;
 
 /// Dotfolder name under `$HOME`.
@@ -97,7 +97,8 @@ pub fn load_config() -> Result<AppConfig> {
             // Attempt to extract active_profile from old config (JSON)
             if let Ok(old) = serde_json::from_str::<serde_json::Value>(&raw) {
                 // Try new "system" key first, then old "general" key
-                let profile = old.get("system")
+                let profile = old
+                    .get("system")
                     .or_else(|| old.get("general"))
                     .and_then(|g| g.get("active_profile"))
                     .and_then(|v| v.as_str());
@@ -109,7 +110,11 @@ pub fn load_config() -> Result<AppConfig> {
                     .and_then(|n| n.get("testnet"))
                     .and_then(|v| v.as_bool())
                 {
-                    new_config.modules.hyperliquid.config.network = if testnet { "testnet".into() } else { "mainnet".into() };
+                    new_config.modules.hyperliquid.config.network = if testnet {
+                        "testnet".into()
+                    } else {
+                        "mainnet".into()
+                    };
                 }
             }
 
@@ -171,11 +176,11 @@ mod tests {
         // Save and reload should be stable
         save_config(&config).unwrap();
         let reloaded = load_config().unwrap();
+        assert_eq!(reloaded.system.active_profile, config.system.active_profile);
         assert_eq!(
-            reloaded.system.active_profile,
-            config.system.active_profile
+            reloaded.modules.hyperliquid.config.mode,
+            config.modules.hyperliquid.config.mode
         );
-        assert_eq!(reloaded.modules.hyperliquid.config.mode, config.modules.hyperliquid.config.mode);
     }
 
     #[test]

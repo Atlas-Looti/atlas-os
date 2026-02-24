@@ -1,6 +1,6 @@
 use anyhow::Result;
-use atlas_core::output::{BalanceRow, StatusOutput, PositionRow};
 use atlas_core::output::{render, OutputFormat};
+use atlas_core::output::{BalanceRow, PositionRow, StatusOutput};
 
 /// `atlas status` — fast textual summary, no TUI.
 pub async fn run(fmt: OutputFormat) -> Result<()> {
@@ -27,22 +27,31 @@ pub async fn run(fmt: OutputFormat) -> Result<()> {
             let perp = orch.perp(None).map_err(|e| anyhow::anyhow!("{e}"))?;
             let balances = perp.balances().await.map_err(|e| anyhow::anyhow!("{e}"))?;
             let positions = perp.positions().await.map_err(|e| anyhow::anyhow!("{e}"))?;
-            let orders = perp.open_orders().await.map_err(|e| anyhow::anyhow!("{e}"))?;
+            let orders = perp
+                .open_orders()
+                .await
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
             let bal = balances.first();
 
-            let balance_rows: Vec<BalanceRow> = balances.iter().map(|b| BalanceRow {
-                asset: b.asset.clone(),
-                total: b.total.to_string(),
-                available: b.available.to_string(),
-                protocol: "hyperliquid".to_string(),
-            }).collect();
+            let balance_rows: Vec<BalanceRow> = balances
+                .iter()
+                .map(|b| BalanceRow {
+                    asset: b.asset.clone(),
+                    total: b.total.to_string(),
+                    available: b.available.to_string(),
+                    protocol: "hyperliquid".to_string(),
+                })
+                .collect();
 
-            let pos_rows: Vec<PositionRow> = positions.iter().map(|p| PositionRow {
-                coin: p.symbol.clone(),
-                size: p.size.to_string(),
-                entry_price: p.entry_price.map(|e| e.to_string()),
-                unrealized_pnl: p.unrealized_pnl.map(|u| u.to_string()),
-            }).collect();
+            let pos_rows: Vec<PositionRow> = positions
+                .iter()
+                .map(|p| PositionRow {
+                    coin: p.symbol.clone(),
+                    size: p.size.to_string(),
+                    entry_price: p.entry_price.map(|e| e.to_string()),
+                    unrealized_pnl: p.unrealized_pnl.map(|u| u.to_string()),
+                })
+                .collect();
 
             // Get address from auth manager
             let address = atlas_core::auth::AuthManager::get_active_signer()

@@ -6,7 +6,9 @@ pub async fn sub_list(fmt: OutputFormat) -> Result<()> {
     let orch = crate::factory::from_active_profile().await?;
     let perp = orch.perp(None)?;
 
-    let subs = perp.subaccounts().await
+    let subs = perp
+        .subaccounts()
+        .await
         .map_err(|e| anyhow::anyhow!("{e}"))?;
 
     if subs.is_empty() {
@@ -28,8 +30,10 @@ pub async fn sub_list(fmt: OutputFormat) -> Result<()> {
             println!("│ Name             │ Address                                      │ Value         │");
             println!("├──────────────────┼──────────────────────────────────────────────┼───────────────┤");
             for s in &subs {
-                println!("│ {:<16} │ {:<44} │ ${:>11} │",
-                    s.name, s.address, s.account_value);
+                println!(
+                    "│ {:<16} │ {:<44} │ ${:>11} │",
+                    s.name, s.address, s.account_value
+                );
             }
             println!("└──────────────────┴──────────────────────────────────────────────┴───────────────┘");
         }
@@ -42,7 +46,9 @@ pub async fn agent_approve(address: &str, name: Option<&str>, fmt: OutputFormat)
     let orch = crate::factory::from_active_profile().await?;
     let perp = orch.perp(None)?;
 
-    let result = perp.approve_agent(address, name).await
+    let result = perp
+        .approve_agent(address, name)
+        .await
         .map_err(|e| anyhow::anyhow!("{e}"))?;
 
     match fmt {

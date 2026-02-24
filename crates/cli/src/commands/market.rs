@@ -1,7 +1,7 @@
 use anyhow::Result;
-use atlas_core::output::*;
 use atlas_core::fmt::format_timestamp_ms;
 use atlas_core::output::OutputFormat;
+use atlas_core::output::*;
 use rust_decimal::prelude::*;
 
 /// Render a PriceOutput (table or JSON).

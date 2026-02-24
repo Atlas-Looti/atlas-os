@@ -32,7 +32,7 @@ pub fn render(frame: &mut Frame, app: &App) {
         .constraints([
             Constraint::Length(3), // Header
             Constraint::Length(3), // Tabs
-            Constraint::Min(8),   // Body
+            Constraint::Min(8),    // Body
             Constraint::Length(1), // Status bar
         ])
         .split(area);
@@ -87,10 +87,7 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect) {
         Span::raw(" "),
         ws_indicator,
         Span::raw("  │  "),
-        Span::styled(
-            &app.profile_name,
-            Style::default().fg(YELLOW).bold(),
-        ),
+        Span::styled(&app.profile_name, Style::default().fg(YELLOW).bold()),
         Span::raw("  │  "),
         Span::styled(
             fmt::truncate_address(&app.address),
@@ -144,7 +141,7 @@ fn render_dashboard(frame: &mut Frame, app: &App, area: Rect) {
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(11), // Account card
-            Constraint::Min(4),    // Quick positions with live PnL
+            Constraint::Min(4),     // Quick positions with live PnL
         ])
         .split(chunks[0]);
 
@@ -272,8 +269,7 @@ fn render_quick_positions(frame: &mut Frame, app: &App, area: Rect) {
                 Cell::from(p.coin.clone()).style(Style::default().fg(WHITE).bold()),
                 Cell::from(p.size.clone()).style(Style::default().fg(side_color)),
                 Cell::from(fmt::truncate_number(&p.entry_px)),
-                Cell::from(fmt::truncate_number(&p.mark_px))
-                    .style(Style::default().fg(YELLOW)),
+                Cell::from(fmt::truncate_number(&p.mark_px)).style(Style::default().fg(YELLOW)),
                 Cell::from(fmt::truncate_number(&p.upnl))
                     .style(Style::default().fg(pnl_color).bold()),
                 Cell::from(fmt::format_pct(&p.roe)).style(Style::default().fg(roe_color)),
@@ -314,8 +310,7 @@ fn render_top_markets(frame: &mut Frame, app: &App, area: Rect) {
         return;
     }
 
-    let header = Row::new(vec!["Coin", "Mid Price"])
-        .style(Style::default().fg(ACCENT).bold());
+    let header = Row::new(vec!["Coin", "Mid Price"]).style(Style::default().fg(ACCENT).bold());
 
     // Show first N that fit
     let max_rows = (area.height as usize).saturating_sub(3);
@@ -331,12 +326,9 @@ fn render_top_markets(frame: &mut Frame, app: &App, area: Rect) {
         })
         .collect();
 
-    let table = Table::new(
-        rows,
-        [Constraint::Length(12), Constraint::Min(16)],
-    )
-    .header(header)
-    .block(block);
+    let table = Table::new(rows, [Constraint::Length(12), Constraint::Min(16)])
+        .header(header)
+        .block(block);
 
     frame.render_widget(table, area);
 }
@@ -379,13 +371,11 @@ fn render_positions(frame: &mut Frame, app: &App, area: Rect) {
                 Cell::from(p.coin.clone()).style(Style::default().fg(WHITE).bold()),
                 Cell::from(p.size.clone()).style(Style::default().fg(side_color)),
                 Cell::from(fmt::truncate_number(&p.entry_px)),
-                Cell::from(fmt::truncate_number(&p.mark_px))
-                    .style(Style::default().fg(YELLOW)),
+                Cell::from(fmt::truncate_number(&p.mark_px)).style(Style::default().fg(YELLOW)),
                 Cell::from(fmt::truncate_number(&p.liq_px)).style(Style::default().fg(RED)),
                 Cell::from(fmt::truncate_number(&p.upnl))
                     .style(Style::default().fg(pnl_color).bold()),
-                Cell::from(fmt::format_pct(&p.roe))
-                    .style(Style::default().fg(roe_color).bold()),
+                Cell::from(fmt::format_pct(&p.roe)).style(Style::default().fg(roe_color).bold()),
                 Cell::from(p.leverage.clone()).style(Style::default().fg(YELLOW)),
                 Cell::from(fmt::truncate_number(&p.margin_used)),
             ])
@@ -418,7 +408,10 @@ fn render_orders(frame: &mut Frame, app: &App, area: Rect) {
     let title = if let Some(ref status) = app.cancel_status {
         format!(" Orders — {} ", status)
     } else {
-        format!(" Open Orders ({}) — c: cancel selected ", app.open_orders.len())
+        format!(
+            " Open Orders ({}) — c: cancel selected ",
+            app.open_orders.len()
+        )
     };
 
     let title_color = YELLOW;
@@ -477,7 +470,7 @@ fn render_orders(frame: &mut Frame, app: &App, area: Rect) {
             Constraint::Length(12), // Size
             Constraint::Length(14), // Price
             Constraint::Length(8),  // Type
-            Constraint::Min(10),   // OID
+            Constraint::Min(10),    // OID
         ],
     )
     .header(header)
@@ -505,8 +498,7 @@ fn render_markets(frame: &mut Frame, app: &App, area: Rect) {
         return;
     }
 
-    let header = Row::new(vec!["#", "Coin", "Mid Price"])
-        .style(Style::default().fg(ACCENT).bold());
+    let header = Row::new(vec!["#", "Coin", "Mid Price"]).style(Style::default().fg(ACCENT).bold());
 
     let scroll = app.scroll as usize;
     let rows: Vec<Row> = app
@@ -567,7 +559,10 @@ fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
         ws,
         error_span,
         Span::styled(
-            format!("  │  REST: {}  WS: {}  ", app.last_refresh, app.last_ws_update),
+            format!(
+                "  │  REST: {}  WS: {}  ",
+                app.last_refresh, app.last_ws_update
+            ),
             Style::default().fg(DIM),
         ),
         Span::styled(

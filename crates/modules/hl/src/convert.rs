@@ -59,5 +59,3 @@ pub fn perp_market_to_universal(m: &hypersdk::hypercore::PerpMarket) -> Market {
         sz_decimals: Some(m.sz_decimals as i32),
     }
 }
-
-

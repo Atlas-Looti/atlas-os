@@ -6,7 +6,6 @@
 use anyhow::{Context, Result};
 use rusqlite::{params, Connection};
 
-
 /// A cached fill row read from the database.
 #[derive(Debug, Clone)]
 pub struct DbFill {
@@ -76,8 +75,9 @@ impl AtlasDb {
 
     /// Create all tables and indices if they don't exist.
     fn init_tables(&self) -> Result<()> {
-        self.conn.execute_batch(
-            "
+        self.conn
+            .execute_batch(
+                "
             CREATE TABLE IF NOT EXISTS fills (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 protocol TEXT NOT NULL DEFAULT 'hyperliquid',
@@ -116,8 +116,9 @@ impl AtlasDb {
                 value TEXT NOT NULL,
                 updated_ms INTEGER NOT NULL
             );
-            "
-        ).context("Failed to initialize database tables")?;
+            ",
+            )
+            .context("Failed to initialize database tables")?;
 
         // Migration: add protocol column to existing DBs
         self.migrate_add_protocol()?;
@@ -128,19 +129,22 @@ impl AtlasDb {
     /// Migration: add `protocol` column if missing (for DBs created before multi-protocol).
     fn migrate_add_protocol(&self) -> Result<()> {
         // Check if fills has protocol column
-        let has_protocol: bool = self.conn
+        let has_protocol: bool = self
+            .conn
             .prepare("SELECT protocol FROM fills LIMIT 0")
             .is_ok();
 
         if !has_protocol {
-            self.conn.execute_batch(
-                "
+            self.conn
+                .execute_batch(
+                    "
                 ALTER TABLE fills ADD COLUMN protocol TEXT NOT NULL DEFAULT 'hyperliquid';
                 ALTER TABLE orders ADD COLUMN protocol TEXT NOT NULL DEFAULT 'hyperliquid';
                 CREATE INDEX IF NOT EXISTS idx_fills_protocol ON fills(protocol);
                 CREATE INDEX IF NOT EXISTS idx_orders_protocol ON orders(protocol);
-                "
-            ).context("Failed to migrate: add protocol column")?;
+                ",
+                )
+                .context("Failed to migrate: add protocol column")?;
         }
 
         Ok(())
@@ -239,9 +243,7 @@ impl AtlasDb {
 
     /// Get the most recent fill timestamp in the database.
     pub fn last_fill_time(&self) -> Result<Option<i64>> {
-        let mut stmt = self.conn.prepare(
-            "SELECT MAX(time_ms) FROM fills"
-        )?;
+        let mut stmt = self.conn.prepare("SELECT MAX(time_ms) FROM fills")?;
         let result: Option<i64> = stmt.query_row([], |row| row.get(0))?;
         Ok(result)
     }
@@ -335,9 +337,9 @@ impl AtlasDb {
 
     /// Get a sync state value by key.
     pub fn get_sync_state(&self, key: &str) -> Result<Option<String>> {
-        let mut stmt = self.conn.prepare(
-            "SELECT value FROM sync_state WHERE key = ?1"
-        )?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT value FROM sync_state WHERE key = ?1")?;
         let result = stmt.query_row(params![key], |row| row.get::<_, String>(0));
         match result {
             Ok(val) => Ok(Some(val)),
@@ -360,7 +362,6 @@ impl AtlasDb {
         Ok(())
     }
 }
-
 
 // Database filter types for querying cached data.
 
@@ -391,8 +392,6 @@ pub struct OrderFilter {
     /// Maximum number of results to return.
     pub limit: Option<usize>,
 }
-
-
 
 #[cfg(test)]
 mod tests {
@@ -443,26 +442,32 @@ mod tests {
         assert_eq!(all.len(), 2);
 
         // Query by coin
-        let eth_only = db.query_fills(&FillFilter {
-            coin: Some("ETH".into()),
-            ..Default::default()
-        }).unwrap();
+        let eth_only = db
+            .query_fills(&FillFilter {
+                coin: Some("ETH".into()),
+                ..Default::default()
+            })
+            .unwrap();
         assert_eq!(eth_only.len(), 1);
         assert_eq!(eth_only[0].coin, "ETH");
 
         // Query by time range
-        let time_filter = db.query_fills(&FillFilter {
-            from_ms: Some(1700000000500),
-            ..Default::default()
-        }).unwrap();
+        let time_filter = db
+            .query_fills(&FillFilter {
+                from_ms: Some(1700000000500),
+                ..Default::default()
+            })
+            .unwrap();
         assert_eq!(time_filter.len(), 1);
         assert_eq!(time_filter[0].coin, "BTC");
 
         // Query with limit
-        let limited = db.query_fills(&FillFilter {
-            limit: Some(1),
-            ..Default::default()
-        }).unwrap();
+        let limited = db
+            .query_fills(&FillFilter {
+                limit: Some(1),
+                ..Default::default()
+            })
+            .unwrap();
         assert_eq!(limited.len(), 1);
     }
 
@@ -568,17 +573,21 @@ mod tests {
         assert_eq!(all.len(), 2);
 
         // Query by coin
-        let btc_only = db.query_orders(&OrderFilter {
-            coin: Some("BTC".into()),
-            ..Default::default()
-        }).unwrap();
+        let btc_only = db
+            .query_orders(&OrderFilter {
+                coin: Some("BTC".into()),
+                ..Default::default()
+            })
+            .unwrap();
         assert_eq!(btc_only.len(), 1);
 
         // Query by status
-        let filled = db.query_orders(&OrderFilter {
-            status: Some("filled".into()),
-            ..Default::default()
-        }).unwrap();
+        let filled = db
+            .query_orders(&OrderFilter {
+                status: Some("filled".into()),
+                ..Default::default()
+            })
+            .unwrap();
         assert_eq!(filled.len(), 1);
         assert_eq!(filled[0].coin, "ETH");
     }
@@ -627,12 +636,14 @@ mod tests {
 
         assert!(db.get_sync_state("last_fill_sync").unwrap().is_none());
 
-        db.set_sync_state("last_fill_sync", "1700000000000").unwrap();
+        db.set_sync_state("last_fill_sync", "1700000000000")
+            .unwrap();
         let val = db.get_sync_state("last_fill_sync").unwrap();
         assert_eq!(val.as_deref(), Some("1700000000000"));
 
         // Update
-        db.set_sync_state("last_fill_sync", "1700000001000").unwrap();
+        db.set_sync_state("last_fill_sync", "1700000001000")
+            .unwrap();
         let val = db.get_sync_state("last_fill_sync").unwrap();
         assert_eq!(val.as_deref(), Some("1700000001000"));
     }

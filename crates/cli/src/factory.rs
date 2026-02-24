@@ -3,14 +3,14 @@
 //! Lives in `cli` because `core` must NOT depend on protocol modules
 //! (that would create circular deps).
 
-use std::sync::Arc;
 use anyhow::Result;
+use std::sync::Arc;
 use tracing::info;
 
-use atlas_core::Orchestrator;
 use atlas_core::auth::AuthManager;
 use atlas_core::config::AppConfig;
 use atlas_core::workspace::load_config;
+use atlas_core::Orchestrator;
 
 /// Build an Orchestrator from config — registers enabled modules.
 pub async fn from_config(
@@ -34,8 +34,7 @@ pub async fn from_config(
     // ── 0x (swap) ───────────────────────────────────────────
     if config.modules.zero_x.enabled {
         let backend_url = "https://api.atlas-os.ai".to_string();
-        let default_chain =
-            atlas_zero_x::parse_chain(&config.modules.zero_x.config.default_chain);
+        let default_chain = atlas_zero_x::parse_chain(&config.modules.zero_x.config.default_chain);
         let default_slippage_bps = config.modules.zero_x.config.default_slippage_bps;
         let mut zero_x = atlas_zero_x::client::ZeroXModule::new(backend_url)
             .with_api_key(config.system.api_key.clone())
