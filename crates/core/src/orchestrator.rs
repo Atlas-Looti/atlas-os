@@ -158,17 +158,13 @@ impl Orchestrator {
 
         // ── Hyperliquid (perp) ──────────────────────────────────
         if config.modules.hyperliquid.enabled {
-            if let Some(signer) = signer {
-                let testnet = config.modules.hyperliquid.config.network == "testnet";
-                let hl = atlas_mod_hyperliquid::client::HyperliquidModule::new(
-                    signer, testnet,
-                ).await
-                    .map_err(|e| anyhow::anyhow!("{e}"))?;
-                orch.add_perp(Arc::new(hl));
-                info!("Hyperliquid perp module loaded");
-            } else {
-                info!("Hyperliquid enabled but no signer — skipping (read-only mode)");
-            }
+            let testnet = config.modules.hyperliquid.config.network == "testnet";
+            let hl = match signer {
+                Some(s) => atlas_mod_hyperliquid::client::HyperliquidModule::new(s, testnet).await,
+                None => atlas_mod_hyperliquid::client::HyperliquidModule::new_readonly(testnet).await,
+            }.map_err(|e| anyhow::anyhow!("{e}"))?;
+            orch.add_perp(Arc::new(hl));
+            info!("Hyperliquid perp module loaded");
         }
 
         // ── Morpho (lending) ────────────────────────────────────

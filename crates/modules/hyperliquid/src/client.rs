@@ -96,10 +96,10 @@ fn interval_to_ms(i: &CandleInterval) -> u64 {
 /// The Hyperliquid module — wraps the SDK and implements PerpModule.
 pub struct HyperliquidModule {
     pub client: HttpClient,
-    pub signer: PrivateKeySigner,
+    pub signer: Option<PrivateKeySigner>,
     pub nonce: NonceHandler,
     pub perps: Vec<PerpMarket>,
-    pub address: Address,
+    pub address: Option<Address>,
     pub testnet: bool,
 }
 
@@ -123,7 +123,39 @@ impl HyperliquidModule {
 
         info!(%address, testnet, markets = perps.len(), "Hyperliquid module ready");
 
-        Ok(Self { client, signer, nonce, perps, address, testnet })
+        Ok(Self { client, signer: Some(signer), nonce, perps, address: Some(address), testnet })
+    }
+
+    /// Create a read-only client (no signer = market data only, no trading).
+    pub async fn new_readonly(testnet: bool) -> Result<Self, AtlasError> {
+        let client = if testnet {
+            hypercore::testnet()
+        } else {
+            hypercore::mainnet()
+        };
+
+        let perps = client.perps().await
+            .map_err(|e| AtlasError::Network(format!("Failed to fetch markets: {e}")))?;
+
+        let nonce = NonceHandler::default();
+
+        info!(testnet, markets = perps.len(), "Hyperliquid module ready (read-only)");
+
+        Ok(Self { client, signer: None, nonce, perps, address: None, testnet })
+    }
+
+    /// Get signer, or error if read-only.
+    fn require_signer(&self) -> Result<&PrivateKeySigner, AtlasError> {
+        self.signer.as_ref().ok_or_else(|| AtlasError::Auth(
+            "No signer available — this command requires authentication. Run: atlas auth new <name>".into()
+        ))
+    }
+
+    /// Get address, or error if read-only.
+    fn require_address(&self) -> Result<Address, AtlasError> {
+        self.address.ok_or_else(|| AtlasError::Auth(
+            "No wallet address — authenticate first with: atlas auth new <name>".into()
+        ))
     }
 
     /// Resolve coin name to market index.
@@ -175,7 +207,7 @@ impl HyperliquidModule {
         let nonce = self.nonce.next();
         let action: Action = batch.into();
         let signed = action
-            .sign_sync(&self.signer, nonce, None, None, self.chain())
+            .sign_sync(self.require_signer()?, nonce, None, None, self.chain())
             .map_err(|e| AtlasError::Protocol {
                 protocol: "hyperliquid".into(),
                 message: format!("Sign failed: {e}"),
@@ -442,7 +474,7 @@ impl PerpModule for HyperliquidModule {
         let asset = self.resolve_asset(symbol)?;
         let slip = slippage.unwrap_or(0.05);
 
-        let state = self.client.clearinghouse_state(self.address, None).await
+        let state = self.client.clearinghouse_state(self.require_address()?, None).await
             .map_err(|e| AtlasError::Network(format!("Fetch state: {e}")))?;
 
         let position = state.asset_positions.iter()
@@ -489,7 +521,7 @@ impl PerpModule for HyperliquidModule {
             .map_err(|_| AtlasError::Other(format!("Invalid OID: {order_id}")))?;
 
         let batch = BatchCancel { cancels: vec![Cancel { asset, oid }] };
-        self.client.cancel(&self.signer, batch, self.nonce.next(), None, None).await
+        self.client.cancel(self.require_signer()?, batch, self.nonce.next(), None, None).await
             .map_err(|e| AtlasError::Protocol {
                 protocol: "hyperliquid".into(),
                 message: format!("Cancel failed: {}", e.message()),
@@ -499,7 +531,7 @@ impl PerpModule for HyperliquidModule {
 
     async fn cancel_all(&self, symbol: &str) -> AtlasResult<u32> {
         let asset = self.resolve_asset(symbol)?;
-        let orders = self.client.open_orders(self.address, None).await
+        let orders = self.client.open_orders(self.require_address()?, None).await
             .map_err(|e| AtlasError::Network(format!("Fetch orders: {e}")))?;
 
         let matching: Vec<_> = orders.iter()
@@ -514,13 +546,13 @@ impl PerpModule for HyperliquidModule {
         let total = cancels.len() as u32;
 
         let batch = BatchCancel { cancels };
-        let _ = self.client.cancel(&self.signer, batch, self.nonce.next(), None, None).await;
+        let _ = self.client.cancel(self.require_signer()?, batch, self.nonce.next(), None, None).await;
 
         Ok(total)
     }
 
     async fn open_orders(&self) -> AtlasResult<Vec<Order>> {
-        let orders = self.client.open_orders(self.address, None).await
+        let orders = self.client.open_orders(self.require_address()?, None).await
             .map_err(|e| AtlasError::Network(format!("Fetch orders: {e}")))?;
 
         Ok(orders.iter().map(|o| Order {
@@ -538,7 +570,7 @@ impl PerpModule for HyperliquidModule {
     }
 
     async fn positions(&self) -> AtlasResult<Vec<Position>> {
-        let state = self.client.clearinghouse_state(self.address, None).await
+        let state = self.client.clearinghouse_state(self.require_address()?, None).await
             .map_err(|e| AtlasError::Network(format!("Fetch state: {e}")))?;
 
         Ok(state.asset_positions.iter().map(|ap| {
@@ -560,7 +592,7 @@ impl PerpModule for HyperliquidModule {
     }
 
     async fn fills(&self) -> AtlasResult<Vec<Fill>> {
-        let fills = self.client.user_fills(self.address).await
+        let fills = self.client.user_fills(self.require_address()?).await
             .map_err(|e| AtlasError::Network(format!("Fetch fills: {e}")))?;
 
         Ok(fills.iter().take(50).map(|f| Fill {
@@ -578,7 +610,7 @@ impl PerpModule for HyperliquidModule {
     }
 
     async fn balances(&self) -> AtlasResult<Vec<Balance>> {
-        let state = self.client.clearinghouse_state(self.address, None).await
+        let state = self.client.clearinghouse_state(self.require_address()?, None).await
             .map_err(|e| AtlasError::Network(format!("Fetch state: {e}")))?;
 
         Ok(vec![Balance {
@@ -616,7 +648,7 @@ impl PerpModule for HyperliquidModule {
         let source = if self.testnet { "b" } else { "a" };
         let agent_hash = compute_agent_signing_hash(source, connection_id);
 
-        let sig = self.signer.sign_hash_sync(&agent_hash)
+        let sig = self.require_signer()?.sign_hash_sync(&agent_hash)
             .map_err(|e| AtlasError::Auth(format!("Sign failed: {e}")))?;
 
         let r_hex = hex::encode(sig.r().to_be_bytes::<32>());
@@ -671,7 +703,7 @@ impl PerpModule for HyperliquidModule {
             time: self.nonce.next(),
         };
 
-        self.client.send_usdc(&self.signer, send, self.nonce.next()).await
+        self.client.send_usdc(self.require_signer()?, send, self.nonce.next()).await
             .map_err(|e| AtlasError::Protocol {
                 protocol: "hyperliquid".into(),
                 message: format!("Transfer failed: {e}"),
