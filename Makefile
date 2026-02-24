@@ -60,4 +60,4 @@ clean:
 
 # Uninstall the CLI binary
 uninstall:
-	cargo uninstall atlas-cli
+	cargo uninstall atlas-cli || true
