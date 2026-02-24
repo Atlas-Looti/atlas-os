@@ -83,6 +83,7 @@ CLI / SDK / Aplikasi
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk public key |
 | `CLERK_SECRET_KEY` | Clerk server key |
 
-deployment
-backend: https://atlas-os-backend-production.up.railway.app/
-frontend: https://atlas-os-frontend-production.up.railway.app/
+## Deployment
+
+- **Backend**: [https://atlas-os-backend-production.up.railway.app/](https://atlas-os-backend-production.up.railway.app/)
+- **Frontend**: [https://atlas-os-frontend-production.up.railway.app/](https://atlas-os-frontend-production.up.railway.app/)
