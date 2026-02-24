@@ -205,8 +205,16 @@ pub async fn orderbook(ticker: &str, depth: usize, fmt: OutputFormat) -> Result<
         }
         Err(e) => {
             // Orderbook might be WebSocket-only on some protocols
-            println!("⚠️  Orderbook: {e}");
-            println!("   Use `atlas stream book {ticker_upper}` for live order book via WebSocket.");
+            if fmt != OutputFormat::Table {
+                let json = serde_json::json!({
+                    "error": format!("{e}"),
+                    "hint": format!("atlas stream book {ticker_upper}"),
+                });
+                println!("{}", serde_json::to_string(&json)?);
+            } else {
+                println!("⚠️  Orderbook: {e}");
+                println!("   Use `atlas stream book {ticker_upper}` for live order book via WebSocket.");
+            }
             Ok(())
         }
     }
@@ -360,10 +368,11 @@ pub async fn top(
                     "best_ask": t.best_ask.map(|a| a.to_string()),
                 })
             }).collect();
+            let json = serde_json::json!({ "markets": rows });
             let s = if matches!(fmt, OutputFormat::JsonPretty) {
-                serde_json::to_string_pretty(&rows)?
+                serde_json::to_string_pretty(&json)?
             } else {
-                serde_json::to_string(&rows)?
+                serde_json::to_string(&json)?
             };
             println!("{s}");
         }

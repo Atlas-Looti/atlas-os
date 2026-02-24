@@ -15,10 +15,10 @@ pub struct StatusOutput {
     pub profile: String,
     pub address: String,
     pub network: String,
-    pub account_value: String,
-    pub margin_used: String,
-    pub net_position: String,
-    pub withdrawable: String,
+    pub account_value: Option<String>,
+    pub margin_used: Option<String>,
+    pub net_position: Option<String>,
+    pub withdrawable: Option<String>,
     pub positions: Vec<PositionRow>,
 }
 
@@ -26,8 +26,8 @@ pub struct StatusOutput {
 pub struct PositionRow {
     pub coin: String,
     pub size: String,
-    pub entry_price: String,
-    pub unrealized_pnl: String,
+    pub entry_price: Option<String>,
+    pub unrealized_pnl: Option<String>,
 }
 
 // ─── Orders ─────────────────────────────────────────────────────────
@@ -436,15 +436,15 @@ mod tests {
             profile: "default".into(),
             address: "0x1234".into(),
             network: "Mainnet".into(),
-            account_value: "10000.00".into(),
-            margin_used: "500.00".into(),
-            net_position: "2500.00".into(),
-            withdrawable: "9500.00".into(),
+            account_value: Some("10000.00".into()),
+            margin_used: Some("500.00".into()),
+            net_position: Some("2500.00".into()),
+            withdrawable: Some("9500.00".into()),
             positions: vec![PositionRow {
                 coin: "ETH".into(),
                 size: "0.5".into(),
-                entry_price: "3500.00".into(),
-                unrealized_pnl: "25.00".into(),
+                entry_price: Some("3500.00".into()),
+                unrealized_pnl: Some("25.00".into()),
             }],
         };
         let json = serde_json::to_string(&output).unwrap();
@@ -565,10 +565,10 @@ mod tests {
             profile: "default".into(),
             address: "0x1234".into(),
             network: "Mainnet".into(),
-            account_value: "10000.00".into(),
-            margin_used: "500.00".into(),
-            net_position: "2500.00".into(),
-            withdrawable: "9500.00".into(),
+            account_value: Some("10000.00".into()),
+            margin_used: Some("500.00".into()),
+            net_position: Some("2500.00".into()),
+            withdrawable: Some("9500.00".into()),
             positions: vec![],
         };
         let pretty = serde_json::to_string_pretty(&output).unwrap();
@@ -746,8 +746,8 @@ mod tests {
                 positions: vec![PositionRow {
                     coin: "ETH".into(),
                     size: "1.5".into(),
-                    entry_price: "3500.00".into(),
-                    unrealized_pnl: "100.00".into(),
+                    entry_price: Some("3500.00".into()),
+                    unrealized_pnl: Some("100.00".into()),
                 }],
                 spot_balances: vec![SpotBalanceRow {
                     coin: "USDC".into(),

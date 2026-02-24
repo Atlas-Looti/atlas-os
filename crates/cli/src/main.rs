@@ -83,6 +83,7 @@ enum Commands {
     // ── PROTOCOL MODULES (namespaced per protocol) ──────────────
 
     /// Hyperliquid DEX: perp trading, spot trading, vaults.
+    #[command(alias = "hl")]
     Hyperliquid {
         #[command(subcommand)]
         action: HyperliquidAction,
@@ -95,7 +96,7 @@ enum Commands {
     },
 
     /// 0x Protocol: multi-chain DEX aggregator (swaps).
-    #[command(name = "zero-x", alias = "0x")]
+    #[command(name = "zero-x", alias = "0x", alias = "swap")]
     ZeroX {
         #[command(subcommand)]
         action: ZeroXAction,
@@ -174,7 +175,10 @@ enum SystemConfigAction {
     /// Set active profile.
     Profile { name: String },
     /// Toggle verbose mode.
-    Verbose { enabled: bool },
+    Verbose {
+        /// Enable or disable (true/false).
+        enabled: String,
+    },
     /// Set Atlas backend API URL.
     #[command(name = "api-url")]
     ApiUrl { url: String },
@@ -683,10 +687,28 @@ enum ZeroXAction {
 
 #[derive(Subcommand)]
 enum StreamAction {
+    /// Stream all mid prices in real-time.
     Prices,
-    Trades { ticker: String },
-    Book { ticker: String, #[arg(long, default_value_t = 10)] depth: usize },
-    Candles { ticker: String, interval: String },
+    /// Stream trades for a specific coin.
+    Trades {
+        /// Coin symbol (e.g. BTC, ETH).
+        ticker: String,
+    },
+    /// Stream order book updates for a coin.
+    Book {
+        /// Coin symbol.
+        ticker: String,
+        /// Number of price levels per side.
+        #[arg(long, default_value_t = 10)] depth: usize,
+    },
+    /// Stream candlestick updates for a coin.
+    Candles {
+        /// Coin symbol.
+        ticker: String,
+        /// Candle interval (e.g. 1m, 5m, 1h).
+        interval: String,
+    },
+    /// Stream user account updates (fills, orders).
     User,
 }
 
@@ -753,42 +775,72 @@ enum ExportAction {
 // ═══════════════════════════════════════════════════════════════════════
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
         .with_target(false)
         .init();
 
-    atlas_core::init_workspace()?;
+    if let Err(e) = atlas_core::init_workspace() {
+        eprintln!("Error: {e}");
+        std::process::exit(1);
+    }
 
     let cli = Cli::parse();
     let fmt: OutputFormat = cli.output.into();
 
-    match cli.command {
+    let result = run(cli.command, fmt).await;
+
+    if let Err(e) = result {
+        if fmt != OutputFormat::Table {
+            // Structured JSON error to stdout for machine consumers
+            let json = serde_json::json!({
+                "ok": false,
+                "error": format!("{e}"),
+            });
+            println!("{}", serde_json::to_string(&json).unwrap_or_default());
+        } else {
+            eprintln!("Error: {e:#}");
+        }
+        std::process::exit(1);
+    }
+}
+
+async fn run(command: Commands, fmt: OutputFormat) -> Result<()> {
+    match command {
         // ── CORE OS ─────────────────────────────────────────────
         Commands::Profile { action } => match action {
-            ProfileAction::Generate { name } => commands::auth::new_wallet(&name),
-            ProfileAction::Import { name } => commands::auth::import_wallet(&name),
-            ProfileAction::Use { name } => commands::auth::switch_profile(&name),
-            ProfileAction::List => commands::auth::list_profiles(),
+            ProfileAction::Generate { name } => commands::auth::generate_wallet(&name, fmt),
+            ProfileAction::Import { name } => commands::auth::import_wallet(&name, fmt),
+            ProfileAction::Use { name } => commands::auth::switch_profile(&name, fmt),
+            ProfileAction::List => commands::auth::list_profiles(fmt),
         },
 
         Commands::Configure { action } => match action {
             ConfigureAction::Show => commands::configure::run(fmt),
             ConfigureAction::System { action } => match action {
-                SystemConfigAction::Profile { name } => commands::auth::switch_profile(&name),
+                SystemConfigAction::Profile { name } => commands::auth::switch_profile(&name, fmt),
                 SystemConfigAction::Verbose { enabled } => {
                     let mut config = atlas_core::workspace::load_config()?;
-                    config.system.verbose = enabled;
+                    let val = enabled.to_lowercase() == "true" || enabled == "1" || enabled == "on";
+                    config.system.verbose = val;
                     atlas_core::workspace::save_config(&config)?;
-                    println!("✓ verbose = {enabled}");
+                    if fmt == OutputFormat::Table {
+                        println!("✓ verbose = {val}");
+                    } else {
+                        println!("{}", serde_json::json!({"ok": true, "key": "verbose", "value": val}));
+                    }
                     Ok(())
                 }
                 SystemConfigAction::ApiUrl { url } => {
                     let mut config = atlas_core::workspace::load_config()?;
                     config.system.api_url = url.clone();
                     atlas_core::workspace::save_config(&config)?;
-                    println!("✓ api_url = {url}");
+                    if fmt == OutputFormat::Table {
+                        println!("✓ api_url = {url}");
+                    } else {
+                        println!("{}", serde_json::json!({"ok": true, "key": "api_url", "value": url}));
+                    }
                     Ok(())
                 }
             },
@@ -801,11 +853,11 @@ async fn main() -> Result<()> {
                 }
             },
             ConfigureAction::Trading { action } => match action {
-                TradingConfigAction::Mode { value } => commands::configure::set_mode(&value),
-                TradingConfigAction::Size { value } => commands::configure::set_size_mode(&value),
-                TradingConfigAction::Leverage { value } => commands::configure::set_leverage(value),
-                TradingConfigAction::Slippage { value } => commands::configure::set_slippage(value),
-                TradingConfigAction::Lot { coin, size } => commands::configure::set_lot_size(&coin, size),
+                TradingConfigAction::Mode { value } => commands::configure::set_mode(&value, fmt),
+                TradingConfigAction::Size { value } => commands::configure::set_size_mode(&value, fmt),
+                TradingConfigAction::Leverage { value } => commands::configure::set_leverage(value, fmt),
+                TradingConfigAction::Slippage { value } => commands::configure::set_slippage(value, fmt),
+                TradingConfigAction::Lot { coin, size } => commands::configure::set_lot_size(&coin, size, fmt),
             },
         },
 

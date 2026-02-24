@@ -30,6 +30,19 @@ use atlas_common::types::*;
 use crate::convert::*;
 use crate::signing::compute_agent_signing_hash;
 
+/// Raw asset context from metaAndAssetCtxs endpoint.
+struct AssetCtxRaw {
+    name: String,
+    mid_px: Option<Decimal>,
+    mark_px: Option<Decimal>,
+    impact_bid: Option<Decimal>,
+    impact_ask: Option<Decimal>,
+    volume: Option<Decimal>,
+    prev_day_px: Option<Decimal>,
+    oi: Option<Decimal>,
+    funding: Option<Decimal>,
+}
+
 /// Builder fee payload injected into order JSON.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct BuilderFee {
@@ -143,6 +156,92 @@ impl HyperliquidModule {
         info!(testnet, markets = perps.len(), "Hyperliquid module ready (read-only)");
 
         Ok(Self { client, signer: None, nonce, perps, address: None, testnet })
+    }
+
+    /// Fetch asset contexts (funding, OI, impact prices, volume, etc.) via metaAndAssetCtxs.
+    async fn fetch_asset_ctxs(&self) -> Result<Vec<AssetCtxRaw>, AtlasError> {
+        let url = if self.testnet {
+            "https://api.hyperliquid-testnet.xyz/info"
+        } else {
+            "https://api.hyperliquid.xyz/info"
+        };
+        let http = reqwest::Client::new();
+        let resp: Value = http.post(url)
+            .json(&serde_json::json!({"type": "metaAndAssetCtxs"}))
+            .send().await
+            .map_err(|e| AtlasError::Network(format!("metaAndAssetCtxs: {e}")))?
+            .json().await
+            .map_err(|e| AtlasError::Network(format!("metaAndAssetCtxs parse: {e}")))?;
+
+        // Response is [meta, [ctx, ctx, ...]]
+        let ctxs = resp.get(1)
+            .and_then(|v| v.as_array())
+            .ok_or_else(|| AtlasError::Network("unexpected metaAndAssetCtxs shape".into()))?;
+
+        let universe = resp.get(0)
+            .and_then(|v| v.get("universe"))
+            .and_then(|v| v.as_array())
+            .ok_or_else(|| AtlasError::Network("missing universe in meta".into()))?;
+
+        let mut result = Vec::with_capacity(ctxs.len());
+        for (i, ctx) in ctxs.iter().enumerate() {
+            let name = universe.get(i)
+                .and_then(|u| u.get("name"))
+                .and_then(|n| n.as_str())
+                .unwrap_or("")
+                .to_string();
+
+            let impact_bid = ctx.get("impactPxs")
+                .and_then(|v| v.get(0))
+                .and_then(|v| v.as_str())
+                .and_then(|s| Decimal::from_str(s).ok());
+            let impact_ask = ctx.get("impactPxs")
+                .and_then(|v| v.get(1))
+                .and_then(|v| v.as_str())
+                .and_then(|s| Decimal::from_str(s).ok());
+            let mid_px = ctx.get("midPx")
+                .and_then(|v| v.as_str())
+                .and_then(|s| Decimal::from_str(s).ok());
+            let mark_px = ctx.get("markPx")
+                .and_then(|v| v.as_str())
+                .and_then(|s| Decimal::from_str(s).ok());
+            let volume = ctx.get("dayNtlVlm")
+                .and_then(|v| v.as_str())
+                .and_then(|s| Decimal::from_str(s).ok());
+            let prev_day_px = ctx.get("prevDayPx")
+                .and_then(|v| v.as_str())
+                .and_then(|s| Decimal::from_str(s).ok());
+            let oi = ctx.get("openInterest")
+                .and_then(|v| v.as_str())
+                .and_then(|s| Decimal::from_str(s).ok());
+            let funding = ctx.get("funding")
+                .and_then(|v| v.as_str())
+                .and_then(|s| Decimal::from_str(s).ok());
+
+            result.push(AssetCtxRaw {
+                name, mid_px, mark_px, impact_bid, impact_ask,
+                volume, prev_day_px, oi, funding,
+            });
+        }
+        Ok(result)
+    }
+
+    /// Build a rich Ticker from asset context data.
+    fn ctx_to_ticker(ctx: &AssetCtxRaw) -> Ticker {
+        let mid = ctx.mid_px.unwrap_or(Decimal::ZERO);
+        let change_pct = ctx.prev_day_px.and_then(|prev| {
+            if prev.is_zero() { None }
+            else { Some(((mid - prev) / prev * Decimal::from(100)).round_dp(2)) }
+        });
+        Ticker {
+            symbol: ctx.name.clone(),
+            protocol: Protocol::Hyperliquid,
+            mid_price: mid,
+            best_bid: ctx.impact_bid,
+            best_ask: ctx.impact_ask,
+            volume_24h: ctx.volume,
+            change_24h_pct: change_pct,
+        }
     }
 
     /// Get signer, or error if read-only.
@@ -319,21 +418,18 @@ impl PerpModule for HyperliquidModule {
     }
 
     async fn ticker(&self, symbol: &str) -> AtlasResult<Ticker> {
-        let mids = self.client.all_mids(None).await
-            .map_err(|e| AtlasError::Network(format!("Fetch mids: {e}")))?;
-
-        let mid = mids.get(symbol)
+        let ctxs = self.fetch_asset_ctxs().await?;
+        let ctx = ctxs.iter()
+            .find(|c| c.name.eq_ignore_ascii_case(symbol))
             .ok_or_else(|| AtlasError::AssetNotFound(symbol.to_string()))?;
-
-        Ok(mid_to_ticker(symbol, mid))
+        Ok(Self::ctx_to_ticker(ctx))
     }
 
     async fn all_tickers(&self) -> AtlasResult<Vec<Ticker>> {
-        let mids = self.client.all_mids(None).await
-            .map_err(|e| AtlasError::Network(format!("Fetch mids: {e}")))?;
-
-        let mut tickers: Vec<Ticker> = mids.iter()
-            .map(|(coin, mid)| mid_to_ticker(coin, mid))
+        let ctxs = self.fetch_asset_ctxs().await?;
+        let mut tickers: Vec<Ticker> = ctxs.iter()
+            .filter(|c| c.mid_px.is_some())
+            .map(|c| Self::ctx_to_ticker(c))
             .collect();
         tickers.sort_by(|a, b| a.symbol.cmp(&b.symbol));
         Ok(tickers)

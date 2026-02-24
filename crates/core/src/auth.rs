@@ -69,25 +69,22 @@ impl AuthManager {
 
     // ── Public API ──────────────────────────────────────────────────
 
-    /// Generate a brand-new random EVM wallet, store it, and print the
-    /// private key **exactly once** so the user can back it up.
-    pub fn create_new_wallet(name: &str) -> Result<()> {
+    /// Generate a brand-new random EVM wallet and store it.
+    /// Returns (name, address, private_key_hex) for the CLI to display.
+    pub fn create_new_wallet(name: &str) -> Result<(String, String, String)> {
         let mut store = Self::load_store()?;
         if store.exists(name) {
             bail!("Profile '{name}' already exists");
         }
 
-        // Generate a random signer (private key).
         let signer = PrivateKeySigner::random();
         let address: Address = signer.address();
         let private_key_hex = hex::encode(signer.credential().to_bytes());
 
-        // Store private key in OS keyring — NEVER on disk.
         Self::store_key(name, &private_key_hex)?;
 
         let address_str = format!("{address}");
 
-        // Persist public metadata.
         store.add(WalletProfile {
             name: name.to_string(),
             address: address_str.clone(),
@@ -95,25 +92,13 @@ impl AuthManager {
         });
         Self::save_store(&store)?;
 
-        // ── PRINT PRIVATE KEY ONCE ──────────────────────────────────
-        // After this, the key lives exclusively in the OS keyring.
-        println!("╔══════════════════════════════════════════════════════════════╗");
-        println!("║  NEW WALLET CREATED                                        ║");
-        println!("╠══════════════════════════════════════════════════════════════╣");
-        println!("║  Profile : {:<49}║", name);
-        println!("║  Address : {:<49}║", address_str);
-        println!("║  Private : {:<49}║", private_key_hex);
-        println!("╠══════════════════════════════════════════════════════════════╣");
-        println!("║  ⚠  BACK UP YOUR PRIVATE KEY NOW. It will NOT be shown     ║");
-        println!("║     again. It is stored ONLY in your OS secure keyring.     ║");
-        println!("╚══════════════════════════════════════════════════════════════╝");
-
         info!(profile = name, %address, "wallet created and stored in keyring");
-        Ok(())
+        Ok((name.to_string(), address_str, private_key_hex))
     }
 
     /// Import an existing EVM private key (hex string, with or without 0x).
-    pub fn import_wallet(name: &str, raw_hex: &str) -> Result<()> {
+    /// Returns (name, address) for the CLI to display.
+    pub fn import_wallet(name: &str, raw_hex: &str) -> Result<(String, String)> {
         let mut store = Self::load_store()?;
         if store.exists(name) {
             bail!("Profile '{name}' already exists");
@@ -121,17 +106,14 @@ impl AuthManager {
 
         let hex_clean = raw_hex.strip_prefix("0x").unwrap_or(raw_hex);
 
-        // Parse into a signer to validate and derive the address.
         let signer: PrivateKeySigner = hex_clean
             .parse()
             .context("Invalid private key hex string")?;
         let address = signer.address();
         let address_str = format!("{address}");
 
-        // Store in OS keyring.
         Self::store_key(name, hex_clean)?;
 
-        // Persist public metadata.
         store.add(WalletProfile {
             name: name.to_string(),
             address: address_str.clone(),
@@ -139,12 +121,11 @@ impl AuthManager {
         });
         Self::save_store(&store)?;
 
-        println!("✓ Imported profile '{name}' → {address_str}");
         info!(profile = name, %address, "wallet imported");
-        Ok(())
+        Ok((name.to_string(), address_str))
     }
 
-    /// Switch the active profile in config.toml.
+    /// Switch the active profile.
     pub fn switch_profile(name: &str) -> Result<()> {
         let store = Self::load_store()?;
         if !store.exists(name) {
@@ -155,34 +136,7 @@ impl AuthManager {
         config.system.active_profile = name.to_string();
         crate::workspace::save_config(&config)?;
 
-        println!("✓ Active profile switched to '{name}'");
         info!(profile = name, "profile switched");
-        Ok(())
-    }
-
-    /// List all stored profiles.
-    pub fn list_profiles() -> Result<()> {
-        let store = Self::load_store()?;
-        let config = crate::workspace::load_config()?;
-
-        if store.wallets.is_empty() {
-            println!("No profiles found. Create one with: atlas profile generate <name>");
-            return Ok(());
-        }
-
-        println!("┌──────────────────┬────────────────────────────────────────────┬──────────┐");
-        println!("│ Profile          │ Address                                    │ Active   │");
-        println!("├──────────────────┼────────────────────────────────────────────┼──────────┤");
-        for w in &store.wallets {
-            let active = if w.name == config.system.active_profile {
-                "  ●"
-            } else {
-                ""
-            };
-            println!("│ {:<16} │ {:<42} │ {:<8} │", w.name, w.address, active);
-        }
-        println!("└──────────────────┴────────────────────────────────────────────┴──────────┘");
-
         Ok(())
     }
 

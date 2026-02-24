@@ -24,7 +24,7 @@ pub async fn stream_prices(fmt: OutputFormat) -> Result<()> {
     let testnet = config.modules.hyperliquid.config.network == "testnet";
     let core = build_ws_client(testnet);
 
-    println!("🔴 Streaming all mid prices (Ctrl+C to stop)...\n");
+    eprintln!("🔴 Streaming all mid prices (Ctrl+C to stop)...\n");
 
     let mut ws = core.websocket();
     ws.subscribe(Subscription::AllMids { dex: None });
@@ -47,7 +47,7 @@ pub async fn stream_trades(coin: &str, fmt: OutputFormat) -> Result<()> {
     let mut ws = core.websocket();
     ws.subscribe(Subscription::Trades { coin: coin.to_string() });
 
-    println!("🔴 Streaming {coin} trades (Ctrl+C to stop)...\n");
+    eprintln!("🔴 Streaming {coin} trades (Ctrl+C to stop)...\n");
 
     if fmt == OutputFormat::Table {
         println!("{:<20} {:>6} {:>14} {:>14} {:>10}", "TIME", "SIDE", "PRICE", "SIZE", "HASH");
@@ -82,7 +82,7 @@ pub async fn stream_book(coin: &str, depth: usize, fmt: OutputFormat) -> Result<
     let mut ws = core.websocket();
     ws.subscribe(Subscription::L2Book { coin: coin.to_string() });
 
-    println!("🔴 Streaming {coin} order book (Ctrl+C to stop)...\n");
+    eprintln!("🔴 Streaming {coin} order book (Ctrl+C to stop)...\n");
 
     while let Some(event) = ws.next().await {
         if let Event::Message(Incoming::L2Book(book)) = event {
@@ -121,7 +121,7 @@ pub async fn stream_candles(coin: &str, interval: &str, fmt: OutputFormat) -> Re
         interval: interval.to_string(),
     });
 
-    println!("🔴 Streaming {coin} {interval} candles (Ctrl+C to stop)...\n");
+    eprintln!("🔴 Streaming {coin} {interval} candles (Ctrl+C to stop)...\n");
 
     if fmt == OutputFormat::Table {
         println!("{:<20} {:>12} {:>12} {:>12} {:>12} {:>12}",
@@ -159,7 +159,7 @@ pub async fn stream_user(fmt: OutputFormat) -> Result<()> {
     ws.subscribe(Subscription::OrderUpdates { user: address });
     ws.subscribe(Subscription::UserEvents { user: address });
 
-    println!("🔴 Streaming user events for {} (Ctrl+C to stop)...\n", address);
+    eprintln!("🔴 Streaming user events for {} (Ctrl+C to stop)...\n", address);
 
     while let Some(event) = ws.next().await {
         match event {

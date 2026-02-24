@@ -234,8 +234,8 @@ pub async fn list_positions(fmt: OutputFormat) -> Result<()> {
     let rows: Vec<PositionRow> = positions.iter().map(|p| PositionRow {
         coin: p.symbol.clone(),
         size: p.size.to_string(),
-        entry_price: p.entry_price.map(|e| e.to_string()).unwrap_or_else(|| "—".into()),
-        unrealized_pnl: p.unrealized_pnl.map(|u| u.to_string()).unwrap_or_else(|| "—".into()),
+        entry_price: p.entry_price.map(|e| e.to_string()),
+        unrealized_pnl: p.unrealized_pnl.map(|u| u.to_string()),
     }).collect();
 
     match fmt {
@@ -245,7 +245,9 @@ pub async fn list_positions(fmt: OutputFormat) -> Result<()> {
             println!("{:<12} {:>14} {:>14} {:>14}", "COIN", "SIZE", "ENTRY", "uPnL");
             println!("{}", "─".repeat(56));
             for r in &rows {
-                println!("{:<12} {:>14} {:>14} {:>14}", r.coin, r.size, r.entry_price, r.unrealized_pnl);
+                println!("{:<12} {:>14} {:>14} {:>14}", r.coin, r.size,
+                    r.entry_price.as_deref().unwrap_or("—"),
+                    r.unrealized_pnl.as_deref().unwrap_or("—"));
             }
         }
     }

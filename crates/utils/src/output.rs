@@ -77,15 +77,16 @@ use atlas_types::output::*;
 
 impl TableDisplay for StatusOutput {
     fn print_table(&self) {
+        let dash = "—";
         println!("╔══════════════════════════════════════════════════════════╗");
         println!("║  ACCOUNT SUMMARY                                       ║");
         println!("╠══════════════════════════════════════════════════════════╣");
         println!("║  Profile     : {:<41}║", self.profile);
         println!("║  Address     : {:<41}║", self.address);
-        println!("║  Account Val : {:<41}║", self.account_value);
-        println!("║  Margin Used : {:<41}║", self.margin_used);
-        println!("║  Net Pos     : {:<41}║", self.net_position);
-        println!("║  Withdrawable: {:<41}║", self.withdrawable);
+        println!("║  Account Val : {:<41}║", self.account_value.as_deref().unwrap_or(dash));
+        println!("║  Margin Used : {:<41}║", self.margin_used.as_deref().unwrap_or(dash));
+        println!("║  Net Pos     : {:<41}║", self.net_position.as_deref().unwrap_or(dash));
+        println!("║  Withdrawable: {:<41}║", self.withdrawable.as_deref().unwrap_or(dash));
         println!("╠══════════════════════════════════════════════════════════╣");
 
         if self.positions.is_empty() {
@@ -96,7 +97,9 @@ impl TableDisplay for StatusOutput {
             for pos in &self.positions {
                 println!(
                     "║  {:^6} │ {:>10} │ {:>10} │ {:>12} ║",
-                    pos.coin, pos.size, pos.entry_price, pos.unrealized_pnl,
+                    pos.coin, pos.size,
+                    pos.entry_price.as_deref().unwrap_or(dash),
+                    pos.unrealized_pnl.as_deref().unwrap_or(dash),
                 );
             }
         }
@@ -437,7 +440,9 @@ impl TableDisplay for SubAccountsOutput {
                 for pos in &sub.positions {
                     println!(
                         "║  {:^6} │ {:>10} │ {:>10} │ {:>12} ║",
-                        pos.coin, pos.size, pos.entry_price, pos.unrealized_pnl,
+                        pos.coin, pos.size,
+                        pos.entry_price.as_deref().unwrap_or("—"),
+                        pos.unrealized_pnl.as_deref().unwrap_or("—"),
                     );
                 }
             }

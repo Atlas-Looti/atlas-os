@@ -19,18 +19,18 @@ pub async fn run(fmt: OutputFormat) -> Result<()> {
                 let pos_rows: Vec<PositionRow> = positions.iter().map(|p| PositionRow {
                     coin: p.symbol.clone(),
                     size: p.size.to_string(),
-                    entry_price: p.entry_price.map(|e| e.to_string()).unwrap_or_else(|| "—".into()),
-                    unrealized_pnl: p.unrealized_pnl.map(|u| u.to_string()).unwrap_or_else(|| "—".into()),
+                    entry_price: p.entry_price.map(|e| e.to_string()),
+                    unrealized_pnl: p.unrealized_pnl.map(|u| u.to_string()),
                 }).collect();
 
                 let output = StatusOutput {
                     profile: config.system.active_profile.clone(),
                     address: config.system.active_profile.clone(),
                     network: if config.modules.hyperliquid.config.network == "testnet" { "Testnet".to_string() } else { "Mainnet".to_string() },
-                    account_value: bal.map(|b| b.total.to_string()).unwrap_or_else(|| "—".into()),
-                    margin_used: bal.map(|b| b.locked.to_string()).unwrap_or_else(|| "—".into()),
-                    net_position: "—".into(),
-                    withdrawable: bal.map(|b| b.available.to_string()).unwrap_or_else(|| "—".into()),
+                    account_value: bal.map(|b| b.total.to_string()),
+                    margin_used: bal.map(|b| b.locked.to_string()),
+                    net_position: None,
+                    withdrawable: bal.map(|b| b.available.to_string()),
                     positions: pos_rows,
                 };
                 render(fmt, &output)?;
@@ -40,10 +40,10 @@ pub async fn run(fmt: OutputFormat) -> Result<()> {
                     profile: config.system.active_profile.clone(),
                     address: "unknown".into(),
                     network: if config.modules.hyperliquid.config.network == "testnet" { "Testnet".into() } else { "Mainnet".into() },
-                    account_value: "—".into(),
-                    margin_used: "—".into(),
-                    net_position: "—".into(),
-                    withdrawable: "—".into(),
+                    account_value: None,
+                    margin_used: None,
+                    net_position: None,
+                    withdrawable: None,
                     positions: vec![],
                 };
                 render(fmt, &output)?;
@@ -74,18 +74,18 @@ pub async fn run(fmt: OutputFormat) -> Result<()> {
             let pos_rows: Vec<PositionRow> = positions.iter().map(|p| PositionRow {
                 coin: p.symbol.clone(),
                 size: p.size.to_string(),
-                entry_price: p.entry_price.map(|e| e.to_string()).unwrap_or_else(|| "—".into()),
-                unrealized_pnl: p.unrealized_pnl.map(|u| u.to_string()).unwrap_or_else(|| "—".into()),
+                entry_price: p.entry_price.map(|e| e.to_string()),
+                unrealized_pnl: p.unrealized_pnl.map(|u| u.to_string()),
             }).collect();
 
             let output = StatusOutput {
                 profile: config.system.active_profile.clone(),
                 address: config.system.active_profile.clone(),
                 network: if config.modules.hyperliquid.config.network == "testnet" { "Testnet".to_string() } else { "Mainnet".to_string() },
-                account_value: bal.map(|b| b.total.to_string()).unwrap_or_else(|| "—".into()),
-                margin_used: bal.map(|b| b.locked.to_string()).unwrap_or_else(|| "—".into()),
-                net_position: "—".into(),
-                withdrawable: bal.map(|b| b.available.to_string()).unwrap_or_else(|| "—".into()),
+                account_value: bal.map(|b| b.total.to_string()),
+                margin_used: bal.map(|b| b.locked.to_string()),
+                net_position: None,
+                withdrawable: bal.map(|b| b.available.to_string()),
                 positions: pos_rows,
             };
 

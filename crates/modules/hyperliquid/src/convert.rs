@@ -2,7 +2,6 @@
 
 use atlas_common::types::*;
 use hypersdk::hypercore::types::Side as HlSide;
-use rust_decimal::Decimal;
 
 /// Convert HL Side to universal Side.
 pub fn convert_side(side: &HlSide) -> Side {
@@ -61,15 +60,4 @@ pub fn perp_market_to_universal(m: &hypersdk::hypercore::PerpMarket) -> Market {
     }
 }
 
-/// Convert a HL mid price map entry to universal Ticker.
-pub fn mid_to_ticker(coin: &str, mid: &Decimal) -> Ticker {
-    Ticker {
-        symbol: coin.to_string(),
-        protocol: Protocol::Hyperliquid,
-        mid_price: *mid,
-        best_bid: None,
-        best_ask: None,
-        volume_24h: None,
-        change_24h_pct: None,
-    }
-}
+
