@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+server
+server.map
+
+# Dev/test files
+*.test.ts
+*.spec.ts
+
+# Env files — inject via container env vars instead
+.env
+.env.*
+
+# Editor
+.vscode/
+.idea/
+
+# Misc
+*.md
+.git/
+.gitignore

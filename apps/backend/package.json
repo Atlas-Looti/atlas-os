@@ -5,7 +5,8 @@
   "private": true,
   "scripts": {
     "dev": "bun --watch src/index.ts",
-    "start": "bun src/index.ts"
+    "start": "bun src/index.ts",
+    "build": "bun build --compile --bytecode --minify --sourcemap --target=bun-linux-x64 --no-compile-autoload-dotenv ./src/index.ts --outfile=server"
   },
   "devDependencies": {
     "@types/bun": "latest",

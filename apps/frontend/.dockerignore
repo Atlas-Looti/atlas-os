@@ -1,0 +1,18 @@
+# Dependencies & build artifacts
+node_modules/
+.next/
+out/
+
+# Env files — pass via container env vars or --build-arg
+.env
+.env.*
+.env.local
+
+# Dev/editor
+.vscode/
+.idea/
+*.md
+
+# Git
+.git/
+.gitignore

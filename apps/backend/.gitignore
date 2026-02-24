@@ -2,6 +2,10 @@
 /target/
 **/target/
 /node_modules
+/server
+# Compiled backend binary (bun build --compile)
+/apps/backend/server
+/apps/backend/server.map
 # IDE configuration files
 .vscode/
 .idea/

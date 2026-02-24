@@ -7,13 +7,9 @@ import { health } from "./routes/health.ts";
 import { keys } from "./routes/keys.ts";
 import { rpc } from "./routes/atlas-os/rpc.ts";
 import { dex } from "./routes/atlas-os/market/dex/index.ts";
-import { compute, setupComputeUsage } from "./routes/atlas-os/compute/index.ts";
+import { compute } from "./routes/atlas-os/compute/index.ts";
 import { zerox } from "./routes/atlas-os/0x/index.ts";
-import { runMigrations } from "./lib/migrate.ts";
-
-// Run migrations + setup tables before accepting traffic
-await runMigrations();
-await setupComputeUsage();
+import { me } from "./routes/atlas-os/me.ts";
 
 const app = new Hono();
 
@@ -38,6 +34,8 @@ atlasOs.use("/compute/*", apiKeyAuth);
 atlasOs.route("/compute", compute);
 atlasOs.use("/0x/*", apiKeyAuth);
 atlasOs.route("/0x", zerox);
+atlasOs.use("/me", apiKeyAuth);
+atlasOs.route("/me", me);
 
 app.route("/atlas-os", atlasOs);
 
