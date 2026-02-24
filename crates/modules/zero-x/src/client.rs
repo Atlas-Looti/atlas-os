@@ -12,6 +12,12 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
+use alloy::network::EthereumWallet;
+use alloy::primitives::{Address, Bytes, U256};
+use alloy::providers::{Provider, ProviderBuilder};
+use alloy::rpc::types::TransactionRequest;
+use alloy::signers::local::PrivateKeySigner;
+
 /// Atlas backend API sub-route for 0x proxy.
 /// Backend mounts at /atlas-os/0x (see apps/backend index).
 const ZEROX_API_BASE: &str = "/atlas-os/0x";
@@ -236,6 +242,8 @@ pub struct ZeroXModule {
     pub fee_recipient: Option<String>,
     /// Atlas builder fee in bps (default: 1 bps = 0.01%).
     pub fee_bps: u16,
+    /// EVM signer for on-chain execution (None = quote-only mode).
+    signer: Option<PrivateKeySigner>,
 }
 
 /// Parse chain name (e.g. from config) to Chain enum. Falls back to Ethereum if unknown.
@@ -266,6 +274,7 @@ impl ZeroXModule {
             default_slippage_bps: 100,
             fee_recipient: Some(ATLAS_FEE_WALLET.to_string()),
             fee_bps: BUILDER_FEE_BPS,
+            signer: None,
         }
     }
 
@@ -287,6 +296,105 @@ impl ZeroXModule {
         self.fee_recipient = Some(recipient);
         self.fee_bps = bps;
         self
+    }
+
+    /// Set the EVM signer for on-chain swap execution.
+    pub fn with_signer(mut self, signer: PrivateKeySigner) -> Self {
+        self.signer = Some(signer);
+        self
+    }
+
+    /// Get the taker address (signer's address) if available.
+    pub fn taker_address(&self) -> Option<String> {
+        self.signer.as_ref().map(|s| format!("{:?}", s.address()))
+    }
+
+    /// Build the RPC URL for a given chain via the Atlas backend proxy.
+    fn rpc_url(&self, chain: &Chain) -> String {
+        let chain_slug = match chain {
+            Chain::Ethereum => "ethereum",
+            Chain::Arbitrum => "arbitrum",
+            Chain::Base => "base",
+            Chain::HyperliquidL1 => "hyperevm",
+            Chain::Solana => "solana", // won't work, non-EVM
+        };
+        format!("{}/atlas-os/rpc/{}", self.backend_url, chain_slug)
+    }
+
+    /// Build an alloy provider pointing at the Atlas backend RPC proxy.
+    async fn build_provider(
+        &self,
+        chain: &Chain,
+    ) -> AtlasResult<impl Provider> {
+        let signer = self.signer.clone().ok_or_else(|| {
+            AtlasError::Auth("No signer available. Import a wallet first: `atlas profile import`".into())
+        })?;
+
+        let rpc_url: alloy::transports::http::reqwest::Url = self.rpc_url(chain)
+            .parse()
+            .map_err(|e| AtlasError::Other(format!("Invalid RPC URL: {e}")))?;
+
+        let wallet = EthereumWallet::from(signer);
+        let provider = ProviderBuilder::new()
+            .wallet(wallet)
+            .connect_http(rpc_url);
+
+        Ok(provider)
+    }
+
+    /// Approve a spender (AllowanceHolder) to spend an ERC20 token.
+    /// Sends approve(spender, type(uint256).max) so we only need to do this once.
+    async fn approve_token(
+        &self,
+        chain: &Chain,
+        token: &str,
+        spender: &str,
+    ) -> AtlasResult<()> {
+        let provider = self.build_provider(chain).await?;
+
+        let token_addr: Address = token
+            .parse()
+            .map_err(|e| AtlasError::Other(format!("Invalid token address: {e}")))?;
+
+        let spender_addr: Address = spender
+            .parse()
+            .map_err(|e| AtlasError::Other(format!("Invalid spender address: {e}")))?;
+
+        // ERC20 approve(address spender, uint256 amount)
+        // selector: 0x095ea7b3
+        let mut calldata = Vec::with_capacity(68);
+        calldata.extend_from_slice(&hex::decode("095ea7b3").unwrap());
+        // spender address (padded to 32 bytes)
+        calldata.extend_from_slice(&[0u8; 12]);
+        calldata.extend_from_slice(spender_addr.as_slice());
+        // max uint256 (unlimited approval)
+        calldata.extend_from_slice(&[0xff; 32]);
+
+        let tx_req = TransactionRequest::default()
+            .to(token_addr)
+            .input(Bytes::from(calldata).into());
+
+        info!("Sending ERC20 approve tx for {} → {}", token, spender);
+
+        let pending = provider
+            .send_transaction(tx_req)
+            .await
+            .map_err(|e| AtlasError::Network(format!("Failed to send approve tx: {e}")))?;
+
+        let receipt = pending
+            .get_receipt()
+            .await
+            .map_err(|e| AtlasError::Network(format!("Failed to get approve receipt: {e}")))?;
+
+        if !receipt.status() {
+            return Err(AtlasError::Protocol {
+                protocol: "0x".into(),
+                message: format!("Token approval reverted for {}", token),
+            });
+        }
+
+        info!("Token approval confirmed for {}", token);
+        Ok(())
     }
 
     /// GET request to Atlas backend. Sends Authorization when api_key is set.
@@ -511,156 +619,107 @@ impl SwapModule for ZeroXModule {
         })
     }
 
-    async fn swap(&self, _quote: &SwapQuote) -> AtlasResult<String> {
-        // On-chain execution requires signing + broadcasting via Alchemy/RPC
-        // This will be implemented when backend RPC integration is ready
-        Err(AtlasError::Other(
-            "On-chain swap execution requires RPC integration (coming soon)".into(),
-        ))
-    }
-}
+    async fn swap(&self, quote: &SwapQuote) -> AtlasResult<String> {
+        let signer = self.signer.as_ref().ok_or_else(|| {
+            AtlasError::Auth("No signer available. Import a wallet first: `atlas profile import`".into())
+        })?;
+        let taker = format!("{:?}", signer.address());
 
-// ── Trade Analytics Types ───────────────────────────────────────────
+        // 1. Get a firm quote with transaction data
+        let firm = self
+            .firm_quote(
+                &quote.chain,
+                &quote.sell_token,
+                &quote.buy_token,
+                &quote.sell_amount.to_string(),
+                &taker,
+                Some(self.default_slippage_bps),
+            )
+            .await?;
 
-/// Trade Analytics response — completed swap trades.
-#[derive(Deserialize, Serialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct TradeAnalyticsResponse {
-    /// Cursor for next page. `None` means no more pages.
-    pub next_cursor: Option<String>,
-    /// Completed trades.
-    pub trades: Vec<SwapTrade>,
-    /// Request identifier.
-    pub zid: String,
-}
-
-/// A single completed swap trade from 0x Trade Analytics.
-#[derive(Deserialize, Serialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct SwapTrade {
-    /// App that initiated the trade.
-    pub app_name: String,
-    /// Block number.
-    pub block_number: String,
-    /// Token received by taker.
-    pub buy_token: String,
-    /// Amount received (formatted by token decimals).
-    pub buy_amount: Option<String>,
-    /// Chain ID.
-    pub chain_id: u64,
-    /// Chain name.
-    pub chain_name: String,
-    /// Fee breakdown.
-    pub fees: SwapTradeFees,
-    /// Gas consumed.
-    pub gas_used: String,
-    /// Protocol version (0xv4 or Settler).
-    pub protocol_version: String,
-    /// Token spent by taker.
-    pub sell_token: String,
-    /// Amount spent (formatted by token decimals).
-    pub sell_amount: Option<String>,
-    /// Slippage in bps.
-    pub slippage_bps: Option<String>,
-    /// Taker wallet address.
-    pub taker: String,
-    /// Block timestamp (unix seconds).
-    pub timestamp: u64,
-    /// Tokens involved in the trade.
-    pub tokens: Vec<ZeroXRouteToken>,
-    /// Transaction hash.
-    pub transaction_hash: String,
-    /// Trade volume in USD.
-    pub volume_usd: Option<String>,
-    /// 0x request ID that initiated this trade.
-    pub zid: String,
-    /// Service type ("swap").
-    pub service: String,
-}
-
-/// Fee details for a completed trade.
-#[derive(Deserialize, Serialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct SwapTradeFees {
-    pub integrator_fee: Option<SwapTradeFeeItem>,
-    pub zero_ex_fee: Option<SwapTradeFeeItem>,
-}
-
-/// Individual fee item (integrator or 0x).
-#[derive(Deserialize, Serialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct SwapTradeFeeItem {
-    /// Token contract address.
-    pub token: Option<String>,
-    /// Fee amount (formatted by token decimals).
-    pub amount: Option<String>,
-    /// Fee amount in USD.
-    pub amount_usd: Option<String>,
-}
-
-// ── Trade Analytics Implementation ──────────────────────────────────
-
-impl ZeroXModule {
-    /// Get completed swap trades from Trade Analytics API.
-    ///
-    /// - `cursor`: pagination cursor from previous response (`None` for first page)
-    /// - `start_timestamp`: unix seconds, trades on or after this time
-    /// - `end_timestamp`: unix seconds, trades on or before this time
-    ///
-    /// Returns max 200 trades per request. Use `next_cursor` for pagination.
-    pub async fn swap_trades(
-        &self,
-        cursor: Option<&str>,
-        start_timestamp: Option<u64>,
-        end_timestamp: Option<u64>,
-    ) -> AtlasResult<TradeAnalyticsResponse> {
-        let path = format!("{ZEROX_API_BASE}/trade-analytics/swap");
-        let mut query = Vec::new();
-
-        let start_ts;
-        let end_ts;
-
-        if let Some(c) = cursor {
-            query.push(("cursor", c));
-        }
-        if let Some(s) = start_timestamp {
-            start_ts = s.to_string();
-            query.push(("startTimestamp", &start_ts));
-        }
-        if let Some(e) = end_timestamp {
-            end_ts = e.to_string();
-            query.push(("endTimestamp", &end_ts));
+        if !firm.liquidity_available {
+            return Err(AtlasError::Protocol {
+                protocol: "0x".into(),
+                message: "No liquidity available for this swap".into(),
+            });
         }
 
-        let q: Vec<(&str, &str)> = query.iter().map(|(k, v)| (*k, *v)).collect();
-        let val = self.get(&path, &q).await?;
-        serde_json::from_value(val)
-            .map_err(|e| AtlasError::Other(format!("Failed to deserialize trade analytics: {e}")))
-    }
+        let tx_data = firm.transaction.as_ref().ok_or_else(|| {
+            AtlasError::Protocol {
+                protocol: "0x".into(),
+                message: "0x quote did not return transaction data. The pair may not be swappable.".into(),
+            }
+        })?;
 
-    /// Get ALL swap trades by paginating through results.
-    /// Caution: can make many API calls for large time ranges.
-    pub async fn all_swap_trades(
-        &self,
-        start_timestamp: Option<u64>,
-        end_timestamp: Option<u64>,
-    ) -> AtlasResult<Vec<SwapTrade>> {
-        let mut all_trades = Vec::new();
-        let mut cursor: Option<String> = None;
+        // 2. Check if we need token approval (skip for native ETH sells)
+        let is_native = quote.sell_token.to_lowercase() == NATIVE_TOKEN;
+        if !is_native {
+            if let Some(ref issues) = firm.issues {
+                if issues.allowance.is_some() {
+                    // Need to approve the AllowanceHolder to spend our tokens
+                    let spender = firm
+                        .allowance_target
+                        .as_deref()
+                        .unwrap_or(ALLOWANCE_HOLDER_CANCUN);
 
-        loop {
-            let resp = self
-                .swap_trades(cursor.as_deref(), start_timestamp, end_timestamp)
-                .await?;
+                    info!(
+                        "Setting token approval for {} on {}",
+                        quote.sell_token, spender
+                    );
 
-            all_trades.extend(resp.trades);
-
-            match resp.next_cursor {
-                Some(c) if !c.is_empty() => cursor = Some(c),
-                _ => break,
+                    self.approve_token(&quote.chain, &quote.sell_token, spender)
+                        .await?;
+                }
             }
         }
 
-        Ok(all_trades)
+        // 3. Build and send the swap transaction
+        let provider = self.build_provider(&quote.chain).await?;
+
+        let to: Address = tx_data
+            .to
+            .parse()
+            .map_err(|e| AtlasError::Other(format!("Invalid 'to' address: {e}")))?;
+
+        let data_bytes = hex::decode(tx_data.data.strip_prefix("0x").unwrap_or(&tx_data.data))
+            .map_err(|e| AtlasError::Other(format!("Invalid tx calldata: {e}")))?;
+
+        let value = U256::from_str_radix(
+            tx_data.value.strip_prefix("0x").unwrap_or(&tx_data.value),
+            if tx_data.value.starts_with("0x") { 16 } else { 10 },
+        )
+        .unwrap_or(U256::ZERO);
+
+        let tx_req = TransactionRequest::default()
+            .to(to)
+            .input(Bytes::from(data_bytes).into())
+            .value(value);
+
+        info!("Sending swap transaction to {}", tx_data.to);
+
+        let pending = provider
+            .send_transaction(tx_req)
+            .await
+            .map_err(|e| AtlasError::Network(format!("Failed to send swap tx: {e}")))?;
+
+        let tx_hash = format!("{:?}", pending.tx_hash());
+        info!("Swap tx sent: {}", tx_hash);
+
+        // 4. Wait for confirmation
+        let receipt = pending
+            .get_receipt()
+            .await
+            .map_err(|e| AtlasError::Network(format!("Failed to get tx receipt: {e}")))?;
+
+        if !receipt.status() {
+            return Err(AtlasError::Protocol {
+                protocol: "0x".into(),
+                message: format!("Swap transaction reverted: {tx_hash}"),
+            });
+        }
+
+        info!("Swap confirmed: {}", tx_hash);
+        Ok(tx_hash)
     }
 }
+

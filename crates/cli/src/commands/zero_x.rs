@@ -191,63 +191,135 @@ pub async fn sources(chain: &str, fmt: OutputFormat) -> Result<()> {
     Ok(())
 }
 
-/// `atlas zero-x trades [--start <ts>] [--end <ts>]` — trade analytics.
-pub async fn trades(
-    start: Option<u64>,
-    end: Option<u64>,
+/// `atlas zero-x swap <sell_token> <buy_token> <amount> [--chain ethereum] [--yes]`
+pub async fn swap(
+    sell_token: &str,
+    buy_token: &str,
+    amount: &str,
+    chain: &str,
+    slippage_bps: Option<u32>,
+    skip_confirm: bool,
     fmt: OutputFormat,
 ) -> Result<()> {
-    let orch = crate::factory::readonly().await?;
-    let swap = orch.swap(None).map_err(|e| anyhow::anyhow!("{e}"))?;
+    let chain_enum = parse_chain(chain)?;
+    let orch = crate::factory::from_active_profile().await?;
+    let swap_mod = orch.swap(None).map_err(|e| anyhow::anyhow!("{e}"))?;
 
-    let zerox = swap
+    let zerox = swap_mod
         .as_any()
         .downcast_ref::<atlas_zero_x::ZeroXModule>()
         .ok_or_else(|| anyhow::anyhow!("0x module not available"))?;
 
-    let resp = zerox
-        .swap_trades(None, start, end)
-        .await
-        .map_err(|e| {
-            let msg = e.to_string();
-            if msg.contains("404") || msg.contains("Not Found") {
-                anyhow::anyhow!(
-                    "Backend does not implement trade-analytics yet. Swap history will be available when the backend adds this route."
-                )
-            } else {
-                anyhow::anyhow!("{e}")
-            }
-        })?;
+    // 1. Get indicative price first
+    let taker = zerox.taker_address().ok_or_else(|| {
+        anyhow::anyhow!("No wallet loaded. Run: atlas profile import")
+    })?;
 
+    let slippage = slippage_bps.unwrap_or(zerox.default_slippage_bps);
+
+    println!("⏳ Getting swap quote...");
+    let price_resp = zerox
+        .price(&chain_enum, sell_token, buy_token, amount, Some(&taker), Some(slippage))
+        .await
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+
+    if !price_resp.liquidity_available {
+        anyhow::bail!("No liquidity available for this pair on {chain}");
+    }
+
+    let sell_amt = price_resp.sell_amount.as_deref().unwrap_or(amount);
+    let buy_amt = price_resp.buy_amount.as_deref().unwrap_or("?");
+    let min_buy = price_resp.min_buy_amount.as_deref().unwrap_or("?");
+
+    // 2. Show quote and confirm
+    if !skip_confirm {
+        println!("┌─────────────────────────────────────────────────┐");
+        println!("│  0x SWAP — CONFIRM EXECUTION                    │");
+        println!("├─────────────────────────────────────────────────┤");
+        println!("│  Chain         : {:<30} │", chain);
+        println!("│  Sell          : {:<30} │", &sell_token[..sell_token.len().min(30)]);
+        println!("│  Buy           : {:<30} │", &buy_token[..buy_token.len().min(30)]);
+        println!("│  Sell Amount   : {:<30} │", sell_amt);
+        println!("│  Buy Amount    : {:<30} │", buy_amt);
+        println!("│  Min Buy (slip): {:<30} │", min_buy);
+        println!("│  Slippage      : {:<30} │", format!("{} bps", slippage));
+        println!("│  Taker         : {:<30} │", &taker[..taker.len().min(30)]);
+        println!("└─────────────────────────────────────────────────┘");
+
+        // Show issues
+        if let Some(ref issues) = price_resp.issues {
+            if let Some(ref allowance) = issues.allowance {
+                println!("  ⚠ Token approval needed (spender: {})", &allowance.spender[..allowance.spender.len().min(42)]);
+            }
+            if let Some(ref balance) = issues.balance {
+                println!("  ⚠ Insufficient balance (need: {}, have: {})", balance.expected, balance.actual);
+            }
+        }
+
+        print!("\nExecute this swap? (y/N): ");
+        use std::io::Write;
+        std::io::stdout().flush()?;
+        let mut input = String::new();
+        std::io::stdin().read_line(&mut input)?;
+        if !input.trim().eq_ignore_ascii_case("y") {
+            println!("Swap cancelled.");
+            return Ok(());
+        }
+    }
+
+    // 3. Execute the swap via SwapModule trait
+    println!("⏳ Executing swap on-chain...");
+
+    let sell_dec: rust_decimal::Decimal = amount.parse()
+        .map_err(|_| anyhow::anyhow!("Invalid amount: {amount}"))?;
+
+    // Build a SwapQuote for the trait's swap() method
+    let quote = atlas_core::types::SwapQuote {
+        protocol: atlas_core::types::Protocol::ZeroX,
+        chain: chain_enum,
+        sell_token: sell_token.to_string(),
+        buy_token: buy_token.to_string(),
+        sell_amount: sell_dec,
+        buy_amount: buy_amt.parse().unwrap_or(rust_decimal::Decimal::ZERO),
+        estimated_gas: None,
+        price: rust_decimal::Decimal::ZERO,
+        allowance_target: price_resp.allowance_target.clone(),
+        tx_data: None, // swap() gets its own firm quote internally
+    };
+
+    let tx_hash = swap_mod
+        .swap(&quote)
+        .await
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+
+    // 4. Output result
     match fmt {
         OutputFormat::Json | OutputFormat::JsonPretty => {
+            let json = serde_json::json!({
+                "ok": true,
+                "data": {
+                    "tx_hash": tx_hash,
+                    "chain": chain,
+                    "sell_token": sell_token,
+                    "buy_token": buy_token,
+                    "sell_amount": sell_amt,
+                    "buy_amount": buy_amt,
+                    "status": "confirmed"
+                }
+            });
             let s = if matches!(fmt, OutputFormat::JsonPretty) {
-                serde_json::to_string_pretty(&resp)?
+                serde_json::to_string_pretty(&json)?
             } else {
-                serde_json::to_string(&resp)?
+                serde_json::to_string(&json)?
             };
             println!("{s}");
         }
         OutputFormat::Table => {
-            if resp.trades.is_empty() {
-                println!("No completed swap trades found.");
-                return Ok(());
-            }
-            println!("{:<12} {:<10} {:<44} {:<15} APP", "CHAIN", "VOLUME", "TX HASH", "TAKER");
-            println!("{}", "─".repeat(95));
-            for t in &resp.trades {
-                let vol = t.volume_usd.as_deref().unwrap_or("—");
-                let taker_short = if t.taker.len() > 12 {
-                    format!("{}..{}", &t.taker[..6], &t.taker[t.taker.len()-4..])
-                } else {
-                    t.taker.clone()
-                };
-                println!(
-                    "{:<12} ${:<9} {:<44} {:<15} {}",
-                    t.chain_name, vol, t.transaction_hash, taker_short, t.app_name
-                );
-            }
-            println!("\nTotal: {} trades", resp.trades.len());
+            println!("✅ Swap executed successfully!");
+            println!("   TX Hash: {tx_hash}");
+            println!("   Chain: {chain}");
+            println!("   Sold: {sell_amt} of {}", &sell_token[..sell_token.len().min(20)]);
+            println!("   Bought: ~{buy_amt} of {}", &buy_token[..buy_token.len().min(20)]);
         }
     }
 

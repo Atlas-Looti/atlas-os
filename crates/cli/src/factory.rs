@@ -22,7 +22,7 @@ pub async fn from_config(
     // ── Hyperliquid (perp) ──────────────────────────────────
     if config.modules.hyperliquid.enabled {
         let testnet = config.modules.hyperliquid.config.network == "testnet";
-        let hl = match signer {
+        let hl = match signer.clone() {
             Some(s) => atlas_hl::client::HyperliquidModule::new(s, testnet).await,
             None => atlas_hl::client::HyperliquidModule::new_readonly(testnet).await,
         }
@@ -37,9 +37,15 @@ pub async fn from_config(
         let default_chain =
             atlas_zero_x::parse_chain(&config.modules.zero_x.config.default_chain);
         let default_slippage_bps = config.modules.zero_x.config.default_slippage_bps;
-        let zero_x = atlas_zero_x::client::ZeroXModule::new(backend_url)
+        let mut zero_x = atlas_zero_x::client::ZeroXModule::new(backend_url)
             .with_api_key(config.system.api_key.clone())
             .with_defaults(default_chain, default_slippage_bps);
+
+        // Pass signer for on-chain execution (same wallet as HL)
+        if let Some(ref s) = signer {
+            zero_x = zero_x.with_signer(s.clone());
+        }
+
         orch.add_swap(Arc::new(zero_x));
         info!("0x swap module loaded");
     }

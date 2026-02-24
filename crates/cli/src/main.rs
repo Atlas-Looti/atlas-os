@@ -668,21 +668,30 @@ enum ZeroXAction {
         #[arg(long)]
         slippage: Option<u32>,
     },
+    /// Execute a swap on-chain (quote → approve → sign → broadcast).
+    Swap {
+        /// Sell token contract address.
+        sell_token: String,
+        /// Buy token contract address.
+        buy_token: String,
+        /// Amount to sell (in base units / wei).
+        amount: String,
+        /// Chain to swap on (ethereum, arbitrum, base).
+        #[arg(long, default_value = "ethereum")]
+        chain: String,
+        /// Max slippage in basis points (default 100 = 1%).
+        #[arg(long)]
+        slippage: Option<u32>,
+        /// Skip confirmation prompt.
+        #[arg(long)]
+        yes: bool,
+    },
     /// List chains supported by 0x.
     Chains,
     /// List liquidity sources on a chain.
     Sources {
         #[arg(long, default_value = "ethereum")]
         chain: String,
-    },
-    /// View completed swap trade analytics.
-    Trades {
-        /// Start timestamp (unix seconds).
-        #[arg(long)]
-        start: Option<u64>,
-        /// End timestamp (unix seconds).
-        #[arg(long)]
-        end: Option<u64>,
     },
 }
 
@@ -1283,8 +1292,18 @@ async fn run(command: Commands, fmt: OutputFormat) -> Result<()> {
                 }
                 ZeroXAction::Chains => commands::zero_x::chains(fmt).await,
                 ZeroXAction::Sources { chain } => commands::zero_x::sources(&chain, fmt).await,
-                ZeroXAction::Trades { start, end } => {
-                    commands::zero_x::trades(start, end, fmt).await
+                ZeroXAction::Swap {
+                    sell_token,
+                    buy_token,
+                    amount,
+                    chain,
+                    slippage,
+                    yes,
+                } => {
+                    commands::zero_x::swap(
+                        &sell_token, &buy_token, &amount, &chain, slippage, yes, fmt,
+                    )
+                    .await
                 }
             }
         }

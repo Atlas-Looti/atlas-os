@@ -1147,8 +1147,11 @@ dependencies = [
 name = "atlas-0x"
 version = "0.1.0"
 dependencies = [
+ "alloy",
+ "anyhow",
  "async-trait",
  "atlas-core",
+ "hex",
  "reqwest 0.12.28",
  "rust_decimal",
  "serde",

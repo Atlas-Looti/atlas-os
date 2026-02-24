@@ -14,3 +14,12 @@ serde_json = { workspace = true }
 reqwest = { workspace = true }
 tracing = { workspace = true }
 rust_decimal = { workspace = true }
+anyhow = { workspace = true }
+hex = { workspace = true }
+alloy = { workspace = true, features = [
+    "providers",
+    "network",
+    "rpc-types-eth",
+    "transport-http",
+    "contract",
+] }
