@@ -1,0 +1,73 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/types",
+    "crates/utils",
+    "crates/core",
+    "crates/cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[workspace.dependencies]
+# Internal crates
+atlas-types = { path = "crates/types" }
+atlas-utils = { path = "crates/utils" }
+atlas-core = { path = "crates/core" }
+
+# Async
+tokio = { version = "1", features = ["full"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+
+# CLI & TUI
+clap = { version = "4", features = ["derive"] }
+ratatui = "0.29"
+crossterm = "0.28"
+
+# Security
+keyring = { version = "3", features = ["sync-secret-service", "crypto-rust"] }
+
+# Filesystem
+dirs = "5"
+
+# Error handling
+anyhow = "1"
+thiserror = "2"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# EVM / Crypto (alloy — same as hyperliquid SDK)
+alloy = { version = "1.0", default-features = false, features = ["dyn-abi", "sol-types", "signer-local"] }
+hex = "0.4"
+rand = "0.8"
+
+# Time
+chrono = "0.4"
+
+# UUID (for client order IDs)
+uuid = { version = "1", features = ["v4"] }
+
+# Hyperliquid SDK (infinitefield — professional, rust_decimal-native)
+hypersdk = { path = "../hypersdk" }
+
+# Decimal precision (required by hypersdk)
+rust_decimal = { version = "1", features = ["serde-with-str"] }
+
+# HTTP (for builder fee injection)
+reqwest = { version = "0.12", features = ["json"] }
+url = "2"
+
+# Futures (for hypersdk async traits)
+futures = "0.3"
+
+# MessagePack serialization (for Hyperliquid action signing)
+rmp-serde = "1"
