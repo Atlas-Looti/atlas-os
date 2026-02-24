@@ -5,6 +5,7 @@
 
 use async_trait::async_trait;
 use rust_decimal::Decimal;
+use serde::{Serialize, Deserialize};
 
 use crate::error::AtlasResult;
 use crate::types::*;
@@ -118,32 +119,16 @@ pub trait LendingModule: Send + Sync {
     async fn positions(&self, user: &str) -> AtlasResult<Vec<LendingPosition>>;
 
     /// Supply collateral.
-    async fn supply(
-        &self,
-        market_id: &str,
-        amount: Decimal,
-    ) -> AtlasResult<String>;
+    async fn supply(&self, market_id: &str, amount: Decimal) -> AtlasResult<String>;
 
     /// Withdraw collateral.
-    async fn withdraw(
-        &self,
-        market_id: &str,
-        amount: Decimal,
-    ) -> AtlasResult<String>;
+    async fn withdraw(&self, market_id: &str, amount: Decimal) -> AtlasResult<String>;
 
     /// Borrow.
-    async fn borrow(
-        &self,
-        market_id: &str,
-        amount: Decimal,
-    ) -> AtlasResult<String>;
+    async fn borrow(&self, market_id: &str, amount: Decimal) -> AtlasResult<String>;
 
     /// Repay.
-    async fn repay(
-        &self,
-        market_id: &str,
-        amount: Decimal,
-    ) -> AtlasResult<String>;
+    async fn repay(&self, market_id: &str, amount: Decimal) -> AtlasResult<String>;
 }
 
 /// Lending market info.
@@ -175,5 +160,3 @@ pub struct LendingPosition {
     pub borrowed: Decimal,
     pub health_factor: Option<Decimal>,
 }
-
-use serde::{Serialize, Deserialize};
