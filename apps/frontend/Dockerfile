@@ -3,8 +3,7 @@ FROM oven/bun:1 AS deps
 WORKDIR /app
 
 COPY package.json bun.lock* ./
-RUN --mount=type=cache,id=bun-frontend,target=/root/.bun/install/cache \
-    bun install --frozen-lockfile
+RUN bun install --frozen-lockfile
 
 # ── Stage 2: Build Next.js ───────────────────────────────────────────────────
 FROM oven/bun:1 AS builder
