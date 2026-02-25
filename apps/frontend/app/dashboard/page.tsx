@@ -21,7 +21,7 @@ import {
     CardContent,
 } from "@/components/ui/card";
 
-const API_BASE = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001";
+const API_BASE = (process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001").replace(/\/+$/, "");
 
 interface ApiKey {
     id: string;
