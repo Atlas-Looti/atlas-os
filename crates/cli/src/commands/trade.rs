@@ -303,7 +303,11 @@ pub async fn list_positions(fmt: OutputFormat) -> Result<()> {
         .iter()
         .map(|p| PositionRow {
             coin: p.symbol.clone(),
-            side: if p.size > rust_decimal::Decimal::ZERO { "long".into() } else { "short".into() },
+            side: if p.size > rust_decimal::Decimal::ZERO {
+                "long".into()
+            } else {
+                "short".into()
+            },
             size: p.size.to_string(),
             entry_price: p.entry_price.map(|e| e.to_string()),
             mark_price: p.mark_price.map(|m| m.to_string()),

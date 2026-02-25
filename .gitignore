@@ -1,7 +1,7 @@
 # Rust build artifacts
 /target/
 **/target/
-
+/node_modules
 # IDE configuration files
 .vscode/
 .idea/
@@ -23,7 +23,9 @@ Thumbs.db
 # Atlas OS data
 .atlas-os/
 keystore/
-/crates/cli/target/
-/apps/backend/target/
-/apps/frontend/.next/
-/apps/frontend/node_modules/
+
+# Node / Bun (apps managed separately)
+node_modules/
+.next/
+bun.lock
+package.json

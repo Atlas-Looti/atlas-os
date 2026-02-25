@@ -54,7 +54,6 @@ pub struct SwapPopup {
     pub status: Option<String>,
 }
 
-
 /// All data the TUI needs to render — fetched from Hyperliquid via Engine.
 pub struct App {
     /// Active tab index.
@@ -552,7 +551,7 @@ impl App {
         let sell_amount = self.swap_popup.sell_amount.value();
 
         self.swap_popup.status = Some("Executing swap...".into());
-        // We clone inputs because `self` will be borrowed through `do_swap` 
+        // We clone inputs because `self` will be borrowed through `do_swap`
         match self.do_swap(sell_token, buy_token, sell_amount).await {
             Ok(hash) => {
                 self.swap_popup.status = Some(format!("Swap sent: {hash}"));
@@ -564,24 +563,32 @@ impl App {
         }
     }
 
-    async fn do_swap(&self, sell_token: &str, buy_token: &str, amount: &str) -> anyhow::Result<String> {
+    async fn do_swap(
+        &self,
+        sell_token: &str,
+        buy_token: &str,
+        amount: &str,
+    ) -> anyhow::Result<String> {
         let orch = crate::factory::from_active_profile().await?;
         let swap_mod = orch.swap(None).map_err(|e| anyhow::anyhow!("{e}"))?;
-        
+
         let zerox = swap_mod
             .as_any()
             .downcast_ref::<atlas_zero_x::ZeroXModule>()
             .ok_or_else(|| anyhow::anyhow!("0x module not available"))?;
 
         let taker = zerox.taker_address().unwrap_or_default();
-        let price_resp = zerox.price(
-            &atlas_core::types::Chain::Arbitrum, 
-            sell_token,
-            buy_token,
-            amount,
-            Some(&taker),
-            Some(50), 
-        ).await.map_err(|e| anyhow::anyhow!("{e}"))?;
+        let price_resp = zerox
+            .price(
+                &atlas_core::types::Chain::Arbitrum,
+                sell_token,
+                buy_token,
+                amount,
+                Some(&taker),
+                Some(50),
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
 
         if !price_resp.liquidity_available {
             anyhow::bail!("No liquidity");
@@ -593,18 +600,25 @@ impl App {
 
         let quote = atlas_core::types::SwapQuote {
             protocol: atlas_core::types::Protocol::ZeroX,
-            chain: atlas_core::types::Chain::Arbitrum, 
+            chain: atlas_core::types::Chain::Arbitrum,
             sell_token: sell_token.to_string(),
             buy_token: buy_token.to_string(),
             sell_amount: sell_dec,
-            buy_amount: price_resp.buy_amount.unwrap_or_default().parse().unwrap_or_default(),
+            buy_amount: price_resp
+                .buy_amount
+                .unwrap_or_default()
+                .parse()
+                .unwrap_or_default(),
             estimated_gas: None,
             price: rust_decimal::Decimal::ZERO,
             allowance_target: price_resp.allowance_target,
             tx_data: None,
         };
 
-        let tx_hash = swap_mod.swap(&quote).await.map_err(|e| anyhow::anyhow!("{e}"))?;
+        let tx_hash = swap_mod
+            .swap(&quote)
+            .await
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
         Ok(tx_hash)
     }
 }

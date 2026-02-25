@@ -1,0 +1,192 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v0.2.0)"
+        required: true
+        type: string
+
+env:
+  CARGO_TERM_COLOR: always
+  BINARY_NAME: atlas
+
+permissions:
+  contents: write
+
+jobs:
+  # ── Extract version info ──────────────────────────────────────────
+  meta:
+    name: Release Metadata
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - name: Extract version
+        id: meta
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="${{ github.ref_name }}"
+          fi
+          # Validate tag format
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            echo "::error::Invalid tag format '$TAG'. Expected v<major>.<minor>.<patch>"
+            exit 1
+          fi
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Release: $TAG (version $VERSION)"
+
+  # ── Run tests before releasing ────────────────────────────────────
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --workspace
+
+  # ── Build matrix ──────────────────────────────────────────────────
+  build:
+    name: Build ${{ matrix.name }}
+    needs: [meta, test]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            name: linux-x86_64
+            cross: false
+
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            name: linux-aarch64
+            cross: true
+
+          - target: x86_64-apple-darwin
+            os: macos-13
+            name: macos-x86_64
+            cross: false
+
+          - target: aarch64-apple-darwin
+            os: macos-14
+            name: macos-aarch64
+            cross: false
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.target }}
+
+      # Cross-compile aarch64 Linux using cross (Docker-based)
+      - name: Install cross
+        if: matrix.cross
+        run: |
+          curl -fsSL https://github.com/cross-rs/cross/releases/latest/download/cross-x86_64-unknown-linux-gnu.tar.gz \
+            | tar xz -C /usr/local/bin
+          cross --version
+
+      - name: Build (native)
+        if: "!matrix.cross"
+        run: cargo build --release -p atlas-cli --target ${{ matrix.target }}
+
+      - name: Build (cross)
+        if: matrix.cross
+        run: cross build --release -p atlas-cli --target ${{ matrix.target }}
+
+      - name: Package
+        run: |
+          cd target/${{ matrix.target }}/release
+          tar czf ../../../atlas-${{ matrix.name }}.tar.gz ${{ env.BINARY_NAME }}
+          cd ../../..
+          shasum -a 256 atlas-${{ matrix.name }}.tar.gz > atlas-${{ matrix.name }}.tar.gz.sha256
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-${{ matrix.name }}
+          path: |
+            atlas-${{ matrix.name }}.tar.gz
+            atlas-${{ matrix.name }}.tar.gz.sha256
+
+  # ── Windows build (separate because of .exe / .zip) ──────────────
+  build-windows:
+    name: Build windows-x86_64
+    needs: [meta, test]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-windows
+
+      - name: Build
+        run: cargo build --release -p atlas-cli --target x86_64-pc-windows-msvc
+
+      - name: Package
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "target/x86_64-pc-windows-msvc/release/atlas.exe" -DestinationPath "atlas-windows-x86_64.zip"
+          Get-FileHash -Algorithm SHA256 "atlas-windows-x86_64.zip" | ForEach-Object { "$($_.Hash.ToLower())  atlas-windows-x86_64.zip" } | Out-File -Encoding ascii "atlas-windows-x86_64.zip.sha256"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-windows-x86_64
+          path: |
+            atlas-windows-x86_64.zip
+            atlas-windows-x86_64.zip.sha256
+
+  # ── Create GitHub Release ─────────────────────────────────────────
+  release:
+    name: Publish Release
+    needs: [meta, build, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -lhR artifacts/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.meta.outputs.tag }}
+          name: Atlas OS ${{ needs.meta.outputs.version }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            artifacts/atlas-*.tar.gz
+            artifacts/atlas-*.tar.gz.sha256
+            artifacts/atlas-*.zip
+            artifacts/atlas-*.zip.sha256

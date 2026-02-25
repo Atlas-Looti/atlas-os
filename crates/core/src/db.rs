@@ -488,7 +488,7 @@ mod tests {
             closed_pnl: "0".into(),
         };
 
-        let inserted1 = db.insert_fills(&[fill.clone()]).unwrap();
+        let inserted1 = db.insert_fills(std::slice::from_ref(&fill)).unwrap();
         assert_eq!(inserted1, 1);
 
         // Insert same hash again — should be ignored
@@ -647,8 +647,6 @@ mod tests {
         let val = db.get_sync_state("last_fill_sync").unwrap();
         assert_eq!(val.as_deref(), Some("1700000001000"));
     }
-
-    use super::*;
 
     #[test]
     fn test_fill_filter_default() {

@@ -196,8 +196,9 @@ mod tests {
     #[test]
     fn test_builder_fee_reasonable() {
         // Fee should be between 1 and 100 bps
-        assert!(BUILDER_FEE_BPS >= 1);
-        assert!(BUILDER_FEE_BPS <= 100);
+        let fee = BUILDER_FEE_BPS;
+        assert!(fee >= 1);
+        assert!(fee <= 100);
     }
 
     #[test]

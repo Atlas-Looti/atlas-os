@@ -30,7 +30,11 @@ pub fn order_result_to_output(r: &crate::types::OrderResult) -> crate::output::O
     crate::output::OrderResultOutput {
         oid: r.order_id.parse().unwrap_or(0),
         coin: r.coin.clone().unwrap_or_default(),
-        side: r.side.as_ref().map(|s| format!("{s:?}").to_lowercase()).unwrap_or_default(),
+        side: r
+            .side
+            .as_ref()
+            .map(|s| format!("{s:?}").to_lowercase())
+            .unwrap_or_default(),
         status: format!("{:?}", r.status).to_lowercase(),
         total_sz: r.filled_size.map(|s| s.to_string()),
         avg_px: r.avg_price.map(|p| p.to_string()),

@@ -1,63 +1,64 @@
 .PHONY: all build check test ci install fmt clippy clean run
 
-# Default target shows help
+# Default target
 all: help
 
-# Show available commands
 help:
-	@echo "Atlas OS Makefile"
+	@echo "Atlas OS"
 	@echo ""
-	@echo "Available commands:"
-	@echo "  make help       - Show this help message"
-	@echo "  make build      - Build the entire workspace"
-	@echo "  make check      - Check compilation without producing binaries"
-	@echo "  make test       - Run all tests in the workspace"
-	@echo "  make fmt        - Run code formatter"
-	@echo "  make clippy     - Run linter on all targets and features"
-	@echo "  make ci         - Run CI tasks (fmt, clippy, test)"
-	@echo "  make install    - Install the 'atlas' CLI binary to your system (~/.cargo/bin)"
-	@echo "  make update     - Build and reinstall the CLI locally"
-	@echo "  make run        - Run the CLI locally for development"
-	@echo "  make clean      - Clean build artifacts"
-	@echo "  make uninstall  - Uninstall the 'atlas-cli' binary from your system"
+	@echo "  make build      Build workspace (debug)"
+	@echo "  make release    Build workspace (release)"
+	@echo "  make check      Type-check without building"
+	@echo "  make test       Run all tests"
+	@echo "  make fmt        Format code"
+	@echo "  make clippy     Lint with clippy"
+	@echo "  make ci         Full CI pipeline (fmt check + clippy + test)"
+	@echo "  make install    Install atlas binary to ~/.cargo/bin"
+	@echo "  make uninstall  Remove atlas binary"
+	@echo "  make clean      Clean build artifacts"
 	@echo ""
 
+# ── Build ──────────────────────────────────────────────────────────
 
-# Build the entire workspace
 build:
 	cargo build --workspace
 
-# Check compilation without producing binaries (faster than build)
+release:
+	cargo build --workspace --release
+
 check:
 	cargo check --workspace
 
-# Run all tests in the workspace
+# ── Quality ────────────────────────────────────────────────────────
+
 test:
 	cargo test --workspace
 
-# Run code formatter
 fmt:
 	cargo fmt --all
 
-# Run linter (Clippy) on all targets and features
+fmt-check:
+	cargo fmt --all -- --check
+
 clippy:
-	cargo clippy --workspace --all-targets --all-features
+	cargo clippy --workspace --all-targets --all-features -- -D warnings
 
-# Run continuous integration tasks (formatting, linting, testing)
-ci: fmt clippy test
+# ── CI (matches GitHub Actions) ────────────────────────────────────
 
-# Install the `atlas` CLI binary to your system (~/.cargo/bin)
+ci: fmt-check clippy test
+
+# ── Install / Run ──────────────────────────────────────────────────
+
 install:
 	cargo install --path crates/cli --locked --force
 
-# Convenient command to run the CLI locally for development
+uninstall:
+	-cargo uninstall atlas-cli
+
 run:
 	cargo run -p atlas-cli --
 
-# Clean build artifacts
+# ── Cleanup ────────────────────────────────────────────────────────
+
 clean:
 	cargo clean
-
-# Uninstall the CLI binary
-uninstall:
-	cargo uninstall atlas-cli || true

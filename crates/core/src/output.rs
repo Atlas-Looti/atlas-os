@@ -1717,8 +1717,6 @@ mod tests {
         assert!(json.contains("\"format\":\"csv\""));
     }
 
-    use super::*;
-
     #[test]
     fn test_render_json() {
         let data = OrdersOutput { orders: vec![] };

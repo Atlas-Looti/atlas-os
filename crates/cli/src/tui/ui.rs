@@ -699,10 +699,38 @@ fn render_trade_popup(frame: &mut Frame, app: &App, area: Rect) {
     };
 
     let tp = &app.trade_popup;
-    frame.render_widget(Paragraph::new(mk_line("Coin", tp.coin.value(), matches!(tp.focus, TradeFocus::Coin))), layout[0]);
-    frame.render_widget(Paragraph::new(mk_line("Size", tp.size.value(), matches!(tp.focus, TradeFocus::Size))), layout[1]);
-    frame.render_widget(Paragraph::new(mk_line("Price", tp.price.value(), matches!(tp.focus, TradeFocus::Price))), layout[2]);
-    frame.render_widget(Paragraph::new(mk_line("Side", tp.side.value(), matches!(tp.focus, TradeFocus::Side))), layout[3]);
+    frame.render_widget(
+        Paragraph::new(mk_line(
+            "Coin",
+            tp.coin.value(),
+            matches!(tp.focus, TradeFocus::Coin),
+        )),
+        layout[0],
+    );
+    frame.render_widget(
+        Paragraph::new(mk_line(
+            "Size",
+            tp.size.value(),
+            matches!(tp.focus, TradeFocus::Size),
+        )),
+        layout[1],
+    );
+    frame.render_widget(
+        Paragraph::new(mk_line(
+            "Price",
+            tp.price.value(),
+            matches!(tp.focus, TradeFocus::Price),
+        )),
+        layout[2],
+    );
+    frame.render_widget(
+        Paragraph::new(mk_line(
+            "Side",
+            tp.side.value(),
+            matches!(tp.focus, TradeFocus::Side),
+        )),
+        layout[3],
+    );
 
     let status_txt = if let Some(ref s) = tp.status {
         Span::styled(format!(" {s} "), Style::default().fg(YELLOW))
@@ -753,9 +781,30 @@ fn render_swap_popup(frame: &mut Frame, app: &App, area: Rect) {
     };
 
     let sp = &app.swap_popup;
-    frame.render_widget(Paragraph::new(mk_line("Sell", sp.sell_token.value(), matches!(sp.focus, SwapFocus::SellToken))), layout[0]);
-    frame.render_widget(Paragraph::new(mk_line("Buy", sp.buy_token.value(), matches!(sp.focus, SwapFocus::BuyToken))), layout[1]);
-    frame.render_widget(Paragraph::new(mk_line("Amount", sp.sell_amount.value(), matches!(sp.focus, SwapFocus::SellAmount))), layout[2]);
+    frame.render_widget(
+        Paragraph::new(mk_line(
+            "Sell",
+            sp.sell_token.value(),
+            matches!(sp.focus, SwapFocus::SellToken),
+        )),
+        layout[0],
+    );
+    frame.render_widget(
+        Paragraph::new(mk_line(
+            "Buy",
+            sp.buy_token.value(),
+            matches!(sp.focus, SwapFocus::BuyToken),
+        )),
+        layout[1],
+    );
+    frame.render_widget(
+        Paragraph::new(mk_line(
+            "Amount",
+            sp.sell_amount.value(),
+            matches!(sp.focus, SwapFocus::SellAmount),
+        )),
+        layout[2],
+    );
 
     let status_txt = if let Some(ref s) = sp.status {
         Span::styled(format!(" {s} "), Style::default().fg(YELLOW))
