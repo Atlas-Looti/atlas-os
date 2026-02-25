@@ -1,8 +1,5 @@
-# Dependencies
+# Dependencies & build output
 node_modules/
-
-# Build output
-dist/
 server
 server.map
 
@@ -10,15 +7,15 @@ server.map
 *.test.ts
 *.spec.ts
 
-# Env files — inject via container env vars instead
+# Env files — inject via container env vars
 .env
 .env.*
 
-# Editor
+# Editor & misc
 .vscode/
 .idea/
-
-# Misc
 *.md
 .git/
 .gitignore
+Dockerfile
+.dockerignore

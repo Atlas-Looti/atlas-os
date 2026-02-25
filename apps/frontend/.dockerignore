@@ -3,7 +3,7 @@ node_modules/
 .next/
 out/
 
-# Env files — pass via container env vars or --build-arg
+# Env files — pass via Railway service variables
 .env
 .env.*
 .env.local
@@ -13,6 +13,8 @@ out/
 .idea/
 *.md
 
-# Git
+# Git & Docker meta
 .git/
 .gitignore
+Dockerfile
+.dockerignore
